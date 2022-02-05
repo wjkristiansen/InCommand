@@ -12,7 +12,7 @@ TEST(InCommand, BasicParams)
     };
     int argc = _countof(argv);
 
-    CInCommandParser Parser;
+    InCommand::CCommandScope Parser;
     auto &IsRealParam = Parser.DeclareSwitchParameter("is-real");
     auto &NameParam = Parser.DeclareVariableParameter("name", "Fred");
     const char *options[] = { "red", "green", "blue" };
@@ -36,7 +36,7 @@ TEST(InCommand, NonKeyedParams)
     };
     int argc = _countof(argv);
 
-    CInCommandParser Parser;
+    InCommand::CCommandScope Parser;
     auto& File1 = Parser.DeclareNonKeyedParameter("file1");
     auto& File2 = Parser.DeclareNonKeyedParameter("file2");
     auto& File3 = Parser.DeclareNonKeyedParameter("file3");
