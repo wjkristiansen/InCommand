@@ -24,3 +24,28 @@ TEST(InCommand, BasicParams)
     EXPECT_EQ(NameParam.GetValueAsString(), std::string("Fred"));
     EXPECT_EQ(ColorParam.GetValueAsString(), std::string("red"));
 }
+
+TEST(InCommand, NonKeyedParams)
+{
+    const char* argv[] =
+    {
+        "myfile1.txt",
+        "--some-switch",
+        "myfile2.txt",
+        "myfile3.txt",
+    };
+    int argc = _countof(argv);
+
+    CInCommandParser Parser;
+    auto& File1 = Parser.DeclareNonKeyedParameter("file1");
+    auto& File2 = Parser.DeclareNonKeyedParameter("file2");
+    auto& File3 = Parser.DeclareNonKeyedParameter("file3");
+    auto& Switch = Parser.DeclareSwitchParameter("some-switch");
+
+    Parser.ParseParameterArguments(argc, argv);
+
+    EXPECT_EQ(Switch.IsPresent(), true);
+    EXPECT_EQ(File1.GetValueAsString(), std::string(argv[0]));
+    EXPECT_EQ(File2.GetValueAsString(), std::string(argv[2]));
+    EXPECT_EQ(File3.GetValueAsString(), std::string(argv[3]));
+}

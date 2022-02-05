@@ -2,16 +2,19 @@
 
 #include "InCommand.h"
 
+//------------------------------------------------------------------------------------------------
 CInCommandParser::CInCommandParser() :
 	m_Prefix("--")
 {
 }
 
+//------------------------------------------------------------------------------------------------
 void CInCommandParser::SetPrefix(const char* prefix)
 {
 	m_Prefix = prefix;
 }
 
+//------------------------------------------------------------------------------------------------
 int CInCommandParser::ParseParameterArguments(int argc, const char* argv[])
 {
 	if (argc == 0)
@@ -28,18 +31,22 @@ int CInCommandParser::ParseParameterArguments(int argc, const char* argv[])
 		auto it = m_Parameters.find(argv[i]);
 		if (it == m_Parameters.end())
 		{
-			//// Add to the anonymous parameters
-			//if (m_AnonymousParameters.size() < m_MaxAnonymousParameters)
-			//{
-			//	m_AnonymousParameters.push_back(argv[])
-			//}
+			if (m_NumPresentNonKeyed == m_NonKeyedParameters.size())
+				throw std::exception("Unexpected argument");
+
+			i += m_NonKeyedParameters[m_NumPresentNonKeyed]->ParseArgs(argc - i, argv + i);
+			m_NumPresentNonKeyed++;
 		}
-		i += it->second->ParseArgs(argc - i, argv + i);
+		else
+		{
+			i += it->second->ParseArgs(argc - i, argv + i);
+		}
 	}
 
-	return 0;
+	return argc;
 }
 
+//------------------------------------------------------------------------------------------------
 const CParameter& CInCommandParser::GetParameter(const char* name) const
 {
 	std::string key = m_Prefix + name;
@@ -50,6 +57,7 @@ const CParameter& CInCommandParser::GetParameter(const char* name) const
 	return *it->second;
 }
 
+//------------------------------------------------------------------------------------------------
 CInCommandParser& CInCommandParser::DeclareSubcommand(const char* name)
 {
 	auto it = m_Subcommands.find(name);
@@ -60,6 +68,7 @@ CInCommandParser& CInCommandParser::DeclareSubcommand(const char* name)
 	return *result.first->second;
 }
 
+//------------------------------------------------------------------------------------------------
 const CParameter &CInCommandParser::DeclareSwitchParameter(const char* name)
 {
 	std::string key = m_Prefix + name;
@@ -67,10 +76,11 @@ const CParameter &CInCommandParser::DeclareSwitchParameter(const char* name)
 	if (it != m_Parameters.end())
 		throw(std::exception("Duplicate parameter"));
 
-	auto insert = m_Parameters.emplace(key, std::make_unique< CSwitchParameter>(name, nullptr));
+	auto insert = m_Parameters.emplace(key, std::make_unique<CSwitchParameter>(name, nullptr));
 	return *insert.first->second;
 }
 
+//------------------------------------------------------------------------------------------------
 const CParameter &CInCommandParser::DeclareVariableParameter(const char* name, const char* defaultValue)
 {
 	std::string key = m_Prefix + name;
@@ -78,10 +88,11 @@ const CParameter &CInCommandParser::DeclareVariableParameter(const char* name, c
 	if (it != m_Parameters.end())
 		throw(std::exception("Duplicate parameter"));
 
-	auto insert = m_Parameters.emplace(key, std::make_unique< CVariableParameter>(name, defaultValue, nullptr));
+	auto insert = m_Parameters.emplace(key, std::make_unique<CVariableParameter>(name, defaultValue, nullptr));
 	return *insert.first->second;
 }
 
+//------------------------------------------------------------------------------------------------
 const CParameter &CInCommandParser::DeclareOptionsVariableParameter(const char* name, int numOptionValues, const char* optionValues[], int defaultOptionIndex)
 {
 	std::string key = m_Prefix + name;
@@ -89,6 +100,13 @@ const CParameter &CInCommandParser::DeclareOptionsVariableParameter(const char* 
 	if (it != m_Parameters.end())
 		throw(std::exception("Duplicate parameter"));
 
-	auto insert = m_Parameters.emplace(key, std::make_unique< COptionsVariableParameter>(name, numOptionValues, optionValues, defaultOptionIndex, nullptr));
+	auto insert = m_Parameters.emplace(key, std::make_unique<CVariableParameter>(name, numOptionValues, optionValues, defaultOptionIndex, nullptr));
 	return *insert.first->second;
+}
+
+//------------------------------------------------------------------------------------------------
+const CParameter& CInCommandParser::DeclareNonKeyedParameter(const char* name)
+{
+	m_NonKeyedParameters.push_back(std::make_unique<CNonKeyedParameter>(name, nullptr));
+	return *m_NonKeyedParameters.back();
 }

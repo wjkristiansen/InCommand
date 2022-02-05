@@ -8,6 +8,7 @@
 //------------------------------------------------------------------------------------------------
 enum class ParameterType
 {
+    NonKeyed,           // A string parameter not associated with a declared key
     Switch,             // Boolean treated as 'true' if present and 'false' if not
     Variable,           // Name/Value pair
     OptionsVariable,    // Name/Value pair with values constrained to a limited set of strings
@@ -41,6 +42,26 @@ public:
 };
 
 //------------------------------------------------------------------------------------------------
+class CNonKeyedParameter : public CParameter
+{
+    std::string m_value;
+
+public:
+    CNonKeyedParameter(const char *name, const char *description = nullptr) :
+        CParameter(name, description)
+    {}
+
+    virtual ParameterType GetType() const final { return ParameterType::NonKeyed; }
+    virtual int ParseArgs(int argc, const char* argv[]) final
+    {
+        m_IsPresent = true;
+        m_value = argv[0];
+        return 1;
+    }
+    virtual const char* GetValueAsString() const final { return m_value.c_str(); }
+};
+
+//------------------------------------------------------------------------------------------------
 class CSwitchParameter : public CParameter
 {
 public:
@@ -64,34 +85,15 @@ public:
 class CVariableParameter : public CParameter
 {
     std::string m_value;
+    std::set<std::string> m_options;
 
 public:
-    CVariableParameter(const char* name, const char *defaultValue, const char* description = nullptr) :
+    CVariableParameter(const char* name, const char* defaultValue, const char* description = nullptr) :
         CParameter(name, description),
         m_value(defaultValue)
     {}
 
-    virtual ParameterType GetType() const final { return ParameterType::Variable; }
-    virtual int ParseArgs(int argc, const char* argv[]) final
-    {
-        if (argc < 2)
-            throw(std::exception("missing argument"));
-
-        m_IsPresent = true;
-        m_value = argv[1];
-        return 2;
-    }
-    virtual const char* GetValueAsString() const final { return m_value.c_str(); }
-};
-
-//------------------------------------------------------------------------------------------------
-class COptionsVariableParameter : public CParameter
-{
-    std::string m_value;
-    std::set<std::string> m_options;
-
-public:
-    COptionsVariableParameter(const char* name, int numOptions, const char* options[], int defaultOption = 0, const char* description = nullptr) :
+    CVariableParameter(const char* name, int numOptions, const char* options[], int defaultOption = 0, const char* description = nullptr) :
         CParameter(name, description),
         m_value(options[defaultOption])
     {
@@ -105,11 +107,14 @@ public:
         if (argc < 2)
             throw(std::exception("missing argument"));
 
-        // See if the given value is a valid 
-        // option value.
-        auto vit = m_options.find(argv[1]);
-        if (vit == m_options.end())
-            throw(std::exception("Invalid option value"));
+        if (!m_options.empty())
+        {
+            // See if the given value is a valid 
+            // option value.
+            auto vit = m_options.find(argv[1]);
+            if (vit == m_options.end())
+                throw(std::exception("Invalid option value"));
+        }
 
         m_IsPresent = true;
         m_value = argv[1];
@@ -125,12 +130,13 @@ class CInCommandParser
     std::string m_Prefix;
     std::map<std::string, std::unique_ptr<CParameter>> m_Parameters;
     std::map<std::string, std::unique_ptr<CInCommandParser>> m_Subcommands;
-    int m_MaxAnonymousParameters = 0;
-    std::vector<std::string> m_AnonymousParameters;
+    std::vector<std::unique_ptr<CNonKeyedParameter>> m_NonKeyedParameters;
+    int m_NumPresentNonKeyed = 0;
 
 public:
     CInCommandParser();
     ~CInCommandParser() = default;
+    CInCommandParser(CInCommandParser&& o) = delete;
 
     // Processes one or more parameter arguments and returns the number of processed arguments
     // of arguments processed
@@ -139,7 +145,7 @@ public:
     void SetPrefix(const char* prefix);
 
     CInCommandParser& DeclareSubcommand(const char* name);
-    const CParameter& DeclareAnonymousParameters(int maxAnonymousParameters);
+    const CParameter& DeclareNonKeyedParameter(const char *name);
     const CParameter& DeclareSwitchParameter(const char* name);
     const CParameter& DeclareVariableParameter(const char* name, const char* defaultValue);
     const CParameter& DeclareOptionsVariableParameter(const char* name, int numOptionValues, const char* optionValues[], int defaultOptionIndex = 0);
