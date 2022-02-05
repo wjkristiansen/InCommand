@@ -21,7 +21,7 @@ int CInCommandParser::ParseParameterArguments(int arg, int argc, const char* arg
 		return 0;
 
 	// Is the first argument a subcommand?
-	auto subIt = m_Subcommands.find(argv[0]);
+	auto subIt = m_Subcommands.find(argv[arg]);
 	if (subIt != m_Subcommands.end())
 		return subIt->second->ParseParameterArguments(arg + 1, argc, argv);
 
