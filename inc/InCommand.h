@@ -5,46 +5,57 @@
 #include <map>
 #include <set>
 
-enum class ArgumentType
+enum class ParameterType
 {
-    Switch,     // Boolean treated as 'true' if present and 'false' if not
-    Variable,   // Name/Value pair
-    Options,    // Name/Value pair with values constrained to a limited set of strings
-    Command,    // A command that can influence handling of subsequent arguments
+    Switch,             // Boolean treated as 'true' if present and 'false' if not
+    Variable,           // Name/Value pair
+    OptionsVariable,    // Name/Value pair with values constrained to a limited set of strings
 };
 
 class CInCommandParser
 {
-    struct Argument
+    struct Parameter
     {
-        Argument(ArgumentType type) :
+        Parameter(ParameterType type) :
             Type(type) {}
-        ArgumentType Type;
+        ParameterType Type;
+        std::string Name;
         std::string Description;
-        std::set<std::string> OptionValues; // Used when Type is ArgumentType::Options
+        std::set<std::string> OptionValues; // Used when Type is ParameterType::OptionsVariable
 
-        bool IsPresent = false; // 'true' if the argment is present in the parsed arguments
-        std::string Value; // Used if Type==ArgumentType::Variable
+        bool IsPresent = false; // 'true' only if the parameter argument is present in the parsed arguments
+        std::string Value; // Used if Type==ParameterType::Variable or Type==ParameterType::OptionsVariable
     };
 
-    std::map<std::string, Argument> m_Arguments;
+    std::string m_Description;
+    std::string m_Prefix;
+    std::map<std::string, Parameter> m_Parameters;
+    std::map<std::string, std::unique_ptr<CInCommandParser>> m_Subcommands;
+    int m_MaxAnonymousParameters = 0;
+    std::vector<std::string> m_AnonymousParameters;
 
-    Argument& AddArgument(const char* name, ArgumentType type);
+    Parameter& DeclareParameterImpl(const char* name, ParameterType type);
+    const Parameter& GetParameterImpl(const char* name, ParameterType type) const;
 
 public:
     CInCommandParser();
-    virtual ~CInCommandParser() = default;
+    ~CInCommandParser() = default;
 
-    // Processes one or more arguments and returns the number
+    // Processes one or more parameter arguments and returns the number of processed arguments
     // of arguments processed
-    virtual int ParseArguments(int argc, const char *argv[]);
+    int ParseParameterArguments(int argc, const char* argv[]);
 
-    void AddSwitchArgument(const char* name);
+    void SetPrefix(const char* prefix);
+
+    CInCommandParser& DeclareSubcommand(const char* name);
+    void DeclareAnonymousParameters(int maxAnonymousParameters);
+
+    void DeclareSwitchParameter(const char* name);
     bool GetSwitchValue(const char* name) const;
 
-    void AddVariableArgument(const char* name, const char* defaultValue);
+    void DeclareVariableParameter(const char* name, const char* defaultValue);
     const char* GetVariableValue(const char* name) const;
 
-    void AddOptionsArgument(const char* name, int numOptionValues, const char* optionValues[], int defaultOptionIndex = 0);
-    const char* GetOptionsValue(const char* name) const;
+    void DeclareOptionsVariableParameter(const char* name, int numOptionValues, const char* optionValues[], int defaultOptionIndex = 0);
+    const char* GetOptionsVariableValue(const char* name) const;
 };
