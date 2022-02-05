@@ -23,75 +23,31 @@ int CInCommandParser::ParseParameterArguments(int argc, const char* argv[])
 		return subIt->second->ParseParameterArguments(argc - 1, argv + 1);
 
 	// Parse the parameters
-	for (int i = 0; i < argc; ++i)
+	for (int i = 0; i < argc;)
 	{
 		auto it = m_Parameters.find(argv[i]);
 		if (it == m_Parameters.end())
 		{
-			// Add to the anonymous parameters
-			if (m_AnonymousParameters.size() >= m_MaxAnonymousParameters)
-				throw(std::exception("Invalid argument"));
-
-			m_AnonymousParameters.push_back(argv[i]);
+			//// Add to the anonymous parameters
+			//if (m_AnonymousParameters.size() < m_MaxAnonymousParameters)
+			//{
+			//	m_AnonymousParameters.push_back(argv[])
+			//}
 		}
-
-		switch (it->second.Type)
-		{
-		case ParameterType::Switch: {
-			it->second.IsPresent = true;
-			break; }
-
-		case ParameterType::Variable: {
-			it->second.IsPresent = true;
-			++i;
-			if (i == argc)
-				throw(std::exception("Syntax error"));
-
-			it->second.Value = argv[i];
-			break; }
-
-		case ParameterType::OptionsVariable: {
-			it->second.IsPresent = true;
-			++i;
-			if (i == argc)
-				throw(std::exception("Syntax error"));
-
-			// See if the given value is a valid 
-			// option value.
-			auto vit = it->second.OptionValues.find(argv[i]);
-			if (vit == it->second.OptionValues.end())
-				throw(std::exception("Invalid option value"));
-
-			it->second.Value = argv[i];
-			break; }
-		}
+		i += it->second->ParseArgs(argc - i, argv + i);
 	}
 
 	return 0;
 }
 
-CInCommandParser::Parameter& CInCommandParser::DeclareParameterImpl(const char* name, ParameterType type)
-{
-	std::string key = m_Prefix + name;
-	auto it = m_Parameters.find(key);
-	if (it != m_Parameters.end())
-		throw(std::exception("Duplicate parameter"));
-
-	auto insert = m_Parameters.emplace(key, type);
-	return insert.first->second;
-}
-
-const CInCommandParser::Parameter& CInCommandParser::GetParameterImpl(const char* name, ParameterType type) const
+const CParameter& CInCommandParser::GetParameter(const char* name) const
 {
 	std::string key = m_Prefix + name;
 	auto it = m_Parameters.find(key);
 	if (it == m_Parameters.end())
 		throw(std::exception("No matching parameter"));
 
-	if (it->second.Type != type)
-		throw(std::exception("Parameter type mismatch"));
-
-	return it->second;
+	return *it->second;
 }
 
 CInCommandParser& CInCommandParser::DeclareSubcommand(const char* name)
@@ -104,43 +60,35 @@ CInCommandParser& CInCommandParser::DeclareSubcommand(const char* name)
 	return *result.first->second;
 }
 
-void CInCommandParser::DeclareSwitchParameter(const char* name)
+const CParameter &CInCommandParser::DeclareSwitchParameter(const char* name)
 {
-	DeclareParameterImpl(name, ParameterType::Switch);
+	std::string key = m_Prefix + name;
+	auto it = m_Parameters.find(key);
+	if (it != m_Parameters.end())
+		throw(std::exception("Duplicate parameter"));
+
+	auto insert = m_Parameters.emplace(key, std::make_unique< CSwitchParameter>(name, nullptr));
+	return *insert.first->second;
 }
 
-void CInCommandParser::DeclareVariableParameter(const char* name, const char* defaultValue)
+const CParameter &CInCommandParser::DeclareVariableParameter(const char* name, const char* defaultValue)
 {
-	auto& param = DeclareParameterImpl(name, ParameterType::Variable);
-	param.Value = defaultValue;
+	std::string key = m_Prefix + name;
+	auto it = m_Parameters.find(key);
+	if (it != m_Parameters.end())
+		throw(std::exception("Duplicate parameter"));
+
+	auto insert = m_Parameters.emplace(key, std::make_unique< CVariableParameter>(name, defaultValue, nullptr));
+	return *insert.first->second;
 }
 
-void CInCommandParser::DeclareOptionsVariableParameter(const char* name, int numOptionValues, const char* optionValues[], int defaultOptionIndex)
+const CParameter &CInCommandParser::DeclareOptionsVariableParameter(const char* name, int numOptionValues, const char* optionValues[], int defaultOptionIndex)
 {
-	auto& param = DeclareParameterImpl(name, ParameterType::OptionsVariable);
-	for (int i = 0; i < numOptionValues; ++i)
-	{
-		auto insert = param.OptionValues.emplace(optionValues[i]);
-		if (!insert.second)
-			throw(std::exception("Duplicate option values"));
-	}
-	param.Value = optionValues[defaultOptionIndex];
-}
+	std::string key = m_Prefix + name;
+	auto it = m_Parameters.find(key);
+	if (it != m_Parameters.end())
+		throw(std::exception("Duplicate parameter"));
 
-bool CInCommandParser::GetSwitchValue(const char* name) const
-{
-	const Parameter& param = GetParameterImpl(name, ParameterType::Switch);
-	return param.IsPresent;
-}
-
-const char* CInCommandParser::GetVariableValue(const char* name) const
-{
-	const Parameter& param = GetParameterImpl(name, ParameterType::Variable);
-	return param.Value.c_str();
-}
-  
-const char* CInCommandParser::GetOptionsVariableValue(const char* name) const
-{
-	const Parameter& param = GetParameterImpl(name, ParameterType::OptionsVariable);
-	return param.Value.c_str();
+	auto insert = m_Parameters.emplace(key, std::make_unique< COptionsVariableParameter>(name, numOptionValues, optionValues, defaultOptionIndex, nullptr));
+	return *insert.first->second;
 }

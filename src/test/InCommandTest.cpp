@@ -2,7 +2,7 @@
 
 #include "InCommand.h"
 
-TEST(InCommand, DumpCommands)
+TEST(InCommand, BasicParams)
 {
     const char* argv[] =
     {
@@ -13,14 +13,14 @@ TEST(InCommand, DumpCommands)
     int argc = _countof(argv);
 
     CInCommandParser Parser;
-    Parser.DeclareSwitchParameter("is-real");
-    Parser.DeclareVariableParameter("name", "Fred");
+    auto &IsRealParam = Parser.DeclareSwitchParameter("is-real");
+    auto &NameParam = Parser.DeclareVariableParameter("name", "Fred");
     const char *options[] = { "red", "green", "blue" };
-    Parser.DeclareOptionsVariableParameter("color", 3, options, 1);
+    auto &ColorParam = Parser.DeclareOptionsVariableParameter("color", 3, options, 1);
 
     Parser.ParseParameterArguments(argc, argv); 
 
-    EXPECT_EQ(Parser.GetSwitchValue("is-real"), true);
-    EXPECT_EQ(std::string(Parser.GetVariableValue("name")), std::string("Fred"));
-    EXPECT_EQ(std::string(Parser.GetOptionsVariableValue("color")), std::string("red"));
+    EXPECT_EQ(IsRealParam.IsPresent(), true);
+    EXPECT_EQ(NameParam.GetValueAsString(), std::string("Fred"));
+    EXPECT_EQ(ColorParam.GetValueAsString(), std::string("red"));
 }
