@@ -16,6 +16,8 @@ Arguments are the space-delimitted strings in a command line. Typically, these a
 int main(int argc, const char *argv[])
 ```
 
+Arguments are either subcommands or parameters, with subcommands appearing before any parameters in the argument list.
+
 ---
 
 ## Subcommand Arguments
@@ -34,22 +36,11 @@ foo.exe subcom-A subcom-B-of-A subcom-C-of-B-of-A --switch-on-subcom-C-of-B-of-A
 
 ---
 
-## Parameters
+## Non-Keyed Parameters
 
-Parameter arguments are parsed by the active command scope. Parameter arguments can be one of the following types:
+Non-Keyed parameters contain only a value string. Typically, non-keyed arguments do not start with '--' or '-', as these give the appearance of keyed parameters.
 
-- Anonymous
-- Switch
-- Variable
-- OptionsVariable
-
----
-
-## Anonymous Parameters
-
-Anonymous parameters are strings unassociated with any specific named parameters. The number of anonymous parameters must be declared before parsing. Anonymous parameter strings are indexed in the order they appears in the parameters list.
-
-Any parameter argument that doesn't match a declared parameter is assumed to be an anonymous parameter. An error occurs if the number of anonymous parameters exceeds the number of declared number of parameters.
+Any parameter argument that doesn't match a keyed parameter is assumed to be a non-keyed parameter. An error occurs if there are not enough non-keyed parameters declared to contain matching arguments on the command line.
 
 Example:
 
@@ -59,13 +50,24 @@ foo.exe myfile1.foo myfile2.foo
 
 ---
 
-## Declared Parameters
+## Keyed Parameters
 
-Syntactically, declared parameters use a "--" prefix by default, though alternative prefixes may be defined.
+Syntactically, keyed parameter arguments use '--' followed by the name of the parameter. Optionally, a single letter short-form argument may be declared, which is preceded by a single hyphen '-'.
+
+Example
+```
+foo.exe --long-parameter-name
+```
+
+or
+
+```
+foo.exe -l
+```
 
 ### Switch Parameters
 
-Switch parameters are boolean values considered to be 'true' when present in the parameters list. 
+Switch parameters are boolean values considered to be 'on' when present in the parameters list. 
 
 Example:
 
@@ -83,13 +85,11 @@ Example:
 foo.exe --file hello.txt
 ```
 
-### OptionsVariable Parameters
-
-OptionsVariable arguments are variables with a declared set of valid strings. The value string is taken from the next argument in the argument list. A default value is assigned if the variable is not present in the argument list.
+Variable parameters may be constrained to a limited set of pre-declared options. An error results if an assigned value is not in the options set.
 
 Example:
 
-Assume OptionsVariable 'color' may be one of ['red', 'green', 'blue']
+Assume Variable 'color' is declared as constrained to the set ['red', 'green', 'blue']
 
 ```
 foo.exe --color red
