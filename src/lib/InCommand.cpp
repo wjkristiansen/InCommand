@@ -15,7 +15,7 @@ void CInCommandParser::SetPrefix(const char* prefix)
 }
 
 //------------------------------------------------------------------------------------------------
-int CInCommandParser::ParseParameterArguments(int argc, const char* argv[])
+int CInCommandParser::ParseParameterArguments(int arg, int argc, const char* argv[])
 {
 	if (argc == 0)
 		return 0;
@@ -23,23 +23,23 @@ int CInCommandParser::ParseParameterArguments(int argc, const char* argv[])
 	// Is the first argument a subcommand?
 	auto subIt = m_Subcommands.find(argv[0]);
 	if (subIt != m_Subcommands.end())
-		return subIt->second->ParseParameterArguments(argc - 1, argv + 1);
+		return subIt->second->ParseParameterArguments(arg + 1, argc, argv);
 
 	// Parse the parameters
-	for (int i = 0; i < argc;)
+	for (; arg < argc;)
 	{
-		auto it = m_Parameters.find(argv[i]);
+		auto it = m_Parameters.find(argv[arg]);
 		if (it == m_Parameters.end())
 		{
 			if (m_NumPresentNonKeyed == m_NonKeyedParameters.size())
-				throw std::exception("Unexpected argument");
+				throw InCommandException(InCommandError::UnexpectedArgument, argv[arg], arg);
 
-			i += m_NonKeyedParameters[m_NumPresentNonKeyed]->ParseArgs(argc - i, argv + i);
+			arg = m_NonKeyedParameters[m_NumPresentNonKeyed]->ParseArgs(arg, argc, argv);
 			m_NumPresentNonKeyed++;
 		}
 		else
 		{
-			i += it->second->ParseArgs(argc - i, argv + i);
+			arg = it->second->ParseArgs(arg, argc, argv);
 		}
 	}
 
@@ -52,7 +52,7 @@ const CParameter& CInCommandParser::GetParameter(const char* name) const
 	std::string key = m_Prefix + name;
 	auto it = m_Parameters.find(key);
 	if (it == m_Parameters.end())
-		throw(std::exception("No matching parameter"));
+		throw InCommandException(InCommandError::UnknownParameter, name, -1);
 
 	return *it->second;
 }
@@ -62,7 +62,7 @@ CInCommandParser& CInCommandParser::DeclareSubcommand(const char* name)
 {
 	auto it = m_Subcommands.find(name);
 	if (it != m_Subcommands.end())
-		throw(std::exception("Duplicate subcommand"));
+		throw InCommandException(InCommandError::DuplicateCommand, name, -1);
 
 	auto result = m_Subcommands.emplace(name, std::make_unique<CInCommandParser>());
 	return *result.first->second;
@@ -74,7 +74,7 @@ const CParameter &CInCommandParser::DeclareSwitchParameter(const char* name)
 	std::string key = m_Prefix + name;
 	auto it = m_Parameters.find(key);
 	if (it != m_Parameters.end())
-		throw(std::exception("Duplicate parameter"));
+		throw InCommandException(InCommandError::DuplicateKeyedParameter, name, -1);
 
 	auto insert = m_Parameters.emplace(key, std::make_unique<CSwitchParameter>(name, nullptr));
 	return *insert.first->second;
@@ -86,7 +86,7 @@ const CParameter &CInCommandParser::DeclareVariableParameter(const char* name, c
 	std::string key = m_Prefix + name;
 	auto it = m_Parameters.find(key);
 	if (it != m_Parameters.end())
-		throw(std::exception("Duplicate parameter"));
+		throw InCommandException(InCommandError::DuplicateKeyedParameter, name, -1);
 
 	auto insert = m_Parameters.emplace(key, std::make_unique<CVariableParameter>(name, defaultValue, nullptr));
 	return *insert.first->second;
@@ -98,7 +98,7 @@ const CParameter &CInCommandParser::DeclareOptionsVariableParameter(const char* 
 	std::string key = m_Prefix + name;
 	auto it = m_Parameters.find(key);
 	if (it != m_Parameters.end())
-		throw(std::exception("Duplicate parameter"));
+		throw InCommandException(InCommandError::DuplicateKeyedParameter, name, -1);
 
 	auto insert = m_Parameters.emplace(key, std::make_unique<CVariableParameter>(name, numOptionValues, optionValues, defaultOptionIndex, nullptr));
 	return *insert.first->second;

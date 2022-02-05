@@ -5,6 +5,28 @@
 #include <map>
 #include <set>
 
+enum class InCommandError
+{
+    DuplicateCommand,
+    DuplicateKeyedParameter,
+    UnexpectedArgument,
+    NotEnoughArguments,
+    UnknownParameter,
+    InvalidVariableValue,
+};
+
+struct InCommandException
+{
+    InCommandError e;
+    std::string s;
+    int arg;
+
+    InCommandException(InCommandError error, const char *str, int argIndex) :
+        e(error),
+        s(str),
+        arg(argIndex) {}
+};
+
 //------------------------------------------------------------------------------------------------
 enum class ParameterType
 {
@@ -34,7 +56,9 @@ public:
 
     virtual ParameterType GetType() const = 0;
     virtual const char *GetValueAsString() const = 0;
-    virtual int ParseArgs(int argc, const char* argv[]) = 0;
+
+    // Returns the index of the first unparsed argument
+    virtual int ParseArgs(int arg, int argc, const char* argv[]) = 0;
 
     bool IsPresent() const { return m_IsPresent; }
     const char *GetName() const { return m_name.c_str(); }
@@ -52,11 +76,11 @@ public:
     {}
 
     virtual ParameterType GetType() const final { return ParameterType::NonKeyed; }
-    virtual int ParseArgs(int argc, const char* argv[]) final
+    virtual int ParseArgs(int arg, int argc, const char* argv[]) final
     {
         m_IsPresent = true;
-        m_value = argv[0];
-        return 1;
+        m_value = argv[arg];
+        return arg + 1;
     }
     virtual const char* GetValueAsString() const final { return m_value.c_str(); }
 };
@@ -70,10 +94,10 @@ public:
     {}
 
     virtual ParameterType GetType() const final { return ParameterType::Switch; }
-    virtual int ParseArgs(int argc, const char* argv[]) final
+    virtual int ParseArgs(int arg, int argc, const char* argv[]) final
     {
         m_IsPresent = true;
-        return 1;
+        return arg + 1;
     }
     virtual const char* GetValueAsString() const final
     {
@@ -102,23 +126,25 @@ public:
     }
 
     virtual ParameterType GetType() const final { return ParameterType::OptionsVariable; }
-    virtual int ParseArgs(int argc, const char* argv[]) final
+    virtual int ParseArgs(int arg, int argc, const char* argv[]) final
     {
-        if (argc < 2)
-            throw(std::exception("missing argument"));
+        if (argc - arg < 2)
+            throw InCommandException(InCommandError::NotEnoughArguments, argv[arg], arg);
+
+        ++arg;
 
         if (!m_options.empty())
         {
             // See if the given value is a valid 
             // option value.
-            auto vit = m_options.find(argv[1]);
+            auto vit = m_options.find(argv[arg]);
             if (vit == m_options.end())
-                throw(std::exception("Invalid option value"));
+                throw InCommandException(InCommandError::InvalidVariableValue, argv[arg], arg);
         }
 
         m_IsPresent = true;
-        m_value = argv[1];
-        return 2;
+        m_value = argv[arg];
+        return arg + 1;
     }
     virtual const char* GetValueAsString() const final { return m_value.c_str(); }
 };
@@ -139,8 +165,9 @@ public:
     CInCommandParser(CInCommandParser&& o) = delete;
 
     // Processes one or more parameter arguments and returns the number of processed arguments
-    // of arguments processed
-    int ParseParameterArguments(int argc, const char* argv[]);
+    // of arguments processed.
+    // Returns the index of the first unparsed argument.
+    int ParseParameterArguments(int arg, int argc, const char* argv[]);
 
     void SetPrefix(const char* prefix);
 

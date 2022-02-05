@@ -18,7 +18,7 @@ TEST(InCommand, BasicParams)
     const char *options[] = { "red", "green", "blue" };
     auto &ColorParam = Parser.DeclareOptionsVariableParameter("color", 3, options, 1);
 
-    Parser.ParseParameterArguments(argc, argv); 
+    Parser.ParseParameterArguments(0, argc, argv); 
 
     EXPECT_EQ(IsRealParam.IsPresent(), true);
     EXPECT_EQ(NameParam.GetValueAsString(), std::string("Fred"));
@@ -42,7 +42,7 @@ TEST(InCommand, NonKeyedParams)
     auto& File3 = Parser.DeclareNonKeyedParameter("file3");
     auto& Switch = Parser.DeclareSwitchParameter("some-switch");
 
-    Parser.ParseParameterArguments(argc, argv);
+    Parser.ParseParameterArguments(0, argc, argv);
 
     EXPECT_EQ(Switch.IsPresent(), true);
     EXPECT_EQ(File1.GetValueAsString(), std::string(argv[0]));
