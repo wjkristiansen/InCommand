@@ -17,7 +17,7 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	int CCommandScope::ParseParameterArguments(int arg, int argc, const char* argv[])
+	int CCommandScope::ParseArguments(int arg, int argc, const char* argv[])
 	{
 		if (argc <= arg)
 			return 0;
@@ -25,18 +25,18 @@ namespace InCommand
 		// Is the first argument a subcommand?
 		auto subIt = m_Subcommands.find(argv[arg]);
 		if (subIt != m_Subcommands.end())
-			return subIt->second->ParseParameterArguments(arg + 1, argc, argv);
+			return subIt->second->ParseArguments(arg + 1, argc, argv);
 
-		// Parse the parameters
+		// Parse the options
 		for (; arg < argc;)
 		{
-			auto it = m_Parameters.find(argv[arg]);
-			if (it == m_Parameters.end())
+			auto it = m_Options.find(argv[arg]);
+			if (it == m_Options.end())
 			{
-				if (m_NumPresentNonKeyed == m_NonKeyedParameters.size())
+				if (m_NumPresentNonKeyed == m_NonKeyedOptions.size())
 					throw InCommandException(InCommandError::UnexpectedArgument, argv[arg], arg);
 
-				arg = m_NonKeyedParameters[m_NumPresentNonKeyed]->ParseArgs(arg, argc, argv);
+				arg = m_NonKeyedOptions[m_NumPresentNonKeyed]->ParseArgs(arg, argc, argv);
 				m_NumPresentNonKeyed++;
 			}
 			else
@@ -49,12 +49,12 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const CParameter& CCommandScope::GetParameter(const char* name) const
+	const COption& CCommandScope::GetOption(const char* name) const
 	{
 		std::string key = m_Prefix + name;
-		auto it = m_Parameters.find(key);
-		if (it == m_Parameters.end())
-			throw InCommandException(InCommandError::UnknownParameter, name, -1);
+		auto it = m_Options.find(key);
+		if (it == m_Options.end())
+			throw InCommandException(InCommandError::UnknownOption, name, -1);
 
 		return *it->second;
 	}
@@ -71,45 +71,45 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const CParameter &CCommandScope::DeclareSwitchParameter(const char* name)
+	const COption &CCommandScope::DeclareSwitchOption(const char* name)
 	{
 		std::string key = m_Prefix + name;
-		auto it = m_Parameters.find(key);
-		if (it != m_Parameters.end())
-			throw InCommandException(InCommandError::DuplicateKeyedParameter, name, -1);
+		auto it = m_Options.find(key);
+		if (it != m_Options.end())
+			throw InCommandException(InCommandError::DuplicateOption, name, -1);
 
-		auto insert = m_Parameters.emplace(key, std::make_unique<CSwitchParameter>(name, nullptr));
+		auto insert = m_Options.emplace(key, std::make_unique<CSwitchOption>(name, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const CParameter &CCommandScope::DeclareVariableParameter(const char* name, const char* defaultValue)
+	const COption &CCommandScope::DeclareVariableOption(const char* name, const char* defaultValue)
 	{
 		std::string key = m_Prefix + name;
-		auto it = m_Parameters.find(key);
-		if (it != m_Parameters.end())
-			throw InCommandException(InCommandError::DuplicateKeyedParameter, name, -1);
+		auto it = m_Options.find(key);
+		if (it != m_Options.end())
+			throw InCommandException(InCommandError::DuplicateOption, name, -1);
 
-		auto insert = m_Parameters.emplace(key, std::make_unique<CVariableParameter>(name, defaultValue, nullptr));
+		auto insert = m_Options.emplace(key, std::make_unique<CVariableOption>(name, defaultValue, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const CParameter &CCommandScope::DeclareVariableParameter(const char* name, int domainSize, const char* domain[], int defaultIndex)
+	const COption &CCommandScope::DeclareVariableOption(const char* name, int domainSize, const char* domain[], int defaultIndex)
 	{
 		std::string key = m_Prefix + name;
-		auto it = m_Parameters.find(key);
-		if (it != m_Parameters.end())
-			throw InCommandException(InCommandError::DuplicateKeyedParameter, name, -1);
+		auto it = m_Options.find(key);
+		if (it != m_Options.end())
+			throw InCommandException(InCommandError::DuplicateOption, name, -1);
 
-		auto insert = m_Parameters.emplace(key, std::make_unique<CVariableParameter>(name, domainSize, domain, defaultIndex, nullptr));
+		auto insert = m_Options.emplace(key, std::make_unique<CVariableOption>(name, domainSize, domain, defaultIndex, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const CParameter& CCommandScope::DeclareNonKeyedParameter(const char* name)
+	const COption& CCommandScope::DeclareNonKeyedOption(const char* name)
 	{
-		m_NonKeyedParameters.push_back(std::make_unique<CNonKeyedParameter>(name, nullptr));
-		return *m_NonKeyedParameters.back();
+		m_NonKeyedOptions.push_back(std::make_unique<CNonKeyedOption>(name, nullptr));
+		return *m_NonKeyedOptions.back();
 	}
 }

@@ -10,10 +10,10 @@ namespace InCommand
     enum class InCommandError
     {
         DuplicateCommand,
-        DuplicateKeyedParameter,
+        DuplicateOption,
         UnexpectedArgument,
         NotEnoughArguments,
-        UnknownParameter,
+        UnknownOption,
         InvalidVariableValue,
     };
 
@@ -30,22 +30,22 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    enum class ParameterType
+    enum class OptionType
     {
-        NonKeyed,           // A string parameter not associated with a declared key
+        NonKeyed,           // A string option not associated with a declared key
         Switch,             // Boolean treated as 'true' if present and 'false' if not
         Variable,           // Name/Value pair
     };
 
     //------------------------------------------------------------------------------------------------
-    class CParameter
+    class COption
     {
     protected:
         bool m_IsPresent = false;
         std::string m_name;
         std::string m_description;
 
-        CParameter(const char* name, const char* description = nullptr) :
+        COption(const char* name, const char* description = nullptr) :
             m_name(name)
         {
             if (description)
@@ -53,9 +53,9 @@ namespace InCommand
         }
 
     public:
-        virtual ~CParameter() = default;
+        virtual ~COption() = default;
 
-        virtual ParameterType GetType() const = 0;
+        virtual OptionType GetType() const = 0;
         virtual const char* GetValueAsString() const = 0;
 
         // Returns the index of the first unparsed argument
@@ -67,16 +67,16 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CNonKeyedParameter : public CParameter
+    class CNonKeyedOption : public COption
     {
         std::string m_value;
 
     public:
-        CNonKeyedParameter(const char* name, const char* description = nullptr) :
-            CParameter(name, description)
+        CNonKeyedOption(const char* name, const char* description = nullptr) :
+            COption(name, description)
         {}
 
-        virtual ParameterType GetType() const final { return ParameterType::NonKeyed; }
+        virtual OptionType GetType() const final { return OptionType::NonKeyed; }
         virtual int ParseArgs(int arg, int argc, const char* argv[]) final
         {
             if (arg >= argc)
@@ -90,14 +90,14 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CSwitchParameter : public CParameter
+    class CSwitchOption : public COption
     {
     public:
-        CSwitchParameter(const char* name, const char* description = nullptr) :
-            CParameter(name, description)
+        CSwitchOption(const char* name, const char* description = nullptr) :
+            COption(name, description)
         {}
 
-        virtual ParameterType GetType() const final { return ParameterType::Switch; }
+        virtual OptionType GetType() const final { return OptionType::Switch; }
         virtual int ParseArgs(int arg, int argc, [[maybe_unused]] const char* argv[]) final
         {
             if (arg >= argc)
@@ -113,26 +113,26 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CVariableParameter : public CParameter
+    class CVariableOption : public COption
     {
         std::string m_value;
         std::set<std::string> m_domain;
 
     public:
-        CVariableParameter(const char* name, const char* defaultValue, const char* description = nullptr) :
-            CParameter(name, description),
+        CVariableOption(const char* name, const char* defaultValue, const char* description = nullptr) :
+            COption(name, description),
             m_value(defaultValue)
         {}
 
-        CVariableParameter(const char* name, int domainSize, const char* domain[], int defaultIndex = 0, const char* description = nullptr) :
-            CParameter(name, description),
+        CVariableOption(const char* name, int domainSize, const char* domain[], int defaultIndex = 0, const char* description = nullptr) :
+            COption(name, description),
             m_value(domain[defaultIndex])
         {
             for (int i = 0; i < domainSize; ++i)
                 m_domain.insert(domain[i]);
         }
 
-        virtual ParameterType GetType() const final { return ParameterType::Variable; }
+        virtual OptionType GetType() const final { return OptionType::Variable; }
         virtual int ParseArgs(int arg, int argc, const char* argv[]) final
         {
             if (argc - arg < 2)
@@ -161,9 +161,9 @@ namespace InCommand
     {
         std::string m_Description;
         std::string m_Prefix;
-        std::map<std::string, std::unique_ptr<CParameter>> m_Parameters;
+        std::map<std::string, std::unique_ptr<COption>> m_Options;
         std::map<std::string, std::unique_ptr<CCommandScope>> m_Subcommands;
-        std::vector<std::unique_ptr<CNonKeyedParameter>> m_NonKeyedParameters;
+        std::vector<std::unique_ptr<CNonKeyedOption>> m_NonKeyedOptions;
         int m_NumPresentNonKeyed = 0;
 
     public:
@@ -171,19 +171,19 @@ namespace InCommand
         ~CCommandScope() = default;
         CCommandScope(CCommandScope&& o) = delete;
 
-        // Processes one or more parameter arguments and returns the number of processed arguments
+        // Processes one or more option arguments and returns the number of processed arguments
         // of arguments processed.
         // Returns the index of the first unparsed argument.
-        int ParseParameterArguments(int arg, int argc, const char* argv[]);
+        int ParseArguments(int arg, int argc, const char* argv[]);
 
         void SetPrefix(const char* prefix);
 
         CCommandScope& DeclareSubcommand(const char* name);
-        const CParameter& DeclareNonKeyedParameter(const char* name);
-        const CParameter& DeclareSwitchParameter(const char* name);
-        const CParameter& DeclareVariableParameter(const char* name, const char* defaultValue);
-        const CParameter& DeclareVariableParameter(const char* name, int domainSize, const char* domain[], int defaultIndex = 0);
+        const COption& DeclareNonKeyedOption(const char* name);
+        const COption& DeclareSwitchOption(const char* name);
+        const COption& DeclareVariableOption(const char* name, const char* defaultValue);
+        const COption& DeclareVariableOption(const char* name, int domainSize, const char* domain[], int defaultIndex = 0);
 
-        const CParameter& GetParameter(const char* name) const;
+        const COption& GetOption(const char* name) const;
     };
 }

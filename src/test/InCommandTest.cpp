@@ -13,12 +13,12 @@ TEST(InCommand, BasicParams)
     int argc = _countof(argv);
 
     InCommand::CCommandScope Parser;
-    auto &IsRealParam = Parser.DeclareSwitchParameter("is-real");
-    auto &NameParam = Parser.DeclareVariableParameter("name", "Fred");
+    auto &IsRealParam = Parser.DeclareSwitchOption("is-real");
+    auto &NameParam = Parser.DeclareVariableOption("name", "Fred");
     const char *domain[] = { "red", "green", "blue" };
-    auto &ColorParam = Parser.DeclareVariableParameter("color", 3, domain, 1);
+    auto &ColorParam = Parser.DeclareVariableOption("color", 3, domain, 1);
 
-    Parser.ParseParameterArguments(0, argc, argv); 
+    Parser.ParseArguments(0, argc, argv); 
 
     EXPECT_EQ(IsRealParam.IsPresent(), true);
     EXPECT_EQ(NameParam.GetValueAsString(), std::string("Fred"));
@@ -37,12 +37,12 @@ TEST(InCommand, NonKeyedParams)
     int argc = _countof(argv);
 
     InCommand::CCommandScope Parser;
-    auto& File1 = Parser.DeclareNonKeyedParameter("file1");
-    auto& File2 = Parser.DeclareNonKeyedParameter("file2");
-    auto& File3 = Parser.DeclareNonKeyedParameter("file3");
-    auto& Switch = Parser.DeclareSwitchParameter("some-switch");
+    auto& File1 = Parser.DeclareNonKeyedOption("file1");
+    auto& File2 = Parser.DeclareNonKeyedOption("file2");
+    auto& File3 = Parser.DeclareNonKeyedOption("file3");
+    auto& Switch = Parser.DeclareSwitchOption("some-switch");
 
-    Parser.ParseParameterArguments(0, argc, argv);
+    Parser.ParseArguments(0, argc, argv);
 
     EXPECT_EQ(Switch.IsPresent(), true);
     EXPECT_EQ(File1.GetValueAsString(), std::string(argv[0]));
