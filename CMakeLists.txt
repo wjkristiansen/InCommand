@@ -7,7 +7,7 @@ project(InCommand
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-option(IN_COMMAND_TEST ON)
+option(IN_COMMAND_TEST "Enable gtest-based tests" ON)
 
 include_directories(
     inc
