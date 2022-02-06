@@ -19,7 +19,7 @@ namespace InCommand
 	//------------------------------------------------------------------------------------------------
 	int CCommandScope::ParseParameterArguments(int arg, int argc, const char* argv[])
 	{
-		if (argc == 0)
+		if (argc <= arg)
 			return 0;
 
 		// Is the first argument a subcommand?
