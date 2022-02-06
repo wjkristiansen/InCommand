@@ -159,6 +159,10 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     class CCommandScope
     {
+        int m_ScopeId = 0;
+        int m_ActiveCommandScopeId = 0;
+        bool m_IsActive = false;
+        std::string m_Name;
         std::string m_Description;
         std::map<std::string, std::shared_ptr<COption>> m_Options;
         std::map<std::string, std::shared_ptr<CCommandScope>> m_Subcommands;
@@ -166,7 +170,7 @@ namespace InCommand
         int m_NumPresentNonKeyed = 0;
 
     public:
-        CCommandScope();
+        CCommandScope(const char *name = nullptr, int scopeId = 0);
         ~CCommandScope() = default;
         CCommandScope(CCommandScope&& o) = delete;
 
@@ -178,12 +182,19 @@ namespace InCommand
 
         void SetPrefix(const char* prefix);
 
-        CCommandScope& DeclareSubcommand(const char* name);
+        CCommandScope& DeclareSubcommand(const char* name, int scopeId);
         const COption& DeclareNonKeyedOption(const char* name);
         const COption& DeclareSwitchOption(const char* name);
         const COption& DeclareVariableOption(const char* name, const char* defaultValue);
         const COption& DeclareVariableOption(const char* name, int domainSize, const char* domain[], int defaultIndex = 0);
 
         const COption& GetOption(const char* name) const;
+
+        const bool IsActive() const { return m_IsActive; }
+
+        // Useful for switch/case using command scope id
+        const char* GetName() const { return m_Name.c_str(); }
+        const int GetScopeId() const { return m_ScopeId; }
+        const int GetActiveCommandScopeId() const { return m_ActiveCommandScopeId; };
     };
 }
