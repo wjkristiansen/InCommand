@@ -7,8 +7,9 @@
 
 namespace InCommand
 {
-    enum class InCommandError
+    enum class InCommandResult
     {
+        Success,
         DuplicateCommand,
         DuplicateOption,
         UnexpectedArgument,
@@ -19,11 +20,11 @@ namespace InCommand
 
     struct InCommandException
     {
-        InCommandError e;
+        InCommandResult e;
         std::string s;
         int arg;
 
-        InCommandException(InCommandError error, const char* str, int argIndex) :
+        InCommandException(InCommandResult error, const char* str, int argIndex) :
             e(error),
             s(str),
             arg(argIndex) {}
@@ -136,7 +137,7 @@ namespace InCommand
         virtual int ParseArgs(int argc, const char* argv[], int index) final
         {
             if (argc - index < 2)
-                throw InCommandException(InCommandError::NotEnoughArguments, argv[index], index);
+                throw InCommandException(InCommandResult::NotEnoughArguments, argv[index], index);
 
             ++index;
 
@@ -146,7 +147,7 @@ namespace InCommand
                 // domain value.
                 auto vit = m_domain.find(argv[index]);
                 if (vit == m_domain.end())
-                    throw InCommandException(InCommandError::InvalidVariableValue, argv[index], index);
+                    throw InCommandException(InCommandResult::InvalidVariableValue, argv[index], index);
             }
 
             m_IsPresent = true;
