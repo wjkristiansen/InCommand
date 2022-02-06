@@ -99,7 +99,7 @@ namespace InCommand
         {}
 
         virtual ParameterType GetType() const final { return ParameterType::Switch; }
-        virtual int ParseArgs(int arg, int argc, const char* argv[]) final
+        virtual int ParseArgs(int arg, int argc, [[maybe_unused]] const char* argv[]) final
         {
             if (arg >= argc)
                 return arg;
