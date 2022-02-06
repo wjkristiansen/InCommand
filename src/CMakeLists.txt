@@ -1,2 +1,5 @@
 add_subdirectory(lib)
-add_subdirectory(test)
+
+if( NOT DEFINED IN_COMMAND_NO_TEST)
+    add_subdirectory(test)
+endif()

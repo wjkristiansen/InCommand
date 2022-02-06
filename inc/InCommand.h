@@ -80,6 +80,9 @@ namespace InCommand
         virtual ParameterType GetType() const final { return ParameterType::NonKeyed; }
         virtual int ParseArgs(int arg, int argc, const char* argv[]) final
         {
+            if (arg >= argc)
+                return arg;
+
             m_IsPresent = true;
             m_value = argv[arg];
             return arg + 1;
@@ -98,6 +101,9 @@ namespace InCommand
         virtual ParameterType GetType() const final { return ParameterType::Switch; }
         virtual int ParseArgs(int arg, int argc, const char* argv[]) final
         {
+            if (arg >= argc)
+                return arg;
+
             m_IsPresent = true;
             return arg + 1;
         }
