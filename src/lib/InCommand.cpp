@@ -5,15 +5,8 @@
 namespace InCommand
 {
 	//------------------------------------------------------------------------------------------------
-	CCommandScope::CCommandScope() :
-		m_Prefix("--")
+	CCommandScope::CCommandScope()
 	{
-	}
-
-	//------------------------------------------------------------------------------------------------
-	void CCommandScope::SetPrefix(const char* prefix)
-	{
-		m_Prefix = prefix;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -30,18 +23,31 @@ namespace InCommand
 		// Parse the options
 		for (; index < argc;)
 		{
-			auto it = m_Options.find(argv[index]);
-			if (it == m_Options.end())
+			if (argv[index][0] == '-')
 			{
+				if (argv[index][1] == '-')
+				{
+					// Long-form option
+					auto it = m_Options.find(argv[index] + 2);
+					if(it == m_Options.end() || it->second->GetType() == OptionType::NonKeyed)
+						throw InCommandException(InCommandError::UnexpectedArgument, argv[index], index);
+
+					index = it->second->ParseArgs(argc, argv, index);
+				}
+				else
+				{
+					// TODO: Short-form option
+					throw InCommandException(InCommandError::UnexpectedArgument, argv[index], index);
+				}
+			}
+			else
+			{
+				// Assume non-keyed option
 				if (m_NumPresentNonKeyed == m_NonKeyedOptions.size())
 					throw InCommandException(InCommandError::UnexpectedArgument, argv[index], index);
 
 				index = m_NonKeyedOptions[m_NumPresentNonKeyed]->ParseArgs(argc, argv, index);
 				m_NumPresentNonKeyed++;
-			}
-			else
-			{
-				index = it->second->ParseArgs(argc, argv, index);
 			}
 		}
 
@@ -51,8 +57,7 @@ namespace InCommand
 	//------------------------------------------------------------------------------------------------
 	const COption& CCommandScope::GetOption(const char* name) const
 	{
-		std::string key = m_Prefix + name;
-		auto it = m_Options.find(key);
+		auto it = m_Options.find(name);
 		if (it == m_Options.end())
 			throw InCommandException(InCommandError::UnknownOption, name, -1);
 
@@ -66,50 +71,58 @@ namespace InCommand
 		if (it != m_Subcommands.end())
 			throw InCommandException(InCommandError::DuplicateCommand, name, -1);
 
-		auto result = m_Subcommands.emplace(name, std::make_unique<CCommandScope>());
+		auto result = m_Subcommands.emplace(name, std::make_shared<CCommandScope>());
 		return *result.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
 	const COption &CCommandScope::DeclareSwitchOption(const char* name)
 	{
-		std::string key = m_Prefix + name;
-		auto it = m_Options.find(key);
+		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandError::DuplicateOption, name, -1);
 
-		auto insert = m_Options.emplace(key, std::make_unique<CSwitchOption>(name, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(name, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
 	const COption &CCommandScope::DeclareVariableOption(const char* name, const char* defaultValue)
 	{
-		std::string key = m_Prefix + name;
-		auto it = m_Options.find(key);
+		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandError::DuplicateOption, name, -1);
 
-		auto insert = m_Options.emplace(key, std::make_unique<CVariableOption>(name, defaultValue, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(name, defaultValue, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
 	const COption &CCommandScope::DeclareVariableOption(const char* name, int domainSize, const char* domain[], int defaultIndex)
 	{
-		std::string key = m_Prefix + name;
-		auto it = m_Options.find(key);
+		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandError::DuplicateOption, name, -1);
 
-		auto insert = m_Options.emplace(key, std::make_unique<CVariableOption>(name, domainSize, domain, defaultIndex, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(name, domainSize, domain, defaultIndex, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
 	const COption& CCommandScope::DeclareNonKeyedOption(const char* name)
 	{
-		m_NonKeyedOptions.push_back(std::make_unique<CNonKeyedOption>(name, nullptr));
+		auto it = m_Options.find(name);
+		if (it != m_Options.end())
+			throw InCommandException(InCommandError::DuplicateOption, name, -1);
+
+
+        std::shared_ptr<CNonKeyedOption> pOption = std::make_shared<CNonKeyedOption>(name, nullptr);
+
+        // Add the non-keyed option to the declared options map
+		m_Options.insert(std::make_pair(name, pOption));
+
+        // Add to the array of non-keyed options
+		m_NonKeyedOptions.push_back(pOption);
 		return *m_NonKeyedOptions.back();
 	}
 }

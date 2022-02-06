@@ -23,6 +23,7 @@ TEST(InCommand, BasicParams)
     EXPECT_EQ(IsRealParam.IsPresent(), true);
     EXPECT_EQ(NameParam.GetValueAsString(), std::string("Fred"));
     EXPECT_EQ(ColorParam.GetValueAsString(), std::string("red"));
+    EXPECT_EQ(Parser.GetOption("color").GetValueAsString(), std::string("red"));
 }
 
 TEST(InCommand, NonKeyedParams)
@@ -48,5 +49,6 @@ TEST(InCommand, NonKeyedParams)
     EXPECT_EQ(Switch.IsPresent(), true);
     EXPECT_EQ(File1.GetValueAsString(), std::string(argv[1]));
     EXPECT_EQ(File2.GetValueAsString(), std::string(argv[3]));
+    EXPECT_EQ(Parser.GetOption("file2").GetValueAsString(), std::string(argv[3]));
     EXPECT_EQ(File3.GetValueAsString(), std::string(argv[4]));
 }

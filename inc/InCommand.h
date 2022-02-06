@@ -160,10 +160,9 @@ namespace InCommand
     class CCommandScope
     {
         std::string m_Description;
-        std::string m_Prefix;
-        std::map<std::string, std::unique_ptr<COption>> m_Options;
-        std::map<std::string, std::unique_ptr<CCommandScope>> m_Subcommands;
-        std::vector<std::unique_ptr<CNonKeyedOption>> m_NonKeyedOptions;
+        std::map<std::string, std::shared_ptr<COption>> m_Options;
+        std::map<std::string, std::shared_ptr<CCommandScope>> m_Subcommands;
+        std::vector<std::shared_ptr<CNonKeyedOption>> m_NonKeyedOptions;
         int m_NumPresentNonKeyed = 0;
 
     public:
