@@ -95,14 +95,14 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const CParameter &CCommandScope::DeclareOptionsVariableParameter(const char* name, int numOptionValues, const char* optionValues[], int defaultOptionIndex)
+	const CParameter &CCommandScope::DeclareVariableParameter(const char* name, int domainSize, const char* domain[], int defaultIndex)
 	{
 		std::string key = m_Prefix + name;
 		auto it = m_Parameters.find(key);
 		if (it != m_Parameters.end())
 			throw InCommandException(InCommandError::DuplicateKeyedParameter, name, -1);
 
-		auto insert = m_Parameters.emplace(key, std::make_unique<CVariableParameter>(name, numOptionValues, optionValues, defaultOptionIndex, nullptr));
+		auto insert = m_Parameters.emplace(key, std::make_unique<CVariableParameter>(name, domainSize, domain, defaultIndex, nullptr));
 		return *insert.first->second;
 	}
 

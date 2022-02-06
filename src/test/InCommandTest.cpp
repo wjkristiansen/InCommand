@@ -15,8 +15,8 @@ TEST(InCommand, BasicParams)
     InCommand::CCommandScope Parser;
     auto &IsRealParam = Parser.DeclareSwitchParameter("is-real");
     auto &NameParam = Parser.DeclareVariableParameter("name", "Fred");
-    const char *options[] = { "red", "green", "blue" };
-    auto &ColorParam = Parser.DeclareOptionsVariableParameter("color", 3, options, 1);
+    const char *domain[] = { "red", "green", "blue" };
+    auto &ColorParam = Parser.DeclareVariableParameter("color", 3, domain, 1);
 
     Parser.ParseParameterArguments(0, argc, argv); 
 

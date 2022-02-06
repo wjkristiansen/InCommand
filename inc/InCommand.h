@@ -35,7 +35,6 @@ namespace InCommand
         NonKeyed,           // A string parameter not associated with a declared key
         Switch,             // Boolean treated as 'true' if present and 'false' if not
         Variable,           // Name/Value pair
-        OptionsVariable,    // Name/Value pair with values constrained to a limited set of strings
     };
 
     //------------------------------------------------------------------------------------------------
@@ -117,7 +116,7 @@ namespace InCommand
     class CVariableParameter : public CParameter
     {
         std::string m_value;
-        std::set<std::string> m_options;
+        std::set<std::string> m_domain;
 
     public:
         CVariableParameter(const char* name, const char* defaultValue, const char* description = nullptr) :
@@ -125,15 +124,15 @@ namespace InCommand
             m_value(defaultValue)
         {}
 
-        CVariableParameter(const char* name, int numOptions, const char* options[], int defaultOption = 0, const char* description = nullptr) :
+        CVariableParameter(const char* name, int domainSize, const char* domain[], int defaultIndex = 0, const char* description = nullptr) :
             CParameter(name, description),
-            m_value(options[defaultOption])
+            m_value(domain[defaultIndex])
         {
-            for (int i = 0; i < numOptions; ++i)
-                m_options.insert(options[i]);
+            for (int i = 0; i < domainSize; ++i)
+                m_domain.insert(domain[i]);
         }
 
-        virtual ParameterType GetType() const final { return ParameterType::OptionsVariable; }
+        virtual ParameterType GetType() const final { return ParameterType::Variable; }
         virtual int ParseArgs(int arg, int argc, const char* argv[]) final
         {
             if (argc - arg < 2)
@@ -141,12 +140,12 @@ namespace InCommand
 
             ++arg;
 
-            if (!m_options.empty())
+            if (!m_domain.empty())
             {
                 // See if the given value is a valid 
-                // option value.
-                auto vit = m_options.find(argv[arg]);
-                if (vit == m_options.end())
+                // domain value.
+                auto vit = m_domain.find(argv[arg]);
+                if (vit == m_domain.end())
                     throw InCommandException(InCommandError::InvalidVariableValue, argv[arg], arg);
             }
 
@@ -183,7 +182,7 @@ namespace InCommand
         const CParameter& DeclareNonKeyedParameter(const char* name);
         const CParameter& DeclareSwitchParameter(const char* name);
         const CParameter& DeclareVariableParameter(const char* name, const char* defaultValue);
-        const CParameter& DeclareOptionsVariableParameter(const char* name, int numOptionValues, const char* optionValues[], int defaultOptionIndex = 0);
+        const CParameter& DeclareVariableParameter(const char* name, int domainSize, const char* domain[], int defaultIndex = 0);
 
         const CParameter& GetParameter(const char* name) const;
     };

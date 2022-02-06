@@ -85,7 +85,7 @@ Example:
 foo.exe --file hello.txt
 ```
 
-Variable parameters may be constrained to a limited set of pre-declared options. An error results if an assigned value is not in the options set.
+Variable parameters may be constrained to a pre-declared domain of values. An error results if an assigned value is not in the domain.
 
 Example:
 
