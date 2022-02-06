@@ -17,31 +17,31 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	int CCommandScope::ParseArguments(int arg, int argc, const char* argv[])
+	int CCommandScope::ParseArguments( int argc, const char* argv[], int index)
 	{
-		if (argc <= arg)
+		if (argc <= index)
 			return 0;
 
 		// Is the first argument a subcommand?
-		auto subIt = m_Subcommands.find(argv[arg]);
+		auto subIt = m_Subcommands.find(argv[index]);
 		if (subIt != m_Subcommands.end())
-			return subIt->second->ParseArguments(arg + 1, argc, argv);
+			return subIt->second->ParseArguments(argc, argv, index + 1);
 
 		// Parse the options
-		for (; arg < argc;)
+		for (; index < argc;)
 		{
-			auto it = m_Options.find(argv[arg]);
+			auto it = m_Options.find(argv[index]);
 			if (it == m_Options.end())
 			{
 				if (m_NumPresentNonKeyed == m_NonKeyedOptions.size())
-					throw InCommandException(InCommandError::UnexpectedArgument, argv[arg], arg);
+					throw InCommandException(InCommandError::UnexpectedArgument, argv[index], index);
 
-				arg = m_NonKeyedOptions[m_NumPresentNonKeyed]->ParseArgs(arg, argc, argv);
+				index = m_NonKeyedOptions[m_NumPresentNonKeyed]->ParseArgs(argc, argv, index);
 				m_NumPresentNonKeyed++;
 			}
 			else
 			{
-				arg = it->second->ParseArgs(arg, argc, argv);
+				index = it->second->ParseArgs(argc, argv, index);
 			}
 		}
 

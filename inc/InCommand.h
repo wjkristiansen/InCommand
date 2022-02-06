@@ -59,7 +59,7 @@ namespace InCommand
         virtual const char* GetValueAsString() const = 0;
 
         // Returns the index of the first unparsed argument
-        virtual int ParseArgs(int arg, int argc, const char* argv[]) = 0;
+        virtual int ParseArgs(int argc, const char* argv[], int index) = 0;
 
         bool IsPresent() const { return m_IsPresent; }
         const char* GetName() const { return m_name.c_str(); }
@@ -77,14 +77,14 @@ namespace InCommand
         {}
 
         virtual OptionType GetType() const final { return OptionType::NonKeyed; }
-        virtual int ParseArgs(int arg, int argc, const char* argv[]) final
+        virtual int ParseArgs(int argc, const char* argv[], int index) final
         {
-            if (arg >= argc)
-                return arg;
+            if (index >= argc)
+                return index;
 
             m_IsPresent = true;
-            m_value = argv[arg];
-            return arg + 1;
+            m_value = argv[index];
+            return index + 1;
         }
         virtual const char* GetValueAsString() const final { return m_value.c_str(); }
     };
@@ -98,13 +98,13 @@ namespace InCommand
         {}
 
         virtual OptionType GetType() const final { return OptionType::Switch; }
-        virtual int ParseArgs(int arg, int argc, [[maybe_unused]] const char* argv[]) final
+        virtual int ParseArgs(int argc, [[maybe_unused]] const char* argv[], int index) final
         {
-            if (arg >= argc)
-                return arg;
+            if (index >= argc)
+                return index;
 
             m_IsPresent = true;
-            return arg + 1;
+            return index + 1;
         }
         virtual const char* GetValueAsString() const final
         {
@@ -133,25 +133,25 @@ namespace InCommand
         }
 
         virtual OptionType GetType() const final { return OptionType::Variable; }
-        virtual int ParseArgs(int arg, int argc, const char* argv[]) final
+        virtual int ParseArgs(int argc, const char* argv[], int index) final
         {
-            if (argc - arg < 2)
-                throw InCommandException(InCommandError::NotEnoughArguments, argv[arg], arg);
+            if (argc - index < 2)
+                throw InCommandException(InCommandError::NotEnoughArguments, argv[index], index);
 
-            ++arg;
+            ++index;
 
             if (!m_domain.empty())
             {
                 // See if the given value is a valid 
                 // domain value.
-                auto vit = m_domain.find(argv[arg]);
+                auto vit = m_domain.find(argv[index]);
                 if (vit == m_domain.end())
-                    throw InCommandException(InCommandError::InvalidVariableValue, argv[arg], arg);
+                    throw InCommandException(InCommandError::InvalidVariableValue, argv[index], index);
             }
 
             m_IsPresent = true;
-            m_value = argv[arg];
-            return arg + 1;
+            m_value = argv[index];
+            return index + 1;
         }
         virtual const char* GetValueAsString() const final { return m_value.c_str(); }
     };
@@ -174,7 +174,8 @@ namespace InCommand
         // Processes one or more option arguments and returns the number of processed arguments
         // of arguments processed.
         // Returns the index of the first unparsed argument.
-        int ParseArguments(int arg, int argc, const char* argv[]);
+        // Default value for index is 1 since typically the first argument is the app name.
+        int ParseArguments(int argc, const char* argv[], int index = 1);
 
         void SetPrefix(const char* prefix);
 

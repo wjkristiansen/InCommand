@@ -18,7 +18,7 @@ TEST(InCommand, BasicParams)
     const char *domain[] = { "red", "green", "blue" };
     auto &ColorParam = Parser.DeclareVariableOption("color", 3, domain, 1);
 
-    Parser.ParseArguments(0, argc, argv); 
+    Parser.ParseArguments(argc, argv, 0); 
 
     EXPECT_EQ(IsRealParam.IsPresent(), true);
     EXPECT_EQ(NameParam.GetValueAsString(), std::string("Fred"));
@@ -29,6 +29,7 @@ TEST(InCommand, NonKeyedParams)
 {
     const char* argv[] =
     {
+        "foo.exe",
         "myfile1.txt",
         "--some-switch",
         "myfile2.txt",
@@ -42,10 +43,10 @@ TEST(InCommand, NonKeyedParams)
     auto& File3 = Parser.DeclareNonKeyedOption("file3");
     auto& Switch = Parser.DeclareSwitchOption("some-switch");
 
-    Parser.ParseArguments(0, argc, argv);
+    Parser.ParseArguments(argc, argv);
 
     EXPECT_EQ(Switch.IsPresent(), true);
-    EXPECT_EQ(File1.GetValueAsString(), std::string(argv[0]));
-    EXPECT_EQ(File2.GetValueAsString(), std::string(argv[2]));
-    EXPECT_EQ(File3.GetValueAsString(), std::string(argv[3]));
+    EXPECT_EQ(File1.GetValueAsString(), std::string(argv[1]));
+    EXPECT_EQ(File2.GetValueAsString(), std::string(argv[3]));
+    EXPECT_EQ(File3.GetValueAsString(), std::string(argv[4]));
 }
