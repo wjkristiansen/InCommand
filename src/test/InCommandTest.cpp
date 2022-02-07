@@ -18,7 +18,7 @@ TEST(InCommand, BasicParams)
     const char *domain[] = { "red", "green", "blue" };
     auto &ColorParam = Parser.DeclareVariableOption("color", 3, domain, 1);
 
-    Parser.ParseArguments(argc, argv, 0); 
+    Parser.ParseOptions(argc, argv, 0); 
 
     EXPECT_EQ(IsRealParam.IsPresent(), true);
     EXPECT_EQ(NameParam.GetValueAsString(), std::string("Fred"));
@@ -44,7 +44,7 @@ TEST(InCommand, NonKeyedParams)
     auto& File3 = Parser.DeclareNonKeyedOption("file3");
     auto& Switch = Parser.DeclareSwitchOption("some-switch");
 
-    Parser.ParseArguments(argc, argv);
+    Parser.ParseOptions(argc, argv, 1);
 
     EXPECT_EQ(Switch.IsPresent(), true);
     EXPECT_EQ(File1.GetValueAsString(), std::string(argv[1]));
@@ -53,31 +53,64 @@ TEST(InCommand, NonKeyedParams)
     EXPECT_EQ(File3.GetValueAsString(), std::string(argv[4]));
 }
 
+template<typename E>
+constexpr auto to_underlying(E e) noexcept
+{
+    return static_cast<std::underlying_type_t<E>>(e);
+}
+
 TEST(InCommand, SubCommands)
 {
     for(int i = 0; i < 3; ++i)
     {
+        enum class ScopeId : int
+        {
+            Root,
+            Plant,
+            Tree,
+            Shrub,
+            Animal,
+            Dog,
+            Cat
+        };
+
+
         InCommand::CCommandScope RootCommand;
-        auto& HelpOption = RootCommand.DeclareSwitchOption("help");
+        InCommand::CCommandScope& PlantCommand = RootCommand.DeclareSubcommand("plant", to_underlying(ScopeId::Plant));
+        InCommand::CCommandScope& TreeCommand = PlantCommand.DeclareSubcommand("tree", to_underlying(ScopeId::Tree));
+        InCommand::CCommandScope& ShrubCommand = PlantCommand.DeclareSubcommand("shrub", to_underlying(ScopeId::Shrub));
+        InCommand::CCommandScope& AnimalCommand = RootCommand.DeclareSubcommand("animal", to_underlying(ScopeId::Animal));
+        InCommand::CCommandScope& DogCommand = AnimalCommand.DeclareSubcommand("dog", to_underlying(ScopeId::Dog));
+        InCommand::CCommandScope& CatCommand = AnimalCommand.DeclareSubcommand("cat", to_underlying(ScopeId::Cat));
 
-        InCommand::CCommandScope& PlantCommand = RootCommand.DeclareSubcommand("plant", 1);
-        auto &PlantListOption = PlantCommand.DeclareSwitchOption("list");
-
-        InCommand::CCommandScope& TreeCommand = PlantCommand.DeclareSubcommand("tree", 2);
-        auto &TreeClimbOption = TreeCommand.DeclareSwitchOption("climb");
-
-        InCommand::CCommandScope& ShrubCommand = PlantCommand.DeclareSubcommand("shrub", 3);
-        auto &ShrubPruneOption = ShrubCommand.DeclareSwitchOption("prune");
-        auto &ShrubBurnOption = ShrubCommand.DeclareSwitchOption("burn");
-
-        InCommand::CCommandScope& AnimalCommand = RootCommand.DeclareSubcommand("animal", 4);
-        auto &AnimalListOption = AnimalCommand.DeclareSwitchOption("list");
-
-        InCommand::CCommandScope& DogCommand = AnimalCommand.DeclareSubcommand("dog", 5);
-        auto &DalkWalkOption = DogCommand.DeclareSwitchOption("walk");
-
-        InCommand::CCommandScope& CatCommand = AnimalCommand.DeclareSubcommand("cat", 6);
-        auto &CatLivesOption = CatCommand.DeclareVariableOption("lives", "9");
+        auto LateDeclareOptions = [](InCommand::CCommandScope& CommandScope)
+        {
+            switch (static_cast<ScopeId>(CommandScope.GetScopeId()))
+            {
+            case ScopeId::Root:
+                CommandScope.DeclareSwitchOption("help");
+                break;
+            case ScopeId::Plant:
+                CommandScope.DeclareSwitchOption("list");
+                break;
+            case ScopeId::Tree:
+                CommandScope.DeclareSwitchOption("climb");
+                break;
+            case ScopeId::Shrub:
+                CommandScope.DeclareSwitchOption("prune");
+                CommandScope.DeclareSwitchOption("burn");
+                break;
+            case ScopeId::Animal:
+                CommandScope.DeclareSwitchOption("list");
+                break;
+            case ScopeId::Dog:
+                CommandScope.DeclareSwitchOption("walk");
+                break;
+            case ScopeId::Cat:
+                CommandScope.DeclareVariableOption("lives", "9");
+                break;
+            }
+        };
 
         switch (i)
         {
@@ -90,9 +123,11 @@ TEST(InCommand, SubCommands)
             };
             int argc = _countof(argv);
 
-            RootCommand.ParseArguments(argc, argv, 0);
+            int index = RootCommand.ParseSubcommands(argc, argv, 0);
+            InCommand::CCommandScope& CommandScope = RootCommand.GetActiveCommandScope();
+            LateDeclareOptions(CommandScope);
+            CommandScope.ParseOptions(argc, argv, index);
 
-            EXPECT_EQ(3, RootCommand.GetActiveCommandScopeId());
             EXPECT_EQ(false, RootCommand.IsActive());
             EXPECT_EQ(false, PlantCommand.IsActive());
             EXPECT_EQ(false, TreeCommand.IsActive());
@@ -101,8 +136,8 @@ TEST(InCommand, SubCommands)
             EXPECT_EQ(false, DogCommand.IsActive());
             EXPECT_EQ(false, CatCommand.IsActive());
 
-            EXPECT_TRUE(ShrubBurnOption.IsPresent());
-            EXPECT_FALSE(ShrubPruneOption.IsPresent());
+            EXPECT_TRUE(CommandScope.GetOption("burn").IsPresent());
+            EXPECT_FALSE(CommandScope.GetOption("prune").IsPresent());
 
             break; }
         case 1: {
@@ -115,9 +150,11 @@ TEST(InCommand, SubCommands)
             };
             int argc = _countof(argv);
 
-            RootCommand.ParseArguments(argc, argv, 0);
+            int index = RootCommand.ParseSubcommands(argc, argv, 0);
+            InCommand::CCommandScope& CommandScope = RootCommand.GetActiveCommandScope();
+            LateDeclareOptions(CommandScope);
+            CommandScope.ParseOptions(argc, argv, index);
 
-            EXPECT_EQ(6, RootCommand.GetActiveCommandScopeId());
             EXPECT_EQ(false, RootCommand.IsActive());
             EXPECT_EQ(false, PlantCommand.IsActive());
             EXPECT_EQ(false, TreeCommand.IsActive());
@@ -126,7 +163,7 @@ TEST(InCommand, SubCommands)
             EXPECT_EQ(false, DogCommand.IsActive());
             EXPECT_EQ(true, CatCommand.IsActive());
 
-            EXPECT_EQ(CatLivesOption.GetValueAsString(), std::string("8"));
+            EXPECT_EQ(CommandScope.GetOption("lives").GetValueAsString(), std::string("8"));
 
             break; }
         case 2: {
@@ -136,9 +173,11 @@ TEST(InCommand, SubCommands)
             };
             int argc = _countof(argv);
 
-            RootCommand.ParseArguments(argc, argv, 0);
+            int index = RootCommand.ParseSubcommands(argc, argv, 0);
+            InCommand::CCommandScope& CommandScope = RootCommand.GetActiveCommandScope();
+            LateDeclareOptions(CommandScope);
+            CommandScope.ParseOptions(argc, argv, index);
 
-            EXPECT_EQ(0, RootCommand.GetActiveCommandScopeId());
             EXPECT_EQ(true, RootCommand.IsActive());
             EXPECT_EQ(false, PlantCommand.IsActive());
             EXPECT_EQ(false, TreeCommand.IsActive());
@@ -147,7 +186,7 @@ TEST(InCommand, SubCommands)
             EXPECT_EQ(false, DogCommand.IsActive());
             EXPECT_EQ(false, CatCommand.IsActive());
 
-            EXPECT_TRUE(HelpOption.IsPresent());
+            EXPECT_TRUE(CommandScope.GetOption("help").IsPresent());
 
             break; }
         }

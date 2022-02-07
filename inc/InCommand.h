@@ -7,6 +7,7 @@
 
 namespace InCommand
 {
+    //------------------------------------------------------------------------------------------------
     enum class InCommandResult
     {
         Success,
@@ -18,6 +19,7 @@ namespace InCommand
         InvalidVariableValue,
     };
 
+    //------------------------------------------------------------------------------------------------
     struct InCommandException
     {
         InCommandResult e;
@@ -161,7 +163,6 @@ namespace InCommand
     class CCommandScope
     {
         int m_ScopeId = 0;
-        int m_ActiveCommandScopeId = 0;
         bool m_IsActive = false;
         std::string m_Name;
         std::string m_Description;
@@ -169,17 +170,24 @@ namespace InCommand
         std::map<std::string, std::shared_ptr<CCommandScope>> m_Subcommands;
         std::vector<std::shared_ptr<CNonKeyedOption>> m_NonKeyedOptions;
         int m_NumPresentNonKeyed = 0;
+        CCommandScope* m_ActiveCommandScope;
 
     public:
         CCommandScope(const char *name = nullptr, int scopeId = 0);
         ~CCommandScope() = default;
         CCommandScope(CCommandScope&& o) = delete;
 
+        // Parses the command argument and set the active command scope.
+        // Returns the index of the first argument after the command arguments. 
+        // Sets the active subcommand scope.
+        int ParseSubcommands(int argc, const char* argv[], int index = 1);
+        CCommandScope &GetActiveCommandScope() const { return *m_ActiveCommandScope; }
+
         // Processes one or more option arguments and returns the number of processed arguments
         // of arguments processed.
         // Returns the index of the first unparsed argument.
         // Default value for index is 1 since typically the first argument is the app name.
-        int ParseArguments(int argc, const char* argv[], int index = 1);
+        int ParseOptions(int argc, const char* argv[], int index);
 
         void SetPrefix(const char* prefix);
 
@@ -195,7 +203,6 @@ namespace InCommand
 
         // Useful for switch/case using command scope id
         const char* GetName() const { return m_Name.c_str(); }
-        const int GetScopeId() const { return m_ScopeId; }
-        const int GetActiveCommandScopeId() const { return m_ActiveCommandScopeId; };
+        int GetScopeId() const { return m_ScopeId; }
     };
 }

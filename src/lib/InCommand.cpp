@@ -6,6 +6,7 @@ namespace InCommand
 {
 	//------------------------------------------------------------------------------------------------
 	CCommandScope::CCommandScope(const char* name, int scopeId) :
+		m_ActiveCommandScope(this),
 		m_ScopeId(scopeId)
 	{
 		if (name)
@@ -13,19 +14,27 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	int CCommandScope::ParseArguments( int argc, const char* argv[], int index)
+	int CCommandScope::ParseSubcommands(int argc, const char* argv[], int index)
 	{
 		if (argc <= index)
 			return 0;
 
-		// Is the first argument a subcommand?
 		auto subIt = m_Subcommands.find(argv[index]);
 		if (subIt != m_Subcommands.end())
 		{
-			int result = subIt->second->ParseArguments(argc, argv, index + 1);
-			m_ActiveCommandScopeId = subIt->second->GetActiveCommandScopeId();
-			return result;
+			index += 1;
+			index = subIt->second->ParseSubcommands(argc, argv, index);
+			m_ActiveCommandScope = &subIt->second->GetActiveCommandScope();
 		}
+
+		return index;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	int CCommandScope::ParseOptions( int argc, const char* argv[], int index)
+	{
+		if (argc <= index)
+			return 0;
 
 		// Parse the options
 		for (; index < argc;)
@@ -58,7 +67,6 @@ namespace InCommand
 			}
 		}
 
-		m_ActiveCommandScopeId = m_ScopeId;
 		m_IsActive = true;
 
 		return argc;
@@ -81,7 +89,7 @@ namespace InCommand
 		if (it != m_Subcommands.end())
 			throw InCommandException(InCommandResult::DuplicateCommand, name, -1);
 
-		auto result = m_Subcommands.emplace(name, std::make_unique<CCommandScope>(name, scopeId));
+		auto result = m_Subcommands.emplace(name, std::make_shared<CCommandScope>(name, scopeId));
 		return *result.first->second;
 	}
 
