@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include <set>
+#include <ostream>
 
 namespace InCommand
 {
@@ -96,7 +97,7 @@ namespace InCommand
         std::string m_name;
         std::string m_description;
 
-        COption(const char* name, const char* description = nullptr) :
+        COption(const char* name, const char* description) :
             m_name(name)
         {
             if (description)
@@ -121,7 +122,7 @@ namespace InCommand
         InCommandString& m_value;
 
     public:
-        CNonKeyedOption(InCommandString &value, const char* name, const char* description = nullptr) :
+        CNonKeyedOption(InCommandString &value, const char* name, const char* description) :
             m_value(value),
             COption(name, description)
         {}
@@ -144,7 +145,7 @@ namespace InCommand
         InCommandBool& m_value;
 
     public:
-        CSwitchOption(InCommandBool &value, const char* name, const char* description = nullptr) :
+        CSwitchOption(InCommandBool &value, const char* name, const char* description) :
             m_value(value),
             COption(name, description)
         {}
@@ -170,12 +171,12 @@ namespace InCommand
         std::set<std::string> m_domain;
 
     public:
-        CVariableOption(InCommandString &value, const char* name, const char* description = nullptr) :
+        CVariableOption(InCommandString &value, const char* name, const char* description) :
             m_value(value),
             COption(name, description)
         {}
 
-        CVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description = nullptr) :
+        CVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description) :
             m_value(value),
             COption(name, description)
         {
@@ -215,9 +216,10 @@ namespace InCommand
         std::map<std::string, std::shared_ptr<COption>> m_Options;
         std::map<std::string, std::shared_ptr<CCommandScope>> m_Subcommands;
         std::vector<std::shared_ptr<CNonKeyedOption>> m_NonKeyedOptions;
+        CCommandScope* m_pSuperScope = nullptr;
 
     public:
-        CCommandScope(const char *name = nullptr, int scopeId = 0);
+        CCommandScope(const char *name, const char *description, int scopeId = 0);
         ~CCommandScope() = default;
         CCommandScope(CCommandScope&& o) = delete;
 
@@ -232,11 +234,14 @@ namespace InCommand
         // Default value for index is 1 since typically the first argument is the app name.
         InCommandResult FetchOptions(const CArgumentList& args, CArgumentIterator& it) const;
 
-        CCommandScope& DeclareSubcommand(const char* name, int scopeId);
-        const COption& DeclareNonKeyedOption(InCommandString &value, const char* name);
-        const COption& DeclareSwitchOption(InCommandBool &value, const char* name);
-        const COption& DeclareVariableOption(InCommandString& value, const char* name);
-        const COption& DeclareVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[]);
+        CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId);
+        const COption& DeclareNonKeyedOption(InCommandString &value, const char* name, const char* description);
+        const COption& DeclareSwitchOption(InCommandBool &value, const char* name, const char* description);
+        const COption& DeclareVariableOption(InCommandString& value, const char* name, const char* description);
+        const COption& DeclareVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description);
+
+        std::string CommandChainString() const;
+        std::string UsageString() const;
 
         const COption& GetOption(const char* name) const;
 

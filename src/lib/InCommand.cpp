@@ -1,12 +1,13 @@
-#include <iostream>
+#include <sstream>
 
 #include "InCommand.h"
 
 namespace InCommand
 {
 	//------------------------------------------------------------------------------------------------
-	CCommandScope::CCommandScope(const char* name, int scopeId) :
-		m_ScopeId(scopeId)
+	CCommandScope::CCommandScope(const char* name, const char* description, int scopeId) :
+		m_ScopeId(scopeId),
+		m_Description(description ? description : "")
 	{
 		if (name)
 			m_Name = name;
@@ -92,58 +93,148 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	CCommandScope& CCommandScope::DeclareSubcommand(const char* name, int scopeId)
+	CCommandScope& CCommandScope::DeclareSubcommand(const char* name, const char* description, int scopeId)
 	{
 		auto it = m_Subcommands.find(name);
 		if (it != m_Subcommands.end())
 			throw InCommandException(InCommandResult::DuplicateCommand);
 
-		auto result = m_Subcommands.emplace(name, std::make_shared<CCommandScope>(name, scopeId));
+		auto result = m_Subcommands.emplace(name, std::make_shared<CCommandScope>(name, description, scopeId));
+		result.first->second->m_pSuperScope = this;
 		return *result.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption &CCommandScope::DeclareSwitchOption(InCommandBool &boundValue, const char* name)
+	std::string CCommandScope::CommandChainString() const
+	{
+		std::ostringstream s;
+		if (m_pSuperScope)
+		{
+			s << m_pSuperScope->CommandChainString();
+			s << " ";
+		}
+
+		s << m_Name;
+
+		return s.str();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	std::string CCommandScope::UsageString() const
+	{
+		std::ostringstream s;
+		s << "USAGE" << std::endl;
+		s << std::endl;
+
+		std::string commandChainString = CommandChainString();
+
+		if (!m_Subcommands.empty())
+		{
+			s << commandChainString;
+
+			s << " [<command> [<command options>]]" << std::endl;
+		}
+
+		if (!m_Options.empty())
+		{
+			s << commandChainString;
+
+			// Non-keyed options first
+			for (auto& nko : m_NonKeyedOptions)
+			{
+				s << " <" << nko->GetName() << ">";
+			}
+
+			s << " [<options>]" << std::endl;
+		}
+
+		s << std::endl;
+
+		if (!m_Subcommands.empty())
+		{
+			s << "COMMANDS" << std::endl;
+			s << std::endl;
+
+			for (auto subIt : m_Subcommands)
+			{
+				s << subIt.second->GetName() << "  <description here...>" << std::endl;
+			};
+		}
+
+		s << std::endl;
+
+		if (!m_Options.empty())
+		{
+			// Non-keyed options first
+			s << "OPTIONS" << std::endl;
+			s << std::endl;
+
+			// Non-keyed options details
+			for (auto& nko : m_NonKeyedOptions)
+			{
+				s << nko->GetName() << "  <description here...>" << std::endl;
+			}
+
+			// Keyed-options details
+			for (auto& ko : m_Options)
+			{
+				auto type = ko.second->GetType();
+				if (type == OptionType::NonKeyed)
+					continue; // Already dumped
+				s << "--" << ko.second->GetName();
+				if (ko.second->GetType() == OptionType::Variable)
+					s << " <value>";
+				s << "  <description here>" << std::endl;
+			}
+
+			s << std::endl;
+		}
+
+		return s.str();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	const COption& CCommandScope::DeclareSwitchOption(InCommandBool& boundValue, const char* name, const char *description)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, description));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name)
+	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, const char *description)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, description));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, int domainSize, const char* domain[])
+	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, int domainSize, const char* domain[], const char *description)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, domain, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, domain, description));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption& CCommandScope::DeclareNonKeyedOption(InCommandString& boundValue, const char* name)
+	const COption& CCommandScope::DeclareNonKeyedOption(InCommandString& boundValue, const char* name, const char* description)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
 
-        std::shared_ptr<CNonKeyedOption> pOption = std::make_shared<CNonKeyedOption>(boundValue, name, nullptr);
+        std::shared_ptr<CNonKeyedOption> pOption = std::make_shared<CNonKeyedOption>(boundValue, name, description);
 
         // Add the non-keyed option to the declared options map
 		m_Options.insert(std::make_pair(name, pOption));

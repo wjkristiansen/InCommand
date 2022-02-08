@@ -19,15 +19,15 @@ TEST(InCommand, BasicParams)
 
     const char* colors[] = { "red", "green", "blue" };
 
-    InCommand::CCommandScope Parser;
-    Parser.DeclareSwitchOption(IsReal, "is-real");
-    Parser.DeclareVariableOption(Name, "name");
-    Parser.DeclareVariableOption(Color, "color", 3, colors);
+    InCommand::CCommandScope RootCmdScope("app", nullptr);
+    RootCmdScope.DeclareSwitchOption(IsReal, "is-real", nullptr);
+    RootCmdScope.DeclareVariableOption(Name, "name", nullptr);
+    RootCmdScope.DeclareVariableOption(Color, "color", 3, colors, nullptr);
 
     InCommand::CArgumentList args(argc, argv);
     InCommand::CArgumentIterator it = args.Begin();
     ++it; // Skip app name
-    Parser.FetchOptions(args, it);
+    RootCmdScope.FetchOptions(args, it);
 
     EXPECT_TRUE(IsReal);
     EXPECT_EQ(std::string("Fred"),Name.Get());
@@ -51,17 +51,17 @@ TEST(InCommand, NonKeyedParams)
     InCommand::InCommandString File2;
     InCommand::InCommandString File3;
 
-    InCommand::CCommandScope Parser;
-    Parser.DeclareNonKeyedOption(File1, "file1");
-    Parser.DeclareNonKeyedOption(File2, "file2");
-    Parser.DeclareNonKeyedOption(File3, "file3");
-    Parser.DeclareSwitchOption(SomeSwitch, "some-switch");
+    InCommand::CCommandScope RootCmdScope("foo", nullptr);
+    RootCmdScope.DeclareNonKeyedOption(File1, "file1", nullptr);
+    RootCmdScope.DeclareNonKeyedOption(File2, "file2", nullptr);
+    RootCmdScope.DeclareNonKeyedOption(File3, "file3", nullptr);
+    RootCmdScope.DeclareSwitchOption(SomeSwitch, "some-switch", nullptr);
 
     InCommand::CArgumentList args(argc, argv);
     InCommand::CArgumentIterator it = args.Begin();
     ++it; // Skip app name
 
-    Parser.FetchOptions(args, it);
+    RootCmdScope.FetchOptions(args, it);
 
     EXPECT_TRUE(SomeSwitch);
     EXPECT_EQ(File1.Get(), std::string(argv[1]));
@@ -88,14 +88,6 @@ TEST(InCommand, SubCommands)
         Cat
     };
 
-    InCommand::CCommandScope RootCommand;
-    InCommand::CCommandScope& PlantCommand = RootCommand.DeclareSubcommand("plant", to_underlying(ScopeId::Plant));
-    InCommand::CCommandScope& TreeCommand = PlantCommand.DeclareSubcommand("tree", to_underlying(ScopeId::Tree));
-    InCommand::CCommandScope& ShrubCommand = PlantCommand.DeclareSubcommand("shrub", to_underlying(ScopeId::Shrub));
-    InCommand::CCommandScope& AnimalCommand = RootCommand.DeclareSubcommand("animal", to_underlying(ScopeId::Animal));
-    InCommand::CCommandScope& DogCommand = AnimalCommand.DeclareSubcommand("dog", to_underlying(ScopeId::Dog));
-    InCommand::CCommandScope& CatCommand = AnimalCommand.DeclareSubcommand("cat", to_underlying(ScopeId::Cat));
-
     for(int i = 0; i < 3; ++i)
     {
         InCommand::InCommandBool Help;
@@ -106,33 +98,36 @@ TEST(InCommand, SubCommands)
         InCommand::InCommandBool Walk;
         InCommand::InCommandString Lives("9");
 
+        InCommand::CCommandScope RootCmdScope("app", nullptr);
+        RootCmdScope.DeclareSwitchOption(Help, "help", nullptr);
+        InCommand::CCommandScope& PlantCommand = RootCmdScope.DeclareSubcommand("plant", nullptr, to_underlying(ScopeId::Plant));
+        PlantCommand.DeclareSwitchOption(List, "list", nullptr);
+        InCommand::CCommandScope& TreeCommand = PlantCommand.DeclareSubcommand("tree", nullptr, to_underlying(ScopeId::Tree));
+        InCommand::CCommandScope& ShrubCommand = PlantCommand.DeclareSubcommand("shrub", nullptr, to_underlying(ScopeId::Shrub));
+        ShrubCommand.DeclareSwitchOption(Prune, "prune", nullptr);
+        ShrubCommand.DeclareSwitchOption(Burn, "burn", nullptr);
+        InCommand::CCommandScope& AnimalCommand = RootCmdScope.DeclareSubcommand("animal", nullptr, to_underlying(ScopeId::Animal));
+        InCommand::CCommandScope& DogCommand = AnimalCommand.DeclareSubcommand("dog", nullptr, to_underlying(ScopeId::Dog));
+        InCommand::CCommandScope& CatCommand = AnimalCommand.DeclareSubcommand("cat", nullptr, to_underlying(ScopeId::Cat));
+
         auto LateDeclareOptions = [&](InCommand::CCommandScope& CommandScope)
         {
             switch (static_cast<ScopeId>(CommandScope.GetScopeId()))
             {
-            case ScopeId::Root:
-                CommandScope.DeclareSwitchOption(Help, "help");
-                break;
-            case ScopeId::Plant:
-                CommandScope.DeclareSwitchOption(List, "list");
-                break;
             case ScopeId::Tree:
-                CommandScope.DeclareSwitchOption(Climb, "climb");
-                break;
-            case ScopeId::Shrub:
-                CommandScope.DeclareSwitchOption(Prune, "prune");
-                CommandScope.DeclareSwitchOption(Burn, "burn");
+                CommandScope.DeclareSwitchOption(Climb, "climb", nullptr);
                 break;
             case ScopeId::Animal:
-                CommandScope.DeclareSwitchOption(List, "list");
+                CommandScope.DeclareSwitchOption(List, "list", nullptr);
                 break;
             case ScopeId::Dog:
-                CommandScope.DeclareSwitchOption(Walk, "walk");
+                CommandScope.DeclareSwitchOption(Walk, "walk", nullptr);
                 break;
             case ScopeId::Cat:
-                CommandScope.DeclareVariableOption(Lives, "lives");
+                CommandScope.DeclareVariableOption(Lives, "lives", nullptr);
                 break;
             }
+
         };
 
         switch (i)
@@ -151,8 +146,9 @@ TEST(InCommand, SubCommands)
             InCommand::CArgumentIterator it = args.Begin();
             ++it; // Skip app name
 
-            InCommand::CCommandScope* pScope;
-            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.FetchCommandScope(args, it, &pScope));
+            InCommand::CCommandScope* pScope = nullptr;
+            EXPECT_EQ(InCommand::InCommandResult::Success, RootCmdScope.FetchCommandScope(args, it, &pScope));
+            assert(pScope);
             LateDeclareOptions(*pScope);
             EXPECT_EQ(InCommand::InCommandResult::Success, pScope->FetchOptions(args, it));
 
@@ -175,8 +171,9 @@ TEST(InCommand, SubCommands)
             InCommand::CArgumentIterator it = args.Begin();
             ++it; // Skip app name
 
-            InCommand::CCommandScope* pScope;
-            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.FetchCommandScope(args, it, &pScope));
+            InCommand::CCommandScope* pScope = nullptr;
+            EXPECT_EQ(InCommand::InCommandResult::Success, RootCmdScope.FetchCommandScope(args, it, &pScope));
+            assert(pScope);
             LateDeclareOptions(*pScope);
             EXPECT_EQ(InCommand::InCommandResult::Success, pScope->FetchOptions(args, it));
 
@@ -195,8 +192,9 @@ TEST(InCommand, SubCommands)
             InCommand::CArgumentIterator it = args.Begin();
             ++it; // Skip app name
 
-            InCommand::CCommandScope* pScope;
-            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.FetchCommandScope(args, it, &pScope));
+            InCommand::CCommandScope* pScope = nullptr;
+            EXPECT_EQ(InCommand::InCommandResult::Success, RootCmdScope.FetchCommandScope(args, it, &pScope));
+            assert(pScope);
             LateDeclareOptions(*pScope);
             EXPECT_EQ(InCommand::InCommandResult::Success, pScope->FetchOptions(args, it));
 
