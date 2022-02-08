@@ -103,47 +103,47 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption &CCommandScope::DeclareSwitchOption(InCommandBool &value, const char* name)
+	const COption &CCommandScope::DeclareSwitchOption(InCommandBool &boundValue, const char* name)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(value, name, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption &CCommandScope::DeclareVariableOption(InCommandString& value, const char* name)
+	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(value, name, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption &CCommandScope::DeclareVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[])
+	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, int domainSize, const char* domain[])
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(value, name, domainSize, domain, nullptr));
+		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, domain, nullptr));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption& CCommandScope::DeclareNonKeyedOption(InCommandString& value, const char* name)
+	const COption& CCommandScope::DeclareNonKeyedOption(InCommandString& boundValue, const char* name)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
 
-        std::shared_ptr<CNonKeyedOption> pOption = std::make_shared<CNonKeyedOption>(value, name, nullptr);
+        std::shared_ptr<CNonKeyedOption> pOption = std::make_shared<CNonKeyedOption>(boundValue, name, nullptr);
 
         // Add the non-keyed option to the declared options map
 		m_Options.insert(std::make_pair(name, pOption));
