@@ -27,7 +27,7 @@ TEST(InCommand, BasicParams)
     InCommand::CArgumentList args(argc, argv);
     InCommand::CArgumentIterator it = args.Begin();
     ++it; // Skip app name
-    Parser.ParseOptions(args, it);
+    Parser.FetchOptions(args, it);
 
     EXPECT_TRUE(IsReal);
     EXPECT_EQ(std::string("Fred"),Name.Get());
@@ -61,7 +61,7 @@ TEST(InCommand, NonKeyedParams)
     InCommand::CArgumentIterator it = args.Begin();
     ++it; // Skip app name
 
-    Parser.ParseOptions(args, it);
+    Parser.FetchOptions(args, it);
 
     EXPECT_TRUE(SomeSwitch);
     EXPECT_EQ(File1.Get(), std::string(argv[1]));
@@ -152,9 +152,9 @@ TEST(InCommand, SubCommands)
             ++it; // Skip app name
 
             InCommand::CCommandScope* pScope;
-            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.ParseSubcommands(args, it, &pScope));
+            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.FetchCommandScope(args, it, &pScope));
             LateDeclareOptions(*pScope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, pScope->ParseOptions(args, it));
+            EXPECT_EQ(InCommand::InCommandResult::Success, pScope->FetchOptions(args, it));
 
             EXPECT_TRUE(Burn);
             EXPECT_FALSE(Prune);
@@ -176,9 +176,9 @@ TEST(InCommand, SubCommands)
             ++it; // Skip app name
 
             InCommand::CCommandScope* pScope;
-            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.ParseSubcommands(args, it, &pScope));
+            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.FetchCommandScope(args, it, &pScope));
             LateDeclareOptions(*pScope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, pScope->ParseOptions(args, it));
+            EXPECT_EQ(InCommand::InCommandResult::Success, pScope->FetchOptions(args, it));
 
             EXPECT_EQ(Lives.Get(), std::string("8"));
 
@@ -196,9 +196,9 @@ TEST(InCommand, SubCommands)
             ++it; // Skip app name
 
             InCommand::CCommandScope* pScope;
-            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.ParseSubcommands(args, it, &pScope));
+            EXPECT_EQ(InCommand::InCommandResult::Success, RootCommand.FetchCommandScope(args, it, &pScope));
             LateDeclareOptions(*pScope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, pScope->ParseOptions(args, it));
+            EXPECT_EQ(InCommand::InCommandResult::Success, pScope->FetchOptions(args, it));
 
             EXPECT_TRUE(Help);
 
