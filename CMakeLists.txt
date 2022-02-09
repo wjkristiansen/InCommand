@@ -29,6 +29,6 @@ if( IN_COMMAND_TEST )
 
     include(CTest)
     add_test(
-        NAME InCommandTest COMMAND InCommandTest.exe -arg1 arg2 --arg3 arg4:foo
+        NAME InCommandTest COMMAND InCommandTest
     )
 endif()
