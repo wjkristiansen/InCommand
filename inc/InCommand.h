@@ -66,7 +66,7 @@ namespace InCommand
         bool operator==(const CArgumentIterator& o) { return m_index == o.m_index; }
         bool operator!=(const CArgumentIterator& o) { return m_index != o.m_index; }
         CArgumentIterator& operator++() { ++m_index; return *this; }
-        CArgumentIterator& operator++(int) { CArgumentIterator old(*this); ++m_index; return old; }
+        CArgumentIterator operator++(int) { CArgumentIterator old(*this); ++m_index; return old; }
     };
 
     //------------------------------------------------------------------------------------------------
