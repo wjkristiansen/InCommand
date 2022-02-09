@@ -5,8 +5,8 @@
 int main(int argc, const char *argv[])
 {
     InCommand::CCommandScope AppCmdScope("sample", "Sample app for using InCommand command line parser.");
-    AppCmdScope.DeclareSubcommand("add", "Adds two integers", 1);
-    AppCmdScope.DeclareSubcommand("multiply", "Multiplies two integers", 2);
+    AppCmdScope.DeclareSubcommand("add", "Adds two integers");
+    AppCmdScope.DeclareSubcommand("multiply", "Multiplies two integers");
 
     InCommand::CArgumentList ArgList(argc, argv);
     InCommand::CArgumentIterator ArgIt = ArgList.Begin();

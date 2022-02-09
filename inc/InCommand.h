@@ -234,7 +234,7 @@ namespace InCommand
         // Default value for index is 1 since typically the first argument is the app name.
         InCommandResult FetchOptions(const CArgumentList& args, CArgumentIterator& it) const;
 
-        CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId);
+        CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
         const COption& DeclareNonKeyedOption(InCommandString &value, const char* name, const char* description);
         const COption& DeclareSwitchOption(InCommandBool &value, const char* name, const char* description);
         const COption& DeclareVariableOption(InCommandString& value, const char* name, const char* description);
