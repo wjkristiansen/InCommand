@@ -14,29 +14,25 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	InCommandResult CCommandScope::FetchCommandScope(const CArgumentList& args, CArgumentIterator& it, CCommandScope ** pScope)
+	CCommandScope &CCommandScope::ScanCommands(const CArgumentList& args, CArgumentIterator& it)
 	{
-		*pScope = this;
+		CCommandScope *pScope = this;
 
-		if (it == args.End())
+		if (it != args.End())
 		{
-			return InCommandResult::Success;
+			auto subIt = m_Subcommands.find(args.At(it));
+			if (subIt != m_Subcommands.end())
+			{
+				++it;
+				pScope = &(subIt->second->ScanCommands(args, it));
+			}
 		}
 
-		auto subIt = m_Subcommands.find(args.At(it));
-		if (subIt != m_Subcommands.end())
-		{
-			++it;
-			auto result = subIt->second->FetchCommandScope(args, it, pScope);
-			if (result != InCommandResult::Success)
-				return result;
-		}
-
-		return InCommandResult::Success;
+		return *pScope;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	InCommandResult CCommandScope::FetchOptions(const CArgumentList& args, CArgumentIterator& it) const
+	InCommandResult CCommandScope::ScanOptions(const CArgumentList& args, CArgumentIterator& it) const
 	{
 		if (it == args.End())
 		{
