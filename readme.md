@@ -1,6 +1,6 @@
 # Introduction
 
-This is a work-in-progress and is not yet functional.
+This is a work-in-progress. Most of the primary features are functional, but quite a bit of polish is still needed.
 
 InCommand is a command line parsing utility. Command lines are expected to have the following syntax:
 
