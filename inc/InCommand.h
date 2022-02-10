@@ -224,7 +224,7 @@ namespace InCommand
         std::map<std::string, std::shared_ptr<COption>> m_Options;
         std::map<char, std::shared_ptr<COption>> m_ShortOptions;
         std::map<std::string, std::shared_ptr<CCommandScope>> m_Subcommands;
-        std::vector<std::shared_ptr<CNonKeyedOption>> m_NonKeyedOptions;
+        std::vector<std::shared_ptr<COption>> m_NonKeyedOptions;
         CCommandScope* m_pSuperScope = nullptr;
 
     public:
