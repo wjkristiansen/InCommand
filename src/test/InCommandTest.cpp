@@ -27,7 +27,7 @@ TEST(InCommand, BasicParams)
     InCommand::CArgumentList args(argc, argv);
     InCommand::CArgumentIterator it = args.Begin();
     ++it; // Skip app name
-    RootCmdScope.ScanOptions(args, it);
+    RootCmdScope.ScanOptionArgs(args, it);
 
     EXPECT_TRUE(IsReal);
     EXPECT_EQ(std::string("Fred"),Name.Get());
@@ -61,7 +61,7 @@ TEST(InCommand, NonKeyedParams)
     InCommand::CArgumentIterator it = args.Begin();
     ++it; // Skip app name
 
-    RootCmdScope.ScanOptions(args, it);
+    RootCmdScope.ScanOptionArgs(args, it);
 
     EXPECT_TRUE(SomeSwitch);
     EXPECT_EQ(File1.Get(), std::string(argv[1]));
@@ -146,9 +146,9 @@ TEST(InCommand, SubCommands)
             InCommand::CArgumentIterator it = args.Begin();
             ++it; // Skip app name
 
-            InCommand::CCommandScope &Scope = RootCmdScope.ScanCommands(args, it);
+            InCommand::CCommandScope &Scope = RootCmdScope.ScanCommandArgs(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptions(args, it));
+            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptionArgs(args, it));
 
             EXPECT_TRUE(Burn);
             EXPECT_FALSE(Prune);
@@ -169,9 +169,9 @@ TEST(InCommand, SubCommands)
             InCommand::CArgumentIterator it = args.Begin();
             ++it; // Skip app name
 
-            InCommand::CCommandScope &Scope = RootCmdScope.ScanCommands(args, it);
+            InCommand::CCommandScope &Scope = RootCmdScope.ScanCommandArgs(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptions(args, it));
+            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptionArgs(args, it));
 
             EXPECT_EQ(Lives.Get(), std::string("8"));
 
@@ -188,9 +188,9 @@ TEST(InCommand, SubCommands)
             InCommand::CArgumentIterator it = args.Begin();
             ++it; // Skip app name
 
-            InCommand::CCommandScope &Scope = RootCmdScope.ScanCommands(args, it);
+            InCommand::CCommandScope &Scope = RootCmdScope.ScanCommandArgs(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptions(args, it));
+            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptionArgs(args, it));
 
             EXPECT_TRUE(Help);
 

@@ -14,7 +14,7 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	CCommandScope &CCommandScope::ScanCommands(const CArgumentList& args, CArgumentIterator& it)
+	CCommandScope &CCommandScope::ScanCommandArgs(const CArgumentList& args, CArgumentIterator& it)
 	{
 		CCommandScope *pScope = this;
 
@@ -24,7 +24,7 @@ namespace InCommand
 			if (subIt != m_Subcommands.end())
 			{
 				++it;
-				pScope = &(subIt->second->ScanCommands(args, it));
+				pScope = &(subIt->second->ScanCommandArgs(args, it));
 			}
 		}
 
@@ -32,7 +32,7 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	InCommandResult CCommandScope::ScanOptions(const CArgumentList& args, CArgumentIterator& it) const
+	InCommandResult CCommandScope::ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const
 	{
 		if (it == args.End())
 		{

@@ -226,13 +226,13 @@ namespace InCommand
         // Parses the command argument and set the active command scope.
         // Returns the index of the first argument after the command arguments. 
         // Sets the active subcommand scope.
-        CCommandScope &ScanCommands(const CArgumentList &args, CArgumentIterator &it);
+        CCommandScope &ScanCommandArgs(const CArgumentList &args, CArgumentIterator &it);
 
         // Processes one or more option arguments and returns the number of processed arguments
         // of arguments processed.
         // Returns the index of the first unparsed argument.
         // Default value for index is 1 since typically the first argument is the app name.
-        InCommandResult ScanOptions(const CArgumentList& args, CArgumentIterator& it) const;
+        InCommandResult ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const;
 
         CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
         const COption& DeclareNonKeyedOption(InCommandString &value, const char* name, const char* description);
