@@ -46,20 +46,27 @@ namespace InCommand
 		{
 			if (args.At(it)[0] == '-')
 			{
+				const COption* pOption = nullptr;
+
 				if (args.At(it)[1] == '-')
 				{
 					// Long-form option
 					auto optIt = m_Options.find(args.At(it) + 2);
 					if(optIt == m_Options.end() || optIt->second->GetType() == OptionType::NonKeyed)
 						return InCommandResult::UnexpectedArgument;
-					auto result = optIt->second->ParseArgs(args, it);
-					if (result != InCommandResult::Success)
-						return result;
+					pOption = optIt->second.get();
 				}
 				else
 				{
-					// TODO: Short-form option
-					return InCommandResult::UnexpectedArgument;
+					auto optIt = m_ShortOptions.find(args.At(it)[1]);
+					pOption = optIt->second.get();
+				}
+
+				if (pOption)
+				{
+					auto result = pOption->ParseArgs(args, it);
+					if (result != InCommandResult::Success)
+						return result;
 				}
 			}
 			else
@@ -190,35 +197,41 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption& CCommandScope::DeclareSwitchOption(InCommandBool& boundValue, const char* name, const char *description)
+	const COption& CCommandScope::DeclareSwitchOption(InCommandBool& boundValue, const char* name, const char *description, char shortKey)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, description));
+		auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, description, shortKey));
+		if (shortKey)
+			m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, const char *description)
+	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, const char *description, char shortKey)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, description));
+		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, description, shortKey));
+		if (shortKey)
+			m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
 		return *insert.first->second;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, int domainSize, const char* domain[], const char *description)
+	const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, int domainSize, const char* domain[], const char *description, char shortKey)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
-		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, domain, description));
+		auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, domain, description, shortKey));
+		if (shortKey)
+			m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
 		return *insert.first->second;
 	}
 

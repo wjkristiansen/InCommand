@@ -19,11 +19,11 @@ int main(int argc, const char *argv[])
     InCommand::InCommandString Message("");
     AddCmd.DeclareNonKeyedOption(Val1, "value1", "First add value");
     AddCmd.DeclareNonKeyedOption(Val2, "value2", "Second add value");
-    AddCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 + value2");
+    AddCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 + value2", 'm');
 
     MultiplyCmd.DeclareNonKeyedOption(Val1, "value1", "First multiply value");
     MultiplyCmd.DeclareNonKeyedOption(Val2, "value2", "Second multiply value");
-    MultiplyCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 * value2");
+    MultiplyCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
 
     InCommand::CArgumentList ArgList(argc, argv);
     InCommand::CArgumentIterator ArgIt = ArgList.Begin();

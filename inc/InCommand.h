@@ -143,11 +143,13 @@ namespace InCommand
     class CSwitchOption : public COption
     {
         InCommandBool& m_value;
+        char m_shortKey = 0;
 
     public:
-        CSwitchOption(InCommandBool &value, const char* name, const char* description) :
+        CSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0) :
             m_value(value),
-            COption(name, description)
+            COption(name, description),
+            m_shortKey(shortKey)
         {}
 
         virtual OptionType GetType() const final { return OptionType::Switch; }
@@ -167,18 +169,21 @@ namespace InCommand
     class CVariableOption : public COption
     {
         InCommandString& m_value;
+        char m_shortKey = 0;
 
         std::set<std::string> m_domain;
 
     public:
-        CVariableOption(InCommandString &value, const char* name, const char* description) :
+        CVariableOption(InCommandString &value, const char* name, const char* description, char shortKey = 0) :
             m_value(value),
-            COption(name, description)
+            COption(name, description),
+            m_shortKey(shortKey)
         {}
 
-        CVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description) :
+        CVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0) :
             m_value(value),
-            COption(name, description)
+            COption(name, description),
+            m_shortKey(shortKey)
         {
             for (int i = 0; i < domainSize; ++i)
                 m_domain.insert(domain[i]);
@@ -214,6 +219,7 @@ namespace InCommand
         std::string m_Name;
         std::string m_Description;
         std::map<std::string, std::shared_ptr<COption>> m_Options;
+        std::map<char, std::shared_ptr<COption>> m_ShortOptions;
         std::map<std::string, std::shared_ptr<CCommandScope>> m_Subcommands;
         std::vector<std::shared_ptr<CNonKeyedOption>> m_NonKeyedOptions;
         CCommandScope* m_pSuperScope = nullptr;
@@ -236,9 +242,9 @@ namespace InCommand
 
         CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
         const COption& DeclareNonKeyedOption(InCommandString &value, const char* name, const char* description);
-        const COption& DeclareSwitchOption(InCommandBool &value, const char* name, const char* description);
-        const COption& DeclareVariableOption(InCommandString& value, const char* name, const char* description);
-        const COption& DeclareVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description);
+        const COption& DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
+        const COption& DeclareVariableOption(InCommandString& value, const char* name, const char* description, char shortKey = 0);
+        const COption& DeclareVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
 
         std::string CommandChainString() const;
         std::string UsageString() const;
