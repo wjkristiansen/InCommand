@@ -10,9 +10,9 @@ int main(int argc, const char *argv[])
     InCommand::CCommandScope &MultiplyCmd = AppCmd.DeclareSubcommand("multiply", "Multiplies two integers", 2);
 
     InCommand::InCommandBool Help;
-    AppCmd.DeclareSwitchOption(Help, "--help", "Display help for sample commands.");
-    AddCmd.DeclareSwitchOption(Help, "--help", "Display help for sample add.");
-    MultiplyCmd.DeclareSwitchOption(Help, "--help", "Display help for sample multiply.");
+    AppCmd.DeclareSwitchOption(Help, "help", "Display help for sample commands.");
+    AddCmd.DeclareSwitchOption(Help, "help", "Display help for sample add.");
+    MultiplyCmd.DeclareSwitchOption(Help, "help", "Display help for sample multiply.");
 
     InCommand::InCommandString Val1;
     InCommand::InCommandString Val2;
