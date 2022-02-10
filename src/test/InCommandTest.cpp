@@ -34,7 +34,7 @@ TEST(InCommand, BasicParams)
     EXPECT_EQ(std::string("red"), Color.Get());
 }
 
-TEST(InCommand, NonKeyedParams)
+TEST(InCommand, ParameterParams)
 {
     const char* argv[] =
     {
@@ -52,9 +52,9 @@ TEST(InCommand, NonKeyedParams)
     InCommand::InCommandString File3;
 
     InCommand::CCommandScope RootCmdScope("foo", nullptr);
-    RootCmdScope.DeclareNonKeyedOption(File1, "file1", nullptr);
-    RootCmdScope.DeclareNonKeyedOption(File2, "file2", nullptr);
-    RootCmdScope.DeclareNonKeyedOption(File3, "file3", nullptr);
+    RootCmdScope.DeclareParameterOption(File1, "file1", nullptr);
+    RootCmdScope.DeclareParameterOption(File2, "file2", nullptr);
+    RootCmdScope.DeclareParameterOption(File3, "file3", nullptr);
     RootCmdScope.DeclareSwitchOption(SomeSwitch, "some-switch", nullptr);
 
     InCommand::CArgumentList args(argc, argv);

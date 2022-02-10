@@ -36,11 +36,11 @@ foo.exe subcom-A subcom-B-of-A subcom-C-of-B-of-A --switch-on-subcom-C-of-B-of-A
 
 ---
 
-## Non-Keyed Options
+## Parameter Options
 
-Non-Keyed options contain only a value string. Typically, non-keyed arguments do not start with '--' or '-', as these give the appearance of keyed options.
+Parameter options contain only a value. Typically, parameter arguments do not start with '--' or '-', as these give the appearance of variable or switch options.
 
-Any option argument that doesn't match a keyed option is assumed to be a non-keyed option. An error occurs if there are not enough non-keyed options declared to contain matching arguments on the command line.
+Any option argument that doesn't begin with '--' or '-' is assumed to be a parameter value. Values are assigned to parameters in the order they are declared. An error is produced if there are more parameters in the argument list than declared parameters.
 
 Example:
 
@@ -50,9 +50,9 @@ foo.exe myfile1.foo myfile2.foo
 
 ---
 
-## Keyed Options
+## Variable and Switch Options
 
-Syntactically, keyed option arguments use '--' followed by the name of the option. Optionally, a single letter short-form argument may be declared, which is preceded by a single hyphen '-'.
+Syntactically, variable and switch option arguments use '--' followed by the name of the option. Optionally, a single letter short-form label may be declared, which is preceded by a single hyphen '-'.
 
 Example
 ```

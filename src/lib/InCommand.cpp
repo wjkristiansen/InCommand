@@ -9,7 +9,7 @@ namespace InCommand
 	{
 		//------------------------------------------------------------------------------------------------
 		std::ostringstream s;
-		if (pOption->Type() == OptionType::NonKeyed)
+		if (pOption->Type() == OptionType::Parameter)
 		{
 			s << "<" << pOption->Name() << ">";
 		}
@@ -62,7 +62,7 @@ namespace InCommand
 			return InCommandResult::Success;
 		}
 
-		int NonKeyedOptionIndex = 0;
+		int ParameterOptionIndex = 0;
 
 		// Parse the options
 		while(it != args.End())
@@ -75,7 +75,7 @@ namespace InCommand
 				{
 					// Long-form option
 					auto optIt = m_Options.find(args.At(it) + 2);
-					if(optIt == m_Options.end() || optIt->second->Type() == OptionType::NonKeyed)
+					if(optIt == m_Options.end() || optIt->second->Type() == OptionType::Parameter)
 						return InCommandResult::UnexpectedArgument;
 					pOption = optIt->second.get();
 				}
@@ -95,13 +95,13 @@ namespace InCommand
 			else
 			{
 				// Assume non-keyed option
-				if (NonKeyedOptionIndex == m_NonKeyedOptions.size())
+				if (ParameterOptionIndex == m_ParameterOptions.size())
 					return InCommandResult::UnexpectedArgument;
 
-				auto result = m_NonKeyedOptions[NonKeyedOptionIndex]->ParseArgs(args, it);
+				auto result = m_ParameterOptions[ParameterOptionIndex]->ParseArgs(args, it);
 				if (result != InCommandResult::Success)
 					return result;
-				NonKeyedOptionIndex++;
+				ParameterOptionIndex++;
 			}
 		}
 
@@ -167,7 +167,7 @@ namespace InCommand
 			s << "  " + commandChainString;
 
 			// Non-keyed options first
-			for (auto& nko : m_NonKeyedOptions)
+			for (auto& nko : m_ParameterOptions)
 			{
 				s << " <" << nko->Name() << ">";
 			}
@@ -198,7 +198,7 @@ namespace InCommand
 			s << std::endl;
 
 			// Non-keyed options details
-			for (auto& nko : m_NonKeyedOptions)
+			for (auto& nko : m_ParameterOptions)
 			{
 				s << std::setw(colwidth) << std::left << "  " + OptionUsageString(nko.get());
 				s << nko->Description() << std::endl;
@@ -208,7 +208,7 @@ namespace InCommand
 			for (auto& ko : m_Options)
 			{
 				auto type = ko.second->Type();
-				if (type == OptionType::NonKeyed)
+				if (type == OptionType::Parameter)
 					continue; // Already dumped
 				s << std::setw(colwidth) << std::left << "  " + OptionUsageString(ko.second.get());
 				if (OptionUsageString(ko.second.get()).length() + 4 > colwidth)
@@ -265,20 +265,20 @@ namespace InCommand
 	}
 
 	//------------------------------------------------------------------------------------------------
-	const COption& CCommandScope::DeclareNonKeyedOption(InCommandString& boundValue, const char* name, const char* description)
+	const COption& CCommandScope::DeclareParameterOption(InCommandString& boundValue, const char* name, const char* description)
 	{
 		auto it = m_Options.find(name);
 		if (it != m_Options.end())
 			throw InCommandException(InCommandResult::DuplicateOption);
 
 
-        std::shared_ptr<CNonKeyedOption> pOption = std::make_shared<CNonKeyedOption>(boundValue, name, description);
+        std::shared_ptr<CParameterOption> pOption = std::make_shared<CParameterOption>(boundValue, name, description);
 
         // Add the non-keyed option to the declared options map
 		m_Options.insert(std::make_pair(name, pOption));
 
         // Add to the array of non-keyed options
-		m_NonKeyedOptions.push_back(pOption);
-		return *m_NonKeyedOptions.back();
+		m_ParameterOptions.push_back(pOption);
+		return *m_ParameterOptions.back();
 	}
 }

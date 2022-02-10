@@ -32,7 +32,7 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     enum class OptionType
     {
-        NonKeyed,           // A string option not associated with a declared key
+        Parameter,          // A string option not associated with a declared key
         Switch,             // Boolean treated as 'true' if present and 'false' if not
         Variable,           // Name/Value pair
     };
@@ -119,17 +119,17 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CNonKeyedOption : public COption
+    class CParameterOption : public COption
     {
         InCommandString& m_value;
 
     public:
-        CNonKeyedOption(InCommandString &value, const char* name, const char* description) :
+        CParameterOption(InCommandString &value, const char* name, const char* description) :
             m_value(value),
             COption(name, description)
         {}
 
-        virtual OptionType Type() const final { return OptionType::NonKeyed; }
+        virtual OptionType Type() const final { return OptionType::Parameter; }
         virtual InCommandResult ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             if (it == args.End())
@@ -224,7 +224,7 @@ namespace InCommand
         std::map<std::string, std::shared_ptr<COption>> m_Options;
         std::map<char, std::shared_ptr<COption>> m_ShortOptions;
         std::map<std::string, std::shared_ptr<CCommandScope>> m_Subcommands;
-        std::vector<std::shared_ptr<COption>> m_NonKeyedOptions;
+        std::vector<std::shared_ptr<COption>> m_ParameterOptions;
         CCommandScope* m_pSuperScope = nullptr;
 
     public:
@@ -244,7 +244,7 @@ namespace InCommand
         InCommandResult ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const;
 
         CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
-        const COption& DeclareNonKeyedOption(InCommandString &value, const char* name, const char* description);
+        const COption& DeclareParameterOption(InCommandString &value, const char* name, const char* description);
         const COption& DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
         const COption& DeclareVariableOption(InCommandString& value, const char* name, const char* description, char shortKey = 0);
         const COption& DeclareVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
