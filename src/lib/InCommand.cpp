@@ -95,7 +95,7 @@ namespace InCommand
 			else
 			{
 				// Assume non-keyed option
-				if (ParameterOptionIndex == m_ParameterOptions.size())
+				if (ParameterOptionIndex == int(m_ParameterOptions.size()))
 					return InCommandResult::UnexpectedArgument;
 
 				auto result = m_ParameterOptions[ParameterOptionIndex]->ParseArgs(args, it);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 #include <string>
 #include <map>
@@ -115,7 +116,7 @@ namespace InCommand
 
         const std::string &Name() const { return m_name; }
         const std::string &Description() const { return m_description; }
-        const char GetShortKey() const { return m_shortKey; }
+        char GetShortKey() const { return m_shortKey; }
     };
 
     //------------------------------------------------------------------------------------------------
@@ -125,8 +126,8 @@ namespace InCommand
 
     public:
         CParameterOption(InCommandString &value, const char* name, const char* description) :
-            m_value(value),
-            COption(name, description)
+            COption(name, description),
+            m_value(value)
         {}
 
         virtual OptionType Type() const final { return OptionType::Parameter; }
@@ -148,8 +149,8 @@ namespace InCommand
 
     public:
         CSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0) :
-            m_value(value),
-            COption(name, description)
+            COption(name, description),
+            m_value(value)
         {
             m_shortKey = shortKey;
         }
@@ -176,15 +177,15 @@ namespace InCommand
 
     public:
         CVariableOption(InCommandString &value, const char* name, const char* description, char shortKey = 0) :
-            m_value(value),
-            COption(name, description)
+            COption(name, description),
+            m_value(value)
         {
             m_shortKey = shortKey;
         }
 
         CVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0) :
-            m_value(value),
-            COption(name, description)
+            COption(name, description),
+            m_value(value)
         {
             m_shortKey = shortKey;
 
