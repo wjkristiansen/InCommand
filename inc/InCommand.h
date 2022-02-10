@@ -96,6 +96,7 @@ namespace InCommand
     protected:
         std::string m_name;
         std::string m_description;
+        char m_shortKey = 0;
 
         COption(const char* name, const char* description) :
             m_name(name)
@@ -112,8 +113,11 @@ namespace InCommand
         // Returns the index of the first unparsed argument
         virtual InCommandResult ParseArgs(const CArgumentList &args, CArgumentIterator &it) const = 0;
 
-        const char* GetName() const { return m_name.c_str(); }
-        const char* GetDescripotion() const { return m_description.c_str(); }
+        const std::string &GetName() const { return m_name; }
+        const std::string &GetDescription() const { return m_description; }
+        const char GetShortKey() const { return m_shortKey; }
+
+        std::string UsageString() const;
     };
 
     //------------------------------------------------------------------------------------------------
@@ -143,14 +147,14 @@ namespace InCommand
     class CSwitchOption : public COption
     {
         InCommandBool& m_value;
-        char m_shortKey = 0;
 
     public:
         CSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0) :
             m_value(value),
-            COption(name, description),
-            m_shortKey(shortKey)
-        {}
+            COption(name, description)
+        {
+            m_shortKey = shortKey;
+        }
 
         virtual OptionType GetType() const final { return OptionType::Switch; }
         virtual InCommandResult ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
@@ -169,22 +173,23 @@ namespace InCommand
     class CVariableOption : public COption
     {
         InCommandString& m_value;
-        char m_shortKey = 0;
 
         std::set<std::string> m_domain;
 
     public:
         CVariableOption(InCommandString &value, const char* name, const char* description, char shortKey = 0) :
             m_value(value),
-            COption(name, description),
-            m_shortKey(shortKey)
-        {}
+            COption(name, description)
+        {
+            m_shortKey = shortKey;
+        }
 
         CVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0) :
             m_value(value),
-            COption(name, description),
-            m_shortKey(shortKey)
+            COption(name, description)
         {
+            m_shortKey = shortKey;
+
             for (int i = 0; i < domainSize; ++i)
                 m_domain.insert(domain[i]);
         }
@@ -252,7 +257,7 @@ namespace InCommand
         const COption& GetOption(const char* name) const;
 
         // Useful for switch/case using command scope id
-        const char* GetName() const { return m_Name.c_str(); }
+        const std::string& GetName() const { return m_Name; }
         int GetScopeId() const { return m_ScopeId; }
     };
 }

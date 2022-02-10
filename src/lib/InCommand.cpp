@@ -1,9 +1,32 @@
 #include <sstream>
+#include <iomanip>
 
 #include "InCommand.h"
 
 namespace InCommand
 {
+	std::string COption::UsageString() const
+	{
+		//------------------------------------------------------------------------------------------------
+		std::ostringstream s;
+		if (GetType() == OptionType::NonKeyed)
+		{
+			s << "<" << GetName() << ">";
+		}
+		else
+		{
+			if (GetShortKey())
+			{
+				s << '-' << GetShortKey() << ", ";
+			}
+			s << "--" << GetName();
+			if (GetType() == OptionType::Variable)
+				s << " <value>";
+		}
+
+		return s.str();
+	}
+
 	//------------------------------------------------------------------------------------------------
 	CCommandScope::CCommandScope(const char* name, const char* description, int scopeId) :
 		m_ScopeId(scopeId),
@@ -128,19 +151,20 @@ namespace InCommand
 		std::ostringstream s;
 		s << "USAGE" << std::endl;
 		s << std::endl;
+		static const int colwidth = 30;
 
 		std::string commandChainString = CommandChainString();
 
 		if (!m_Subcommands.empty())
 		{
-			s << commandChainString;
+			s << "  " + commandChainString;
 
 			s << " [<command> [<command options>]]" << std::endl;
 		}
 
 		if (!m_Options.empty())
 		{
-			s << commandChainString;
+			s << "  " + commandChainString;
 
 			// Non-keyed options first
 			for (auto& nko : m_NonKeyedOptions)
@@ -160,7 +184,8 @@ namespace InCommand
 
 			for (auto subIt : m_Subcommands)
 			{
-				s << subIt.second->GetName() << "  <description here...>" << std::endl;
+				s << std::setw(colwidth) << std::left << "  " + subIt.second->GetName();
+				s << subIt.second->m_Description << std::endl;
 			};
 		}
 
@@ -175,7 +200,8 @@ namespace InCommand
 			// Non-keyed options details
 			for (auto& nko : m_NonKeyedOptions)
 			{
-				s << nko->GetName() << "  <description here...>" << std::endl;
+				s << std::setw(colwidth) << std::left << "  " + nko->UsageString();
+				s << nko->GetDescription() << std::endl;
 			}
 
 			// Keyed-options details
@@ -184,10 +210,13 @@ namespace InCommand
 				auto type = ko.second->GetType();
 				if (type == OptionType::NonKeyed)
 					continue; // Already dumped
-				s << "--" << ko.second->GetName();
-				if (ko.second->GetType() == OptionType::Variable)
-					s << " <value>";
-				s << "  <description here>" << std::endl;
+				s << std::setw(colwidth) << std::left << "  " + ko.second->UsageString();
+				if (ko.second->UsageString().length() + 4 > colwidth)
+				{
+					s << std::endl;
+					s << std::setw(colwidth) << ' ';
+				}
+				s << ko.second->GetDescription() << std::endl;
 			}
 
 			s << std::endl;
