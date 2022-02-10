@@ -116,8 +116,6 @@ namespace InCommand
         const std::string &Name() const { return m_name; }
         const std::string &Description() const { return m_description; }
         const char GetShortKey() const { return m_shortKey; }
-
-        std::string UsageString() const;
     };
 
     //------------------------------------------------------------------------------------------------

@@ -5,22 +5,22 @@
 
 namespace InCommand
 {
-	std::string COption::UsageString() const
+	static std::string OptionUsageString(const COption *pOption)
 	{
 		//------------------------------------------------------------------------------------------------
 		std::ostringstream s;
-		if (Type() == OptionType::NonKeyed)
+		if (pOption->Type() == OptionType::NonKeyed)
 		{
-			s << "<" << Name() << ">";
+			s << "<" << pOption->Name() << ">";
 		}
 		else
 		{
-			if (GetShortKey())
+			if (pOption->GetShortKey())
 			{
-				s << '-' << GetShortKey() << ", ";
+				s << '-' << pOption->GetShortKey() << ", ";
 			}
-			s << "--" << Name();
-			if (Type() == OptionType::Variable)
+			s << "--" << pOption->Name();
+			if (pOption->Type() == OptionType::Variable)
 				s << " <value>";
 		}
 
@@ -200,7 +200,7 @@ namespace InCommand
 			// Non-keyed options details
 			for (auto& nko : m_NonKeyedOptions)
 			{
-				s << std::setw(colwidth) << std::left << "  " + nko->UsageString();
+				s << std::setw(colwidth) << std::left << "  " + OptionUsageString(nko.get());
 				s << nko->Description() << std::endl;
 			}
 
@@ -210,8 +210,8 @@ namespace InCommand
 				auto type = ko.second->Type();
 				if (type == OptionType::NonKeyed)
 					continue; // Already dumped
-				s << std::setw(colwidth) << std::left << "  " + ko.second->UsageString();
-				if (ko.second->UsageString().length() + 4 > colwidth)
+				s << std::setw(colwidth) << std::left << "  " + OptionUsageString(ko.second.get());
+				if (OptionUsageString(ko.second.get()).length() + 4 > colwidth)
 				{
 					s << std::endl;
 					s << std::setw(colwidth) << ' ';
