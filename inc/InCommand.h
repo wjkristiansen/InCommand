@@ -108,13 +108,13 @@ namespace InCommand
     public:
         virtual ~COption() = default;
 
-        virtual OptionType GetType() const = 0;
+        virtual OptionType Type() const = 0;
 
         // Returns the index of the first unparsed argument
         virtual InCommandResult ParseArgs(const CArgumentList &args, CArgumentIterator &it) const = 0;
 
-        const std::string &GetName() const { return m_name; }
-        const std::string &GetDescription() const { return m_description; }
+        const std::string &Name() const { return m_name; }
+        const std::string &Description() const { return m_description; }
         const char GetShortKey() const { return m_shortKey; }
 
         std::string UsageString() const;
@@ -131,7 +131,7 @@ namespace InCommand
             COption(name, description)
         {}
 
-        virtual OptionType GetType() const final { return OptionType::NonKeyed; }
+        virtual OptionType Type() const final { return OptionType::NonKeyed; }
         virtual InCommandResult ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             if (it == args.End())
@@ -156,7 +156,7 @@ namespace InCommand
             m_shortKey = shortKey;
         }
 
-        virtual OptionType GetType() const final { return OptionType::Switch; }
+        virtual OptionType Type() const final { return OptionType::Switch; }
         virtual InCommandResult ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             if (it == args.End())
@@ -194,7 +194,7 @@ namespace InCommand
                 m_domain.insert(domain[i]);
         }
 
-        virtual OptionType GetType() const final { return OptionType::Variable; }
+        virtual OptionType Type() const final { return OptionType::Variable; }
         virtual InCommandResult ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             ++it;
@@ -257,7 +257,7 @@ namespace InCommand
         const COption& GetOption(const char* name) const;
 
         // Useful for switch/case using command scope id
-        const std::string& GetName() const { return m_Name; }
+        const std::string& Name() const { return m_Name; }
         int GetScopeId() const { return m_ScopeId; }
     };
 }

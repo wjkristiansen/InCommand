@@ -9,9 +9,9 @@ namespace InCommand
 	{
 		//------------------------------------------------------------------------------------------------
 		std::ostringstream s;
-		if (GetType() == OptionType::NonKeyed)
+		if (Type() == OptionType::NonKeyed)
 		{
-			s << "<" << GetName() << ">";
+			s << "<" << Name() << ">";
 		}
 		else
 		{
@@ -19,8 +19,8 @@ namespace InCommand
 			{
 				s << '-' << GetShortKey() << ", ";
 			}
-			s << "--" << GetName();
-			if (GetType() == OptionType::Variable)
+			s << "--" << Name();
+			if (Type() == OptionType::Variable)
 				s << " <value>";
 		}
 
@@ -75,7 +75,7 @@ namespace InCommand
 				{
 					// Long-form option
 					auto optIt = m_Options.find(args.At(it) + 2);
-					if(optIt == m_Options.end() || optIt->second->GetType() == OptionType::NonKeyed)
+					if(optIt == m_Options.end() || optIt->second->Type() == OptionType::NonKeyed)
 						return InCommandResult::UnexpectedArgument;
 					pOption = optIt->second.get();
 				}
@@ -169,7 +169,7 @@ namespace InCommand
 			// Non-keyed options first
 			for (auto& nko : m_NonKeyedOptions)
 			{
-				s << " <" << nko->GetName() << ">";
+				s << " <" << nko->Name() << ">";
 			}
 
 			s << " [<options>]" << std::endl;
@@ -184,7 +184,7 @@ namespace InCommand
 
 			for (auto subIt : m_Subcommands)
 			{
-				s << std::setw(colwidth) << std::left << "  " + subIt.second->GetName();
+				s << std::setw(colwidth) << std::left << "  " + subIt.second->Name();
 				s << subIt.second->m_Description << std::endl;
 			};
 		}
@@ -201,13 +201,13 @@ namespace InCommand
 			for (auto& nko : m_NonKeyedOptions)
 			{
 				s << std::setw(colwidth) << std::left << "  " + nko->UsageString();
-				s << nko->GetDescription() << std::endl;
+				s << nko->Description() << std::endl;
 			}
 
 			// Keyed-options details
 			for (auto& ko : m_Options)
 			{
-				auto type = ko.second->GetType();
+				auto type = ko.second->Type();
 				if (type == OptionType::NonKeyed)
 					continue; // Already dumped
 				s << std::setw(colwidth) << std::left << "  " + ko.second->UsageString();
@@ -216,7 +216,7 @@ namespace InCommand
 					s << std::endl;
 					s << std::setw(colwidth) << ' ';
 				}
-				s << ko.second->GetDescription() << std::endl;
+				s << ko.second->Description() << std::endl;
 			}
 
 			s << std::endl;
