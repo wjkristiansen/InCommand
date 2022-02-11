@@ -82,6 +82,8 @@ namespace InCommand
                 else
                 {
                     auto optIt = m_ShortOptions.find(args.At(it)[1]);
+                    if(optIt == m_ShortOptions.end())
+                        return InCommandResult::UnexpectedArgument;
                     pOption = optIt->second.get();
                 }
 
