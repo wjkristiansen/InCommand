@@ -74,7 +74,7 @@ namespace InCommand
                 if (args.At(it)[1] == '-')
                 {
                     // Long-form option
-                    auto optIt = m_Options.find(args.At(it) + 2);
+                    auto optIt = m_Options.find(args.At(it).substr(2));
                     if(optIt == m_Options.end() || optIt->second->Type() == OptionType::Parameter)
                         return InCommandResult::UnexpectedArgument;
                     pOption = optIt->second.get();
@@ -239,7 +239,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, const char *description, char shortKey)
+    const COption &CCommandScope::DeclareVariableOption(CInCommandValue& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -252,7 +252,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption &CCommandScope::DeclareVariableOption(InCommandString& boundValue, const char* name, int domainSize, const char* domain[], const char *description, char shortKey)
+    const COption &CCommandScope::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const char* domain[], const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -265,7 +265,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption& CCommandScope::DeclareParameterOption(InCommandString& boundValue, const char* name, const char* description)
+    const COption& CCommandScope::DeclareParameterOption(CInCommandValue& boundValue, const char* name, const char* description)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())

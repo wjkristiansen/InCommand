@@ -14,8 +14,8 @@ int main(int argc, const char *argv[])
     AddCmd.DeclareSwitchOption(Help, "help", "Display help for sample add.", 'h');
     MultiplyCmd.DeclareSwitchOption(Help, "help", "Display help for sample multiply.", 'h');
 
-    InCommand::InCommandString Val1;
-    InCommand::InCommandString Val2;
+    InCommand::InCommandInt Val1;
+    InCommand::InCommandInt Val2;
     InCommand::InCommandString Message("");
     AddCmd.DeclareParameterOption(Val1, "value1", "First add value");
     AddCmd.DeclareParameterOption(Val2, "value2", "Second add value");
@@ -38,18 +38,16 @@ int main(int argc, const char *argv[])
         return 0;
     }
 
-    int val1 = std::stoi(Val1);
-    int val2 = std::stoi(Val2);
     int result = 0;
     switch(Cmd.GetScopeId())
     {
     case 1: { // Add
-        result = val1 + val2;
-        std::cout << val1 << " + " << val2 << " = " << result << std::endl;
+        result = Val1.Get() + Val2.Get();
+        std::cout << Val1.Get() << " + " << Val2.Get() << " = " << result << std::endl;
         break; }
     case 2: {// Multiple
-        result = val1 * val2;
-        std::cout << val1 << " * " << val2 << " = " << result << std::endl;
+        result = Val1.Get() * Val2.Get();
+        std::cout << Val1.Get() << " * " << Val2.Get() << " = " << result << std::endl;
         break; }
     default:
         return -1;

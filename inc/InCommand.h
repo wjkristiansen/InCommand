@@ -18,7 +18,7 @@ namespace InCommand
         UnexpectedArgument,
         NotEnoughArguments,
         UnknownOption,
-        InvalidVariableValue,
+        InvalidValueString,
     };
 
     //------------------------------------------------------------------------------------------------
@@ -39,21 +39,74 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    template<class _T>
-    class CInCommandType
+    template<typename _T>
+    inline _T FromString(const std::string &s)
     {
-        _T m_Value = _T();
+        return _T();
+    }
 
+    //------------------------------------------------------------------------------------------------
+    template<>
+    inline bool FromString<bool>(const std::string &s)
+    {
+        if(s == "true" || s == "on" || s == "1")
+            return true;
+        if(s == "false" || s == "off" || s == "0")
+            return true;
+
+        throw InCommandException(InCommandResult::InvalidValueString);
+    }
+
+    //------------------------------------------------------------------------------------------------
+    template<>
+    inline int FromString<int>(const std::string &s)
+    {
+        return std::stoi(s); // may throw on conversion error
+    }
+
+    //------------------------------------------------------------------------------------------------
+    template<>
+    inline unsigned int FromString<unsigned int>(const std::string &s)
+    {
+        return (unsigned int) std::stoul(s); // may throw on conversion error
+    }
+
+    //------------------------------------------------------------------------------------------------
+    template<>
+    inline std::string FromString<std::string>(const std::string &s)
+    {
+        return s;
+    }
+
+    //------------------------------------------------------------------------------------------------
+    class CInCommandValue
+    {
     public:
-        CInCommandType() = default;
-        explicit CInCommandType(const _T &value) : m_Value(value) {}
-        operator _T() const { return m_Value; }
-        CInCommandType& operator=(const _T &value) { m_Value = value; return *this; }
-        const _T &Get() const { return m_Value; }
+        virtual void FromString(const std::string &s) = 0;
     };
 
-    using InCommandString = CInCommandType<std::string>;
-    using InCommandBool = CInCommandType<bool>;
+    //------------------------------------------------------------------------------------------------
+    template<class _T>
+    class CInCommandTypedValue : public CInCommandValue
+    {
+        _T m_value = _T();
+
+    public:
+        CInCommandTypedValue() = default;
+        explicit CInCommandTypedValue(const _T &value) : m_value(value) {}
+        operator _T() const { return m_value; }
+        CInCommandTypedValue& operator=(const _T &value) { m_value = value; return *this; }
+        const _T &Get() const { return m_value; }
+        virtual void FromString(const std::string &s) final
+        {
+            m_value = InCommand::FromString<_T>(s);
+        }
+    };
+
+    using InCommandString = CInCommandTypedValue<std::string>;
+    using InCommandBool = CInCommandTypedValue<bool>;
+    using InCommandInt = CInCommandTypedValue<int>;
+    using InCommandUInt = CInCommandTypedValue<unsigned int>;
 
     //------------------------------------------------------------------------------------------------
     class CArgumentIterator
@@ -73,21 +126,22 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     class CArgumentList
     {
-        int m_argc;
-        const char** m_argv;
+        std::vector<std::string> m_args;
 
     public:
-        CArgumentList(int argc, const char* argv[]) :
-            m_argc(argc),
-            m_argv(argv)
-        {}
+        CArgumentList(int argc, const char* argv[])
+        {
+            m_args.resize(argc);
+            for(int i = 0; i < argc; ++i)
+                m_args[i] = argv[i];
+        }
 
         CArgumentIterator Begin() const { return CArgumentIterator(0); }
-        CArgumentIterator End() const { return CArgumentIterator(m_argc); }
-        int Size() const { return m_argc; }
-        const char* At(const CArgumentIterator& it) const
+        CArgumentIterator End() const { return CArgumentIterator(int(m_args.size())); }
+        int Size() const { return int(m_args.size()); }
+        const std::string &At(const CArgumentIterator& it) const
         {
-            return m_argv[it.GetIndex()];
+            return m_args[it.GetIndex()];
         }
     };
 
@@ -122,10 +176,10 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     class CParameterOption : public COption
     {
-        InCommandString& m_value;
+        CInCommandValue &m_value;
 
     public:
-        CParameterOption(InCommandString &value, const char* name, const char* description) :
+        CParameterOption(CInCommandValue &value, const char* name, const char* description) :
             COption(name, description),
             m_value(value)
         {}
@@ -136,7 +190,7 @@ namespace InCommand
             if (it == args.End())
                 return InCommandResult::Success;
 
-            m_value = args.At(it);
+            m_value.FromString(args.At(it));
             ++it;
             return InCommandResult::Success;
         }
@@ -171,19 +225,19 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     class CVariableOption : public COption
     {
-        InCommandString& m_value;
+        CInCommandValue &m_value;
 
         std::set<std::string> m_domain;
 
     public:
-        CVariableOption(InCommandString &value, const char* name, const char* description, char shortKey = 0) :
+        CVariableOption(CInCommandValue &value, const char* name, const char* description, char shortKey = 0) :
             COption(name, description),
             m_value(value)
         {
             m_shortKey = shortKey;
         }
 
-        CVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0) :
+        CVariableOption(CInCommandValue &value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0) :
             COption(name, description),
             m_value(value)
         {
@@ -207,10 +261,10 @@ namespace InCommand
                 // domain value.
                 auto vit = m_domain.find(args.At(it));
                 if (vit == m_domain.end())
-                    return InCommandResult::InvalidVariableValue;
+                    return InCommandResult::InvalidValueString;
             }
 
-            m_value = args.At(it);
+            m_value.FromString(args.At(it));
             ++it;
             return InCommandResult::Success;
         }
@@ -245,10 +299,10 @@ namespace InCommand
         InCommandResult ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const;
 
         CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
-        const COption& DeclareParameterOption(InCommandString &value, const char* name, const char* description);
+        const COption& DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);
         const COption& DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
-        const COption& DeclareVariableOption(InCommandString& value, const char* name, const char* description, char shortKey = 0);
-        const COption& DeclareVariableOption(InCommandString& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
+        const COption& DeclareVariableOption(CInCommandValue& value, const char* name, const char* description, char shortKey = 0);
+        const COption& DeclareVariableOption(CInCommandValue& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
 
         std::string CommandChainString() const;
         std::string UsageString() const;
