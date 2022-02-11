@@ -30,7 +30,11 @@ int main(int argc, const char *argv[])
     ArgIt++; // Skip past app name in command line
 
     InCommand::CCommandScope &Cmd = AppCmd.ScanCommandArgs(ArgList, ArgIt);
-    Cmd.ScanOptionArgs(ArgList, ArgIt);
+    if (InCommand::InCommandResult::Success != Cmd.ScanOptionArgs(ArgList, ArgIt))
+    {
+        std::cout << "Error" << std::endl;
+        Help = true;
+    }
 
     if(Help || 0 == Cmd.GetScopeId())
     {

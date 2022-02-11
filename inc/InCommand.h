@@ -82,7 +82,7 @@ namespace InCommand
     class CInCommandValue
     {
     public:
-        virtual void FromString(const std::string &s) = 0;
+        virtual InCommandResult SetFromString(const std::string &s) = 0;
     };
 
     //------------------------------------------------------------------------------------------------
@@ -97,9 +97,18 @@ namespace InCommand
         operator _T() const { return m_value; }
         CInCommandTypedValue& operator=(const _T &value) { m_value = value; return *this; }
         const _T &Get() const { return m_value; }
-        virtual void FromString(const std::string &s) final
+        virtual InCommandResult SetFromString(const std::string &s) final
         {
-            m_value = InCommand::FromString<_T>(s);
+            try
+            {
+                m_value = FromString<_T>(s);
+            }
+            catch (const std::invalid_argument& )
+            {
+                return InCommandResult::InvalidValueString;
+            }
+
+            return InCommandResult::Success;
         }
     };
 
@@ -190,7 +199,10 @@ namespace InCommand
             if (it == args.End())
                 return InCommandResult::Success;
 
-            m_value.FromString(args.At(it));
+            auto result = m_value.SetFromString(args.At(it));
+            if (result != InCommandResult::Success)
+                return result;
+
             ++it;
             return InCommandResult::Success;
         }
@@ -264,7 +276,7 @@ namespace InCommand
                     return InCommandResult::InvalidValueString;
             }
 
-            m_value.FromString(args.At(it));
+            m_value.SetFromString(args.At(it));
             ++it;
             return InCommandResult::Success;
         }
