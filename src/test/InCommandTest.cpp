@@ -11,7 +11,7 @@ TEST(InCommand, BasicParams)
         "--color",
         "red",
     };
-    int argc = _countof(argv);
+    const int argc = sizeof(argv) / sizeof(argv[0]);
 
     InCommand::InCommandBool IsReal;
     InCommand::InCommandString Color;
@@ -44,7 +44,7 @@ TEST(InCommand, ParameterParams)
         "myfile2.txt",
         "myfile3.txt",
     };
-    int argc = _countof(argv);
+    const int argc = sizeof(argv) / sizeof(argv[0]);
 
     InCommand::InCommandBool SomeSwitch;
     InCommand::InCommandString File1;
@@ -140,7 +140,7 @@ TEST(InCommand, SubCommands)
                 "shrub",
                 "--burn",
             };
-            int argc = _countof(argv);
+            const int argc = sizeof(argv) / sizeof(argv[0]);
 
             InCommand::CArgumentList args(argc, argv);
             InCommand::CArgumentIterator it = args.Begin();
@@ -163,7 +163,7 @@ TEST(InCommand, SubCommands)
                 "--lives",
                 "8"
             };
-            int argc = _countof(argv);
+            const int argc = sizeof(argv) / sizeof(argv[0]);
 
             InCommand::CArgumentList args(argc, argv);
             InCommand::CArgumentIterator it = args.Begin();
@@ -182,7 +182,7 @@ TEST(InCommand, SubCommands)
                 "app.exe",
                 "--help",
             };
-            int argc = _countof(argv);
+            const int argc = sizeof(argv) / sizeof(argv[0]);
 
             InCommand::CArgumentList args(argc, argv);
             InCommand::CArgumentIterator it = args.Begin();
