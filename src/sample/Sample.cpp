@@ -29,7 +29,7 @@ int main(int argc, const char *argv[])
     InCommand::CArgumentIterator ArgIt = ArgList.Begin();
 
     InCommand::CCommand &Cmd = AppCmd.FetchCommand(ArgList, ArgIt);
-    InCommand::OptionScanResult scanResult = Cmd.ReadOptions(ArgList, ArgIt);
+    InCommand::OptionScanResult scanResult = Cmd.FetchOptions(ArgList, ArgIt);
     if (InCommand::InCommandStatus::Success != scanResult.Status)
     {
         std::string errorString = Cmd.ErrorString(scanResult, ArgList, ArgIt);

@@ -55,7 +55,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    OptionScanResult CCommand::ReadOptions(const CArgumentList& args, CArgumentIterator& it) const
+    OptionScanResult CCommand::FetchOptions(const CArgumentList& args, CArgumentIterator& it) const
     {
         OptionScanResult result;
 

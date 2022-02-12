@@ -317,16 +317,13 @@ namespace InCommand
         ~CCommand() = default;
         CCommand(CCommand&& o) = delete;
 
-        // Parses the command argument and set the active command scope.
-        // Returns the index of the first argument after the command arguments. 
-        // Sets the active subcommand scope.
+        // Parses the command argument and returns the active command from
+        // the argument list. Afterward, the argument iterator indexes
+        // the first command option argument.
         CCommand &FetchCommand(const CArgumentList &args, CArgumentIterator &it);
 
-        // Processes one or more option arguments and returns the number of processed arguments
-        // of arguments processed.
-        // Returns the index of the first unparsed argument.
-        // Default value for index is 1 since typically the first argument is the app name.
-        OptionScanResult ReadOptions(const CArgumentList& args, CArgumentIterator& it) const;
+        // Fetches the command options, setting the bound values.
+        OptionScanResult FetchOptions(const CArgumentList& args, CArgumentIterator& it) const;
 
         CCommand& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
         const COption& DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);

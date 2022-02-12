@@ -27,7 +27,7 @@ TEST(InCommand, BasicParams)
     InCommand::CArgumentList args(argc, argv);
     InCommand::CArgumentIterator it = args.Begin();
     ++it; // Skip app name
-    RootCmdScope.ReadOptions(args, it);
+    RootCmdScope.FetchOptions(args, it);
 
     EXPECT_TRUE(IsReal);
     EXPECT_EQ(std::string("Fred"),Name.Get());
@@ -61,7 +61,7 @@ TEST(InCommand, ParameterParams)
     InCommand::CArgumentIterator it = args.Begin();
     ++it; // Skip app name
 
-    RootCmdScope.ReadOptions(args, it);
+    RootCmdScope.FetchOptions(args, it);
 
     EXPECT_TRUE(SomeSwitch);
     EXPECT_EQ(File1.Get(), std::string(argv[1]));
@@ -148,7 +148,7 @@ TEST(InCommand, SubCommands)
 
             InCommand::CCommand &Scope = RootCmdScope.FetchCommand(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.ReadOptions(args, it).Status);
+            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.FetchOptions(args, it).Status);
 
             EXPECT_TRUE(Burn);
             EXPECT_FALSE(Prune);
@@ -171,7 +171,7 @@ TEST(InCommand, SubCommands)
 
             InCommand::CCommand &Scope = RootCmdScope.FetchCommand(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.ReadOptions(args, it).Status);
+            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.FetchOptions(args, it).Status);
 
             EXPECT_EQ(Lives.Get(), std::string("8"));
 
@@ -190,7 +190,7 @@ TEST(InCommand, SubCommands)
 
             InCommand::CCommand &Scope = RootCmdScope.FetchCommand(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.ReadOptions(args, it).Status);
+            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.FetchOptions(args, it).Status);
 
             EXPECT_TRUE(Help);
 
