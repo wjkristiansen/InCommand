@@ -5,25 +5,25 @@
 
 int main(int argc, const char *argv[])
 {
-    InCommand::CCommand AppCmd("sample", "Sample app for using InCommand command line parser.", 0);
-    InCommand::CCommand &AddCmd = AppCmd.DeclareSubcommand("add", "Adds two integers", 1);
-    InCommand::CCommand &MultiplyCmd = AppCmd.DeclareSubcommand("multiply", "Multiplies two integers", 2);
-
     InCommand::InCommandBool ShowHelp(false);
-    AppCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
-    AddCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample add.", 'h');
-    MultiplyCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample multiply.", 'h');
-
     InCommand::InCommandInt Val1;
     InCommand::InCommandInt Val2;
     InCommand::InCommandString Message("");
+
+    InCommand::CCommand AppCmd("sample", "Sample app for using InCommand command line parser.", 0);
+    AppCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
+
+    InCommand::CCommand &AddCmd = AppCmd.DeclareSubcommand("add", "Adds two integers", 1);
+    AddCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample add.", 'h');
     AddCmd.DeclareParameterOption(Val1, "value1", "First add value");
     AddCmd.DeclareParameterOption(Val2, "value2", "Second add value");
     AddCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 + value2", 'm');
 
-    MultiplyCmd.DeclareParameterOption(Val1, "value1", "First multiply value");
-    MultiplyCmd.DeclareParameterOption(Val2, "value2", "Second multiply value");
-    MultiplyCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
+    InCommand::CCommand &MulCmd = AppCmd.DeclareSubcommand("mul", "Multiplies two integers", 2);
+    MulCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample multiply.", 'h');
+    MulCmd.DeclareParameterOption(Val1, "value1", "First multiply value");
+    MulCmd.DeclareParameterOption(Val2, "value2", "Second multiply value");
+    MulCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
 
     InCommand::CArgumentList ArgList(argc, argv);
     InCommand::CArgumentIterator ArgIt = ArgList.Begin();
