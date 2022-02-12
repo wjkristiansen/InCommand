@@ -28,7 +28,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandScope::CCommandScope(const char* name, const char* description, int scopeId) :
+    CCommand::CCommand(const char* name, const char* description, int scopeId) :
         m_ScopeId(scopeId),
         m_Description(description ? description : "")
     {
@@ -37,9 +37,9 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandScope &CCommandScope::ScanCommandArgs(const CArgumentList& args, CArgumentIterator& it)
+    CCommand &CCommand::FetchCommand(const CArgumentList& args, CArgumentIterator& it)
     {
-        CCommandScope *pScope = this;
+        CCommand *pScope = this;
 
         if (it != args.End())
         {
@@ -47,7 +47,7 @@ namespace InCommand
             if (subIt != m_Subcommands.end())
             {
                 ++it;
-                pScope = &(subIt->second->ScanCommandArgs(args, it));
+                pScope = &(subIt->second->FetchCommand(args, it));
             }
         }
 
@@ -55,7 +55,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    OptionScanResult CCommandScope::ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const
+    OptionScanResult CCommand::ReadOptions(const CArgumentList& args, CArgumentIterator& it) const
     {
         OptionScanResult result;
 
@@ -125,7 +125,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption& CCommandScope::GetOption(const char* name) const
+    const COption& CCommand::GetOption(const char* name) const
     {
         auto it = m_Options.find(name);
         if (it == m_Options.end())
@@ -135,19 +135,19 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandScope& CCommandScope::DeclareSubcommand(const char* name, const char* description, int scopeId)
+    CCommand& CCommand::DeclareSubcommand(const char* name, const char* description, int scopeId)
     {
         auto it = m_Subcommands.find(name);
         if (it != m_Subcommands.end())
             throw InCommandException(InCommandStatus::DuplicateCommand);
 
-        auto result = m_Subcommands.emplace(name, std::make_shared<CCommandScope>(name, description, scopeId));
+        auto result = m_Subcommands.emplace(name, std::make_shared<CCommand>(name, description, scopeId));
         result.first->second->m_pSuperScope = this;
         return *result.first->second;
     }
 
     //------------------------------------------------------------------------------------------------
-    std::string CCommandScope::CommandChainString() const
+    std::string CCommand::CommandChainString() const
     {
         std::ostringstream s;
         if (m_pSuperScope)
@@ -162,7 +162,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    std::string CCommandScope::UsageString() const
+    std::string CCommand::UsageString() const
     {
         std::ostringstream s;
         s << "USAGE" << std::endl;
@@ -242,7 +242,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption& CCommandScope::DeclareSwitchOption(InCommandBool& boundValue, const char* name, const char *description, char shortKey)
+    const COption& CCommand::DeclareSwitchOption(InCommandBool& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -255,7 +255,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption &CCommandScope::DeclareVariableOption(CInCommandValue& boundValue, const char* name, const char *description, char shortKey)
+    const COption &CCommand::DeclareVariableOption(CInCommandValue& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -268,7 +268,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption &CCommandScope::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const char* domain[], const char *description, char shortKey)
+    const COption &CCommand::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const char* domain[], const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -281,7 +281,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption& CCommandScope::DeclareParameterOption(CInCommandValue& boundValue, const char* name, const char* description)
+    const COption& CCommand::DeclareParameterOption(CInCommandValue& boundValue, const char* name, const char* description)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -298,7 +298,7 @@ namespace InCommand
         return *m_ParameterOptions.back();
     }
 
-    std::string CCommandScope::ErrorString(const OptionScanResult& result, const CArgumentList& argList, const CArgumentIterator& argIt) const
+    std::string CCommand::ErrorString(const OptionScanResult& result, const CArgumentList& argList, const CArgumentIterator& argIt) const
     {
         std::ostringstream s;
 

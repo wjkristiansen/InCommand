@@ -5,9 +5,9 @@
 
 int main(int argc, const char *argv[])
 {
-    InCommand::CCommandScope AppCmd("sample", "Sample app for using InCommand command line parser.", 0);
-    InCommand::CCommandScope &AddCmd = AppCmd.DeclareSubcommand("add", "Adds two integers", 1);
-    InCommand::CCommandScope &MultiplyCmd = AppCmd.DeclareSubcommand("multiply", "Multiplies two integers", 2);
+    InCommand::CCommand AppCmd("sample", "Sample app for using InCommand command line parser.", 0);
+    InCommand::CCommand &AddCmd = AppCmd.DeclareSubcommand("add", "Adds two integers", 1);
+    InCommand::CCommand &MultiplyCmd = AppCmd.DeclareSubcommand("multiply", "Multiplies two integers", 2);
 
     InCommand::InCommandBool ShowHelp(false);
     AppCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
@@ -29,8 +29,8 @@ int main(int argc, const char *argv[])
     InCommand::CArgumentIterator ArgIt = ArgList.Begin();
     ArgIt++; // Skip past app name in command line
 
-    InCommand::CCommandScope &Cmd = AppCmd.ScanCommandArgs(ArgList, ArgIt);
-    InCommand::OptionScanResult scanResult = Cmd.ScanOptionArgs(ArgList, ArgIt);
+    InCommand::CCommand &Cmd = AppCmd.FetchCommand(ArgList, ArgIt);
+    InCommand::OptionScanResult scanResult = Cmd.ReadOptions(ArgList, ArgIt);
     if (InCommand::InCommandStatus::Success != scanResult.Status)
     {
         std::string errorString = Cmd.ErrorString(scanResult, ArgList, ArgIt);

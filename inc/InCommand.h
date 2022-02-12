@@ -301,34 +301,34 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CCommandScope
+    class CCommand
     {
         int m_ScopeId = 0;
         std::string m_Name;
         std::string m_Description;
         std::map<std::string, std::shared_ptr<COption>> m_Options;
         std::map<char, std::shared_ptr<COption>> m_ShortOptions;
-        std::map<std::string, std::shared_ptr<CCommandScope>> m_Subcommands;
+        std::map<std::string, std::shared_ptr<CCommand>> m_Subcommands;
         std::vector<std::shared_ptr<COption>> m_ParameterOptions;
-        CCommandScope* m_pSuperScope = nullptr;
+        CCommand* m_pSuperScope = nullptr;
 
     public:
-        CCommandScope(const char *name, const char *description, int scopeId = 0);
-        ~CCommandScope() = default;
-        CCommandScope(CCommandScope&& o) = delete;
+        CCommand(const char *name, const char *description, int scopeId = 0);
+        ~CCommand() = default;
+        CCommand(CCommand&& o) = delete;
 
         // Parses the command argument and set the active command scope.
         // Returns the index of the first argument after the command arguments. 
         // Sets the active subcommand scope.
-        CCommandScope &ScanCommandArgs(const CArgumentList &args, CArgumentIterator &it);
+        CCommand &FetchCommand(const CArgumentList &args, CArgumentIterator &it);
 
         // Processes one or more option arguments and returns the number of processed arguments
         // of arguments processed.
         // Returns the index of the first unparsed argument.
         // Default value for index is 1 since typically the first argument is the app name.
-        OptionScanResult ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const;
+        OptionScanResult ReadOptions(const CArgumentList& args, CArgumentIterator& it) const;
 
-        CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
+        CCommand& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
         const COption& DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);
         const COption& DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
         const COption& DeclareVariableOption(CInCommandValue& value, const char* name, const char* description, char shortKey = 0);
