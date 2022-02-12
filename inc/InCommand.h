@@ -317,25 +317,23 @@ namespace InCommand
         ~CCommand() = default;
         CCommand(CCommand&& o) = delete;
 
-        // Parses the command argument and returns the active command from
-        // the argument list. Afterward, the argument iterator indexes
-        // the first command option argument.
-        CCommand &FetchCommand(const CArgumentList &args, CArgumentIterator &it);
+        CCommand* FetchCommand(const CArgumentList& args, CArgumentIterator& it);
 
         // Fetches the command options, setting the bound values.
-        OptionScanResult FetchOptions(const CArgumentList& args, CArgumentIterator& it) const;
+        InCommandStatus FetchOptions(const CArgumentList& args, CArgumentIterator& it) const;
 
-        CCommand& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
-        const COption& DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);
-        const COption& DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
-        const COption& DeclareVariableOption(CInCommandValue& value, const char* name, const char* description, char shortKey = 0);
-        const COption& DeclareVariableOption(CInCommandValue& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
+        CCommand* DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
+        const COption* DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);
+        const COption* DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
+        const COption* DeclareVariableOption(CInCommandValue& value, const char* name, const char* description, char shortKey = 0);
+        const COption* DeclareVariableOption(CInCommandValue& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
 
         std::string CommandChainString() const;
-        std::string UsageString() const;
-        std::string ErrorString(const OptionScanResult& result, const CArgumentList& argList, const CArgumentIterator& argIt) const;
 
-        const COption& GetOption(const char* name) const;
+        friend class CCommandReader;
+
+        std::string UsageString() const;
+        std::string ErrorString(InCommandStatus status, const CArgumentList& argList, const CArgumentIterator& argIt) const;
 
         // Useful for switch/case using command scope id
         const std::string& Name() const { return m_Name; }

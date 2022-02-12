@@ -13,40 +13,40 @@ int main(int argc, const char *argv[])
     InCommand::CCommand AppCmd("sample", "Sample app for using InCommand command line parser.", 0);
     AppCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
 
-    InCommand::CCommand &AddCmd = AppCmd.DeclareSubcommand("add", "Adds two integers", 1);
-    AddCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample add.", 'h');
-    AddCmd.DeclareParameterOption(Val1, "value1", "First add value");
-    AddCmd.DeclareParameterOption(Val2, "value2", "Second add value");
-    AddCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 + value2", 'm');
+    InCommand::CCommand *pAddCmd = AppCmd.DeclareSubcommand("add", "Adds two integers", 1);
+    pAddCmd->DeclareSwitchOption(ShowHelp, "help", "Display help for sample add.", 'h');
+    pAddCmd->DeclareParameterOption(Val1, "value1", "First add value");
+    pAddCmd->DeclareParameterOption(Val2, "value2", "Second add value");
+    pAddCmd->DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 + value2", 'm');
 
-    InCommand::CCommand &MulCmd = AppCmd.DeclareSubcommand("mul", "Multiplies two integers", 2);
-    MulCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample multiply.", 'h');
-    MulCmd.DeclareParameterOption(Val1, "value1", "First multiply value");
-    MulCmd.DeclareParameterOption(Val2, "value2", "Second multiply value");
-    MulCmd.DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
+    InCommand::CCommand *pMulCmd = AppCmd.DeclareSubcommand("mul", "Multiplies two integers", 2);
+    pMulCmd->DeclareSwitchOption(ShowHelp, "help", "Display help for sample multiply.", 'h');
+    pMulCmd->DeclareParameterOption(Val1, "value1", "First multiply value");
+    pMulCmd->DeclareParameterOption(Val2, "value2", "Second multiply value");
+    pMulCmd->DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
 
     InCommand::CArgumentList ArgList(argc, argv);
     InCommand::CArgumentIterator ArgIt = ArgList.Begin();
 
-    InCommand::CCommand &Cmd = AppCmd.FetchCommand(ArgList, ArgIt);
-    InCommand::OptionScanResult scanResult = Cmd.FetchOptions(ArgList, ArgIt);
-    if (InCommand::InCommandStatus::Success != scanResult.Status)
+    InCommand::CCommand *pCmd = AppCmd.FetchCommand(ArgList, ArgIt);
+    InCommand::InCommandStatus fetchResult = pCmd->FetchOptions(ArgList, ArgIt);
+    if (InCommand::InCommandStatus::Success != fetchResult)
     {
-        std::string errorString = Cmd.ErrorString(scanResult, ArgList, ArgIt);
+        std::string errorString = pCmd->ErrorString(fetchResult, ArgList, ArgIt);
         std::cout << std::endl;
         std::cout << "Command Line Error: " << errorString << std::endl;
         std::cout << std::endl;
         ShowHelp = true;
     }
 
-    if(ShowHelp || 0 == Cmd.Id())
+    if(ShowHelp || 0 == pCmd->Id())
     {
-        std::cout << Cmd.UsageString() << std::endl;
+        std::cout << pCmd->UsageString() << std::endl;
         return 0;
     }
 
     int result = 0;
-    switch(Cmd.Id())
+    switch(pCmd->Id())
     {
     case 1: { // Add
         result = Val1 + Val2;
