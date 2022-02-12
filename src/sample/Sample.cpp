@@ -35,20 +35,19 @@ int main(int argc, const char *argv[])
     {
         std::string errorString = Cmd.ErrorString(scanResult, ArgList, ArgIt);
         std::cout << std::endl;
-        std::cout << "Command Line Error: ";
-        std::cout << errorString << std::endl;
+        std::cout << "Command Line Error: " << errorString << std::endl;
         std::cout << std::endl;
         ShowHelp = true;
     }
 
-    if(ShowHelp || 0 == Cmd.GetScopeId())
+    if(ShowHelp || 0 == Cmd.Id())
     {
         std::cout << Cmd.UsageString() << std::endl;
         return 0;
     }
 
     int result = 0;
-    switch(Cmd.GetScopeId())
+    switch(Cmd.Id())
     {
     case 1: { // Add
         result = Val1.Get() + Val2.Get();

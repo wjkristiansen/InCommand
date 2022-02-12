@@ -15,9 +15,9 @@ namespace InCommand
         }
         else
         {
-            if (pOption->GetShortKey())
+            if (pOption->ShortKey())
             {
-                s << '-' << pOption->GetShortKey() << ", ";
+                s << '-' << pOption->ShortKey() << ", ";
             }
             s << "--" << pOption->Name();
             if (pOption->Type() == OptionType::Variable)

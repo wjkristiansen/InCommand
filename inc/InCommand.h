@@ -187,7 +187,7 @@ namespace InCommand
 
         const std::string &Name() const { return m_name; }
         const std::string &Description() const { return m_description; }
-        char GetShortKey() const { return m_shortKey; }
+        char ShortKey() const { return m_shortKey; }
     };
 
     //------------------------------------------------------------------------------------------------
@@ -332,6 +332,6 @@ namespace InCommand
 
         // Useful for switch/case using command scope id
         const std::string& Name() const { return m_Name; }
-        int GetScopeId() const { return m_ScopeId; }
+        int Id() const { return m_ScopeId; }
     };
 }

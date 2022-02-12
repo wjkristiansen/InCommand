@@ -112,7 +112,7 @@ TEST(InCommand, SubCommands)
 
         auto LateDeclareOptions = [&](InCommand::CCommandScope& CommandScope)
         {
-            switch (static_cast<ScopeId>(CommandScope.GetScopeId()))
+            switch (static_cast<ScopeId>(CommandScope.Id()))
             {
             case ScopeId::Tree:
                 CommandScope.DeclareSwitchOption(Climb, "climb", nullptr);
