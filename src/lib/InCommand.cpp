@@ -41,12 +41,12 @@ namespace InCommand
     {
         CCommand *pScope = this;
 
+        ++it;
         if (it != args.End())
         {
             auto subIt = m_Subcommands.find(args.At(it));
             if (subIt != m_Subcommands.end())
             {
-                ++it;
                 pScope = &(subIt->second->FetchCommand(args, it));
             }
         }

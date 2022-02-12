@@ -27,7 +27,6 @@ int main(int argc, const char *argv[])
 
     InCommand::CArgumentList ArgList(argc, argv);
     InCommand::CArgumentIterator ArgIt = ArgList.Begin();
-    ArgIt++; // Skip past app name in command line
 
     InCommand::CCommand &Cmd = AppCmd.FetchCommand(ArgList, ArgIt);
     InCommand::OptionScanResult scanResult = Cmd.ReadOptions(ArgList, ArgIt);
