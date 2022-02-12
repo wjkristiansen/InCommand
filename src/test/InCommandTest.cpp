@@ -148,7 +148,7 @@ TEST(InCommand, SubCommands)
 
             InCommand::CCommandScope &Scope = RootCmdScope.ScanCommandArgs(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptionArgs(args, it));
+            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.ScanOptionArgs(args, it).Status);
 
             EXPECT_TRUE(Burn);
             EXPECT_FALSE(Prune);
@@ -171,7 +171,7 @@ TEST(InCommand, SubCommands)
 
             InCommand::CCommandScope &Scope = RootCmdScope.ScanCommandArgs(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptionArgs(args, it));
+            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.ScanOptionArgs(args, it).Status);
 
             EXPECT_EQ(Lives.Get(), std::string("8"));
 
@@ -190,7 +190,7 @@ TEST(InCommand, SubCommands)
 
             InCommand::CCommandScope &Scope = RootCmdScope.ScanCommandArgs(args, it);
             LateDeclareOptions(Scope);
-            EXPECT_EQ(InCommand::InCommandResult::Success, Scope.ScanOptionArgs(args, it));
+            EXPECT_EQ(InCommand::InCommandStatus::Success, Scope.ScanOptionArgs(args, it).Status);
 
             EXPECT_TRUE(Help);
 

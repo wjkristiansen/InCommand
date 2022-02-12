@@ -55,14 +55,14 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    InCommandResult CCommandScope::ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const
+    OptionScanResult CCommandScope::ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const
     {
+        OptionScanResult result;
+
         if (it == args.End())
         {
-            return InCommandResult::Success;
+            return result;
         }
-
-        int ParameterOptionIndex = 0;
 
         // Parse the options
         while(it != args.End())
@@ -75,39 +75,53 @@ namespace InCommand
                 {
                     // Long-form option
                     auto optIt = m_Options.find(args.At(it).substr(2));
-                    if(optIt == m_Options.end() || optIt->second->Type() == OptionType::Parameter)
-                        return InCommandResult::UnexpectedArgument;
+                    if (optIt == m_Options.end() || optIt->second->Type() == OptionType::Parameter)
+                    {
+                        result.Status = InCommandStatus::UnknownOption;
+                        return result;
+                    }
                     pOption = optIt->second.get();
                 }
                 else
                 {
                     auto optIt = m_ShortOptions.find(args.At(it)[1]);
-                    if(optIt == m_ShortOptions.end())
-                        return InCommandResult::UnexpectedArgument;
+                    if (optIt == m_ShortOptions.end())
+                    {
+                        result.Status = InCommandStatus::UnknownOption;
+                        return result;
+                    }
                     pOption = optIt->second.get();
                 }
 
                 if (pOption)
                 {
-                    auto result = pOption->ParseArgs(args, it);
-                    if (result != InCommandResult::Success)
+                    result.Status = pOption->ParseArgs(args, it);
+                    if (result.Status != InCommandStatus::Success)
                         return result;
                 }
             }
             else
             {
-                // Assume non-keyed option
-                if (ParameterOptionIndex == int(m_ParameterOptions.size()))
-                    return InCommandResult::UnexpectedArgument;
-
-                auto result = m_ParameterOptions[ParameterOptionIndex]->ParseArgs(args, it);
-                if (result != InCommandResult::Success)
+                // Assume parameter option
+                if (result.NumParameters == int(m_ParameterOptions.size()))
+                {
+                    result.Status = InCommandStatus::UnexpectedArgument;
                     return result;
-                ParameterOptionIndex++;
+                }
+
+                result.Status = m_ParameterOptions[result.NumParameters]->ParseArgs(args, it);
+                if (result.Status != InCommandStatus::Success)
+                    return result;
+                result.NumParameters++;
             }
         }
 
-        return InCommandResult::Success;
+        if (result.NumParameters < int(m_ParameterOptions.size()))
+        {
+            result.Status = InCommandStatus::MissingParameters;
+        }
+
+        return result;
     }
 
     //------------------------------------------------------------------------------------------------
@@ -115,7 +129,7 @@ namespace InCommand
     {
         auto it = m_Options.find(name);
         if (it == m_Options.end())
-            throw InCommandException(InCommandResult::UnknownOption);
+            throw InCommandException(InCommandStatus::UnknownOption);
 
         return *it->second;
     }
@@ -125,7 +139,7 @@ namespace InCommand
     {
         auto it = m_Subcommands.find(name);
         if (it != m_Subcommands.end())
-            throw InCommandException(InCommandResult::DuplicateCommand);
+            throw InCommandException(InCommandStatus::DuplicateCommand);
 
         auto result = m_Subcommands.emplace(name, std::make_shared<CCommandScope>(name, description, scopeId));
         result.first->second->m_pSuperScope = this;
@@ -168,7 +182,7 @@ namespace InCommand
         {
             s << "  " + commandChainString;
 
-            // Non-keyed options first
+            // Parameter options first
             for (auto& nko : m_ParameterOptions)
             {
                 s << " <" << nko->Name() << ">";
@@ -195,11 +209,11 @@ namespace InCommand
 
         if (!m_Options.empty())
         {
-            // Non-keyed options first
+            // Parameter options first
             s << "OPTIONS" << std::endl;
             s << std::endl;
 
-            // Non-keyed options details
+            // Parameter options details
             for (auto& nko : m_ParameterOptions)
             {
                 s << std::setw(colwidth) << std::left << "  " + OptionUsageString(nko.get());
@@ -232,7 +246,7 @@ namespace InCommand
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
-            throw InCommandException(InCommandResult::DuplicateOption);
+            throw InCommandException(InCommandStatus::DuplicateOption);
 
         auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, description, shortKey));
         if (shortKey)
@@ -245,7 +259,7 @@ namespace InCommand
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
-            throw InCommandException(InCommandResult::DuplicateOption);
+            throw InCommandException(InCommandStatus::DuplicateOption);
 
         auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, description, shortKey));
         if (shortKey)
@@ -258,7 +272,7 @@ namespace InCommand
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
-            throw InCommandException(InCommandResult::DuplicateOption);
+            throw InCommandException(InCommandStatus::DuplicateOption);
 
         auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, domain, description, shortKey));
         if (shortKey)
@@ -271,16 +285,60 @@ namespace InCommand
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
-            throw InCommandException(InCommandResult::DuplicateOption);
+            throw InCommandException(InCommandStatus::DuplicateOption);
 
 
         std::shared_ptr<CParameterOption> pOption = std::make_shared<CParameterOption>(boundValue, name, description);
 
-        // Add the non-keyed option to the declared options map
+        // Add the parameter option to the declared options map
         m_Options.insert(std::make_pair(name, pOption));
 
-        // Add to the array of non-keyed options
+        // Add to the array of parameter options
         m_ParameterOptions.push_back(pOption);
         return *m_ParameterOptions.back();
+    }
+
+    std::string CCommandScope::ErrorString(const OptionScanResult& result, const CArgumentList& argList, const CArgumentIterator& argIt) const
+    {
+        std::ostringstream s;
+
+        switch (result.Status)
+        {
+        case InCommandStatus::Success:
+            s << "Success";
+            break;
+
+        case InCommandStatus::UnexpectedArgument:
+            s << "Unexpected Argument: \"" << argList.At(argIt) << "\"";
+            break;
+
+        case InCommandStatus::InvalidValue:
+            s << "Invalid Value: \"" << argList.At(argIt) << "\"";
+            break;
+
+        case InCommandStatus::MissingOptionValue:
+            s << "Missing Option Value";
+            break;
+
+        case InCommandStatus::MissingParameters: {
+            s << "Missing Parameters: ";
+            const char* separator = "";
+            for (size_t i = result.NumParameters; i < this->m_ParameterOptions.size(); ++i)
+            {
+                s << m_ParameterOptions[i]->Name() << separator;
+                separator = ", ";
+            }
+            break; }
+
+        case InCommandStatus::UnknownOption:
+            s << "Unknown Option: \"" << argList.At(argIt) << "\"";
+            break;
+
+        default:
+            s << "Unknown Error";
+            break;
+        }
+
+        return s.str();
     }
 }

@@ -9,10 +9,10 @@ int main(int argc, const char *argv[])
     InCommand::CCommandScope &AddCmd = AppCmd.DeclareSubcommand("add", "Adds two integers", 1);
     InCommand::CCommandScope &MultiplyCmd = AppCmd.DeclareSubcommand("multiply", "Multiplies two integers", 2);
 
-    InCommand::InCommandBool Help;
-    AppCmd.DeclareSwitchOption(Help, "help", "Display help for sample commands.", 'h');
-    AddCmd.DeclareSwitchOption(Help, "help", "Display help for sample add.", 'h');
-    MultiplyCmd.DeclareSwitchOption(Help, "help", "Display help for sample multiply.", 'h');
+    InCommand::InCommandBool ShowHelp;
+    AppCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
+    AddCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample add.", 'h');
+    MultiplyCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample multiply.", 'h');
 
     InCommand::InCommandInt Val1;
     InCommand::InCommandInt Val2;
@@ -30,13 +30,18 @@ int main(int argc, const char *argv[])
     ArgIt++; // Skip past app name in command line
 
     InCommand::CCommandScope &Cmd = AppCmd.ScanCommandArgs(ArgList, ArgIt);
-    if (InCommand::InCommandResult::Success != Cmd.ScanOptionArgs(ArgList, ArgIt))
+    InCommand::OptionScanResult scanResult = Cmd.ScanOptionArgs(ArgList, ArgIt);
+    if (InCommand::InCommandStatus::Success != scanResult.Status)
     {
-        std::cout << "Error" << std::endl;
-        Help = true;
+        std::string errorString = Cmd.ErrorString(scanResult, ArgList, ArgIt);
+        std::cout << std::endl;
+        std::cout << "Command Line Error: ";
+        std::cout << errorString << std::endl;
+        std::cout << std::endl;
+        ShowHelp = true;
     }
 
-    if(Help || 0 == Cmd.GetScopeId())
+    if(ShowHelp || 0 == Cmd.GetScopeId())
     {
         std::cout << Cmd.UsageString() << std::endl;
         return 0;

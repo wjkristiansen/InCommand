@@ -10,24 +10,32 @@
 namespace InCommand
 {
     //------------------------------------------------------------------------------------------------
-    enum class InCommandResult
+    enum class InCommandStatus : int
     {
         Success,
         DuplicateCommand,
         DuplicateOption,
         UnexpectedArgument,
-        NotEnoughArguments,
+        MissingOptionValue,
         UnknownOption,
-        InvalidValueString,
+        InvalidValue,
+        MissingParameters,
     };
 
     //------------------------------------------------------------------------------------------------
     struct InCommandException
     {
-        InCommandResult e;
+        InCommandStatus e;
 
-        InCommandException(InCommandResult error) :
+        InCommandException(InCommandStatus error) :
             e(error) {}
+    };
+
+    //------------------------------------------------------------------------------------------------
+    struct OptionScanResult
+    {
+        int NumParameters = 0;
+        InCommandStatus Status = InCommandStatus::Success;
     };
 
     //------------------------------------------------------------------------------------------------
@@ -54,7 +62,7 @@ namespace InCommand
         if(s == "false" || s == "off" || s == "0")
             return true;
 
-        throw InCommandException(InCommandResult::InvalidValueString);
+        throw InCommandException(InCommandStatus::InvalidValue);
     }
 
     //------------------------------------------------------------------------------------------------
@@ -82,7 +90,7 @@ namespace InCommand
     class CInCommandValue
     {
     public:
-        virtual InCommandResult SetFromString(const std::string &s) = 0;
+        virtual InCommandStatus SetFromString(const std::string &s) = 0;
     };
 
     //------------------------------------------------------------------------------------------------
@@ -97,7 +105,7 @@ namespace InCommand
         operator _T() const { return m_value; }
         CInCommandTypedValue& operator=(const _T &value) { m_value = value; return *this; }
         const _T &Get() const { return m_value; }
-        virtual InCommandResult SetFromString(const std::string &s) final
+        virtual InCommandStatus SetFromString(const std::string &s) final
         {
             try
             {
@@ -105,10 +113,10 @@ namespace InCommand
             }
             catch (const std::invalid_argument& )
             {
-                return InCommandResult::InvalidValueString;
+                return InCommandStatus::InvalidValue;
             }
 
-            return InCommandResult::Success;
+            return InCommandStatus::Success;
         }
     };
 
@@ -125,7 +133,7 @@ namespace InCommand
     public:
         CArgumentIterator() = default;
         CArgumentIterator(int index) : m_index(index) {}
-        int GetIndex() const { return m_index; }
+        int Index() const { return m_index; }
         bool operator==(const CArgumentIterator& o) { return m_index == o.m_index; }
         bool operator!=(const CArgumentIterator& o) { return m_index != o.m_index; }
         CArgumentIterator& operator++() { ++m_index; return *this; }
@@ -150,7 +158,7 @@ namespace InCommand
         int Size() const { return int(m_args.size()); }
         const std::string &At(const CArgumentIterator& it) const
         {
-            return m_args[it.GetIndex()];
+            return m_args[it.Index()];
         }
     };
 
@@ -175,7 +183,7 @@ namespace InCommand
         virtual OptionType Type() const = 0;
 
         // Returns the index of the first unparsed argument
-        virtual InCommandResult ParseArgs(const CArgumentList &args, CArgumentIterator &it) const = 0;
+        virtual InCommandStatus ParseArgs(const CArgumentList &args, CArgumentIterator &it) const = 0;
 
         const std::string &Name() const { return m_name; }
         const std::string &Description() const { return m_description; }
@@ -194,17 +202,17 @@ namespace InCommand
         {}
 
         virtual OptionType Type() const final { return OptionType::Parameter; }
-        virtual InCommandResult ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
+        virtual InCommandStatus ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             if (it == args.End())
-                return InCommandResult::Success;
+                return InCommandStatus::Success;
 
             auto result = m_value.SetFromString(args.At(it));
-            if (result != InCommandResult::Success)
+            if (result != InCommandStatus::Success)
                 return result;
 
             ++it;
-            return InCommandResult::Success;
+            return InCommandStatus::Success;
         }
     };
 
@@ -222,15 +230,15 @@ namespace InCommand
         }
 
         virtual OptionType Type() const final { return OptionType::Switch; }
-        virtual InCommandResult ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
+        virtual InCommandStatus ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             if (it == args.End())
-                return InCommandResult::Success;
+                return InCommandStatus::Success;
 
             m_value = true; // Present means true
             ++it;
 
-            return InCommandResult::Success;
+            return InCommandStatus::Success;
         }
     };
 
@@ -260,12 +268,12 @@ namespace InCommand
         }
 
         virtual OptionType Type() const final { return OptionType::Variable; }
-        virtual InCommandResult ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
+        virtual InCommandStatus ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             ++it;
 
             if (it == args.End())
-                return InCommandResult::NotEnoughArguments;
+                return InCommandStatus::MissingOptionValue;
 
             if (!m_domain.empty())
             {
@@ -273,12 +281,12 @@ namespace InCommand
                 // domain value.
                 auto vit = m_domain.find(args.At(it));
                 if (vit == m_domain.end())
-                    return InCommandResult::InvalidValueString;
+                    return InCommandStatus::InvalidValue;
             }
 
             m_value.SetFromString(args.At(it));
             ++it;
-            return InCommandResult::Success;
+            return InCommandStatus::Success;
         }
     };
 
@@ -308,7 +316,7 @@ namespace InCommand
         // of arguments processed.
         // Returns the index of the first unparsed argument.
         // Default value for index is 1 since typically the first argument is the app name.
-        InCommandResult ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const;
+        OptionScanResult ScanOptionArgs(const CArgumentList& args, CArgumentIterator& it) const;
 
         CCommandScope& DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
         const COption& DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);
@@ -318,6 +326,7 @@ namespace InCommand
 
         std::string CommandChainString() const;
         std::string UsageString() const;
+        std::string ErrorString(const OptionScanResult& result, const CArgumentList& argList, const CArgumentIterator& argIt) const;
 
         const COption& GetOption(const char* name) const;
 
