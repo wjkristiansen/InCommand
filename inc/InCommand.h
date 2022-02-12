@@ -125,6 +125,13 @@ namespace InCommand
     using InCommandInt = CInCommandTypedValue<int>;
     using InCommandUInt = CInCommandTypedValue<unsigned int>;
 
+    template<class _T>
+    std::ostream& operator<<(std::ostream &s, const CInCommandTypedValue<_T>& v)
+    {
+        s << v.Get();
+        return s;
+    }
+
     //------------------------------------------------------------------------------------------------
     class CArgumentIterator
     {

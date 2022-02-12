@@ -50,12 +50,12 @@ int main(int argc, const char *argv[])
     switch(Cmd.Id())
     {
     case 1: { // Add
-        result = Val1.Get() + Val2.Get();
-        std::cout << Val1.Get() << " + " << Val2.Get() << " = " << result << std::endl;
+        result = Val1 + Val2;
+        std::cout << Val1 << " + " << Val2 << " = " << result << std::endl;
         break; }
     case 2: {// Multiple
-        result = Val1.Get() * Val2.Get();
-        std::cout << Val1.Get() << " * " << Val2.Get() << " = " << result << std::endl;
+        result = Val1 * Val2;
+        std::cout << Val1 << " * " << Val2 << " = " << result << std::endl;
         break; }
     default:
         return -1;
@@ -64,7 +64,7 @@ int main(int argc, const char *argv[])
     if (Message.Get()[0] != 0)
     {
         for (int i = 0; i < result; ++i)
-            std::cout << Message.Get() << std::endl;
+            std::cout << Message << std::endl;
     }
 
     return 0;
