@@ -19,8 +19,7 @@ namespace InCommand
         UnexpectedArgument,
         MissingOptionValue,
         UnknownOption,
-        InvalidValue,
-        MissingParameters,
+        InvalidValue
     };
 
     //------------------------------------------------------------------------------------------------
@@ -103,9 +102,9 @@ namespace InCommand
 
     public:
         CInCommandTypedValue() = default;
-        explicit CInCommandTypedValue(const _T &value) : m_value(value) {}
+        explicit CInCommandTypedValue(const _T& value) : m_value(value) {}
         operator _T() const { return m_value.value(); }
-        CInCommandTypedValue& operator=(const _T &value) { m_value = value; return *this; }
+        CInCommandTypedValue & operator=(const _T & value) { m_value = std::optional<_T>(value); return *this; }
         const _T &Get() const { return m_value.value(); }
         virtual bool HasValue() const final { return m_value.has_value(); }
         virtual InCommandStatus SetFromString(const std::string &s) final
@@ -144,8 +143,8 @@ namespace InCommand
         CArgumentIterator() = default;
         CArgumentIterator(int index) : m_index(index) {}
         int Index() const { return m_index; }
-        bool operator==(const CArgumentIterator& o) { return m_index == o.m_index; }
-        bool operator!=(const CArgumentIterator& o) { return m_index != o.m_index; }
+        bool operator==(const CArgumentIterator& o) const { return m_index == o.m_index; }
+        bool operator!=(const CArgumentIterator& o) const { return m_index != o.m_index; }
         CArgumentIterator& operator++() { ++m_index; return *this; }
         CArgumentIterator operator++(int) { CArgumentIterator old(*this); ++m_index; return old; }
     };
@@ -158,9 +157,12 @@ namespace InCommand
     public:
         CArgumentList(int argc, const char* argv[])
         {
-            m_args.resize(argc);
-            for(int i = 0; i < argc; ++i)
-                m_args[i] = argv[i];
+            if (argc > 0)
+            {
+                m_args.resize(argc);
+                for (int i = 0; i < argc; ++i)
+                    m_args[i] = argv[i];
+            }
         }
 
         CArgumentIterator Begin() const { return CArgumentIterator(0); }
@@ -312,15 +314,13 @@ namespace InCommand
         std::vector<std::shared_ptr<COption>> m_ParameterOptions;
         CCommand* m_pSuperScope = nullptr;
 
+        CCommand* FetchCommand(class CCommandReader *pReader);
+        InCommandStatus FetchOptions(class CCommandReader *pReader) const;
+
     public:
-        CCommand(const char *name, const char *description, int scopeId = 0);
-        ~CCommand() = default;
+        CCommand(const char* name, const char* description, int scopeId = 0);
         CCommand(CCommand&& o) = delete;
-
-        CCommand* FetchCommand(const CArgumentList& args, CArgumentIterator& it);
-
-        // Fetches the command options, setting the bound values.
-        InCommandStatus FetchOptions(const CArgumentList& args, CArgumentIterator& it) const;
+        ~CCommand() = default;
 
         CCommand* DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
         const COption* DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);
@@ -333,10 +333,53 @@ namespace InCommand
         friend class CCommandReader;
 
         std::string UsageString() const;
-        std::string ErrorString(InCommandStatus status, const CArgumentList& argList, const CArgumentIterator& argIt) const;
 
         // Useful for switch/case using command scope id
         const std::string& Name() const { return m_Name; }
         int Id() const { return m_ScopeId; }
+    };
+
+    //------------------------------------------------------------------------------------------------
+    class CCommandReader
+    {
+        CCommand m_DefaultCmd;
+        CArgumentList m_ArgList;
+        CArgumentIterator m_ArgIt;
+        CCommand* m_pActiveCommand = nullptr;
+        InCommandStatus m_LastStatus = InCommandStatus::Success;
+        size_t m_ParametersRead = 0;
+
+        friend class CCommand;
+
+    public:
+        CCommandReader(const char* appName, int argc, const char* argv[]);
+
+        void Reset(int argc, const char* argv[])
+        {
+            m_ArgList = CArgumentList(argc, argv);
+            m_ArgIt = m_ArgList.Begin();
+            m_ParametersRead = 0;
+            m_LastStatus = InCommandStatus::Success;
+        }
+
+        // Returns the default command pointer, used for declaring subcommands.
+        CCommand* DefaultCommand() { return &m_DefaultCmd; }
+
+        // Returns the active CCommand pointer, or nullptr if the active command
+        // has not been fetched.
+        CCommand* ActiveCommand() { return m_pActiveCommand; }
+
+        // Reads the command chain from the argument list and returns the active command from
+        // the argument list. Afterward, the argument iterator index points to
+        // the first command option argument in the argument list.
+        // Allows the application to delay-declare command options.
+        CCommand* ReadCommand();
+
+        // Reads the command options from the argument list, setting the bound values.
+        // Requires the active command be set by calling ReadActiveCommand.
+        // Reads the active command if ReadCommand was not previously called.
+        InCommandStatus ReadOptions();
+
+        std::string LastErrorString() const;
     };
 }

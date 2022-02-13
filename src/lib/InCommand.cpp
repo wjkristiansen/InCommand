@@ -37,17 +37,17 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommand* CCommand::FetchCommand(const CArgumentList& args, CArgumentIterator& it)
+    CCommand* CCommand::FetchCommand(CCommandReader* pReader)
     {
         CCommand *pScope = this;
 
-        ++it;
-        if (it != args.End())
+        ++pReader->m_ArgIt;
+        if (pReader->m_ArgIt != pReader->m_ArgList.End())
         {
-            auto subIt = m_Subcommands.find(args.At(it));
+            auto subIt = m_Subcommands.find(pReader->m_ArgList.At(pReader->m_ArgIt));
             if (subIt != m_Subcommands.end())
             {
-                pScope = subIt->second->FetchCommand(args, it);
+                pScope = subIt->second->FetchCommand(pReader);
             }
         }
 
@@ -55,27 +55,26 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    InCommandStatus CCommand::FetchOptions(const CArgumentList& args, CArgumentIterator& it) const
+    InCommandStatus CCommand::FetchOptions(CCommandReader *pReader) const
     {
         InCommandStatus result = InCommandStatus::Success;
-        size_t numParameters = 0;
 
-        if (it == args.End())
+        if (pReader->m_ArgIt == pReader->m_ArgList.End())
         {
             return result;
         }
 
         // Parse the options
-        while(it != args.End())
+        while(pReader->m_ArgIt != pReader->m_ArgList.End())
         {
-            if (args.At(it)[0] == '-')
+            if (pReader->m_ArgList.At(pReader->m_ArgIt)[0] == '-')
             {
                 const COption* pOption = nullptr;
 
-                if (args.At(it)[1] == '-')
+                if (pReader->m_ArgList.At(pReader->m_ArgIt)[1] == '-')
                 {
                     // Long-form option
-                    auto optIt = m_Options.find(args.At(it).substr(2));
+                    auto optIt = m_Options.find(pReader->m_ArgList.At(pReader->m_ArgIt).substr(2));
                     if (optIt == m_Options.end() || optIt->second->Type() == OptionType::Parameter)
                     {
                         result = InCommandStatus::UnknownOption;
@@ -85,7 +84,7 @@ namespace InCommand
                 }
                 else
                 {
-                    auto optIt = m_ShortOptions.find(args.At(it)[1]);
+                    auto optIt = m_ShortOptions.find(pReader->m_ArgList.At(pReader->m_ArgIt)[1]);
                     if (optIt == m_ShortOptions.end())
                     {
                         result = InCommandStatus::UnknownOption;
@@ -96,7 +95,7 @@ namespace InCommand
 
                 if (pOption)
                 {
-                    result = pOption->ParseArgs(args, it);
+                    result = pOption->ParseArgs(pReader->m_ArgList, pReader->m_ArgIt);
                     if (result != InCommandStatus::Success)
                         return result;
                 }
@@ -104,22 +103,17 @@ namespace InCommand
             else
             {
                 // Assume parameter option
-                if (numParameters == int(m_ParameterOptions.size()))
+                if (pReader->m_ParametersRead == int(m_ParameterOptions.size()))
                 {
                     result = InCommandStatus::UnexpectedArgument;
                     return result;
                 }
 
-                result = m_ParameterOptions[numParameters]->ParseArgs(args, it);
+                result = m_ParameterOptions[pReader->m_ParametersRead]->ParseArgs(pReader->m_ArgList, pReader->m_ArgIt);
                 if (result != InCommandStatus::Success)
                     return result;
-                numParameters++;
+                pReader->m_ParametersRead++;
             }
-        }
-
-        if (numParameters < m_ParameterOptions.size())
-        {
-            result = InCommandStatus::MissingParameters;
         }
 
         return result;
@@ -289,40 +283,56 @@ namespace InCommand
         return m_ParameterOptions.back().get();
     }
 
-    std::string CCommand::ErrorString(InCommandStatus status, const CArgumentList& argList, const CArgumentIterator& argIt) const
+    //------------------------------------------------------------------------------------------------
+    CCommandReader::CCommandReader(const char* appName, int argc, const char* argv[]) :
+        m_DefaultCmd(appName, nullptr, 0),
+        m_ArgList(argc, argv)
+    {}
+
+    //------------------------------------------------------------------------------------------------
+    CCommand *CCommandReader::ReadCommand()
+    {
+        m_ArgIt = m_ArgList.Begin();
+        m_pActiveCommand = m_DefaultCmd.FetchCommand(this);
+        m_LastStatus = InCommandStatus::Success;
+        return m_pActiveCommand;
+    }
+
+    //------------------------------------------------------------------------------------------------
+    InCommandStatus CCommandReader::ReadOptions()
+    {
+        if (!m_pActiveCommand)
+            ReadCommand();
+
+        m_LastStatus =  m_pActiveCommand->FetchOptions(this);
+        return m_LastStatus;
+    }
+
+    //------------------------------------------------------------------------------------------------
+    std::string CCommandReader::LastErrorString() const
     {
         std::ostringstream s;
 
-        switch (status)
+        switch (m_LastStatus)
         {
         case InCommandStatus::Success:
             s << "Success";
             break;
 
         case InCommandStatus::UnexpectedArgument:
-            s << "Unexpected Argument: \"" << argList.At(argIt) << "\"";
+            s << "Unexpected Argument: \"" << m_ArgList.At(m_ArgIt) << "\"";
             break;
 
         case InCommandStatus::InvalidValue:
-            s << "Invalid Value: \"" << argList.At(argIt) << "\"";
+            s << "Invalid Value: \"" << m_ArgList.At(m_ArgIt) << "\"";
             break;
 
         case InCommandStatus::MissingOptionValue:
             s << "Missing Option Value";
             break;
 
-        case InCommandStatus::MissingParameters: {
-            s << "Missing Parameters: ";
-            //const char* separator = "";
-            //for (size_t i = result.NumParameters; i < this->m_ParameterOptions.size(); ++i)
-            //{
-            //    s << m_ParameterOptions[i]->Name() << separator;
-            //    separator = ", ";
-            //}
-            break; }
-
         case InCommandStatus::UnknownOption:
-            s << "Unknown Option: \"" << argList.At(argIt) << "\"";
+            s << "Unknown Option: \"" << m_ArgList.At(m_ArgIt) << "\"";
             break;
 
         default:
@@ -331,5 +341,7 @@ namespace InCommand
         }
 
         return s.str();
+
     }
+
 }

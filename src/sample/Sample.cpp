@@ -10,37 +10,35 @@ int main(int argc, const char *argv[])
     InCommand::InCommandInt Val2;
     InCommand::InCommandString Message("");
 
-    InCommand::CCommand AppCmd("sample", "Sample app for using InCommand command line parser.", 0);
-    AppCmd.DeclareSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
+    InCommand::CCommandReader CmdReader("sample", argc, argv);
 
-    InCommand::CCommand *pAddCmd = AppCmd.DeclareSubcommand("add", "Adds two integers", 1);
+    CmdReader.DefaultCommand()->DeclareSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
+
+    InCommand::CCommand *pAddCmd = CmdReader.DefaultCommand()->DeclareSubcommand("add", "Adds two integers", 1);
     pAddCmd->DeclareSwitchOption(ShowHelp, "help", "Display help for sample add.", 'h');
     pAddCmd->DeclareParameterOption(Val1, "value1", "First add value");
     pAddCmd->DeclareParameterOption(Val2, "value2", "Second add value");
     pAddCmd->DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 + value2", 'm');
 
-    InCommand::CCommand *pMulCmd = AppCmd.DeclareSubcommand("mul", "Multiplies two integers", 2);
+    InCommand::CCommand *pMulCmd = CmdReader.DefaultCommand()->DeclareSubcommand("mul", "Multiplies two integers", 2);
     pMulCmd->DeclareSwitchOption(ShowHelp, "help", "Display help for sample multiply.", 'h');
     pMulCmd->DeclareParameterOption(Val1, "value1", "First multiply value");
     pMulCmd->DeclareParameterOption(Val2, "value2", "Second multiply value");
     pMulCmd->DeclareVariableOption(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
 
-    InCommand::CArgumentList ArgList(argc, argv);
-    InCommand::CArgumentIterator ArgIt = ArgList.Begin();
-
-    InCommand::CCommand *pCmd = AppCmd.FetchCommand(ArgList, ArgIt);
-    InCommand::InCommandStatus fetchResult = pCmd->FetchOptions(ArgList, ArgIt);
+    InCommand::CCommand *pCmd = CmdReader.ReadCommand();
+    InCommand::InCommandStatus fetchResult = CmdReader.ReadOptions();
     if (InCommand::InCommandStatus::Success != fetchResult)
     {
-        std::string errorString = pCmd->ErrorString(fetchResult, ArgList, ArgIt);
         std::cout << std::endl;
-        std::cout << "Command Line Error: " << errorString << std::endl;
-        std::cout << std::endl;
+        std::cout << "Command Line Error: " << CmdReader.LastErrorString() << std::endl;
         ShowHelp = true;
     }
 
     if(ShowHelp || 0 == pCmd->Id())
     {
+        std::cout << std::endl;
+        std::cout << "Sample app for demonstrating use of InCommand command line reader utility" << std::endl << std::endl;
         std::cout << pCmd->UsageString() << std::endl;
         return 0;
     }
