@@ -103,7 +103,7 @@ namespace InCommand
             else
             {
                 // Assume parameter option
-                if (pReader->m_ParametersRead == int(m_ParameterOptions.size()))
+                if (pReader->m_ParametersRead == m_ParameterOptions.size())
                 {
                     result = InCommandStatus::UnexpectedArgument;
                     return result;
