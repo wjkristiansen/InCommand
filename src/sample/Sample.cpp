@@ -5,7 +5,7 @@
 
 int main(int argc, const char *argv[])
 {
-    InCommand::InCommandBool ShowHelp(false);
+    InCommand::InCommandBool ShowHelp;
     InCommand::InCommandInt Val1;
     InCommand::InCommandInt Val2;
     InCommand::InCommandString Message("");

@@ -85,12 +85,12 @@ TEST(InCommand, SubCommands)
 
     for(int i = 0; i < 3; ++i)
     {
-        InCommand::InCommandBool Help(false);
-        InCommand::InCommandBool List(false);
-        InCommand::InCommandBool Climb(false);
-        InCommand::InCommandBool Prune(false);
-        InCommand::InCommandBool Burn(false);
-        InCommand::InCommandBool Walk(false);
+        InCommand::InCommandBool Help;
+        InCommand::InCommandBool List;
+        InCommand::InCommandBool Climb;
+        InCommand::InCommandBool Prune;
+        InCommand::InCommandBool Burn;
+        InCommand::InCommandBool Walk;
         InCommand::InCommandString Lives("9");
 
         InCommand::CCommandReader CmdReader("app", "test argument list", 0, nullptr);
@@ -183,5 +183,107 @@ TEST(InCommand, SubCommands)
 
             break; }
         }
+    }
+}
+
+TEST(InCommand, Errors)
+{
+    InCommand::InCommandBool Foo;
+    InCommand::InCommandInt Bar;
+
+    {
+        const char* argv[] = { "app", "goto", "--foo", "--bar" };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        auto *pGotoCmd = CmdReader.DefaultCommand()->DeclareSubcommand("goto", nullptr, 1);
+        try
+        {
+            CmdReader.DefaultCommand()->DeclareSubcommand("goto", nullptr, 1);; // Duplicate command "goto"
+        }
+        catch(const InCommand::InCommandException& e)
+        {
+            EXPECT_EQ(e.status, InCommand::InCommandStatus::DuplicateCommand);
+        }
+    }
+    
+    {
+        const char* argv[] = { "app", "goto", "--foo", "--bar", "7" };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        CmdReader.DefaultCommand()->DeclareSwitchOption(Foo, "foo", nullptr, 0);
+        try
+        {
+            CmdReader.DefaultCommand()->DeclareVariableOption(Bar, "foo", nullptr, 0); // Duplicate option "foo"
+        }
+        catch (const InCommand::InCommandException& e)
+        {
+            EXPECT_EQ(e.status, InCommand::InCommandStatus::DuplicateOption);
+        }
+    }
+
+    {
+        const char* argv[] = { "app", "gogo", "--foo", "--bar", "7" };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareSubcommand("goto", nullptr, 1);
+        pGotoCmd->DeclareSwitchOption(Foo, "foo", nullptr, 0);
+        pGotoCmd->DeclareVariableOption(Bar, "bar", nullptr, 0);
+
+        EXPECT_EQ(InCommand::InCommandStatus::UnexpectedArgument, CmdReader.ReadOptions());
+        EXPECT_EQ(1, CmdReader.ReadIndex());
+    }
+
+    {
+        const char* argv[] = { "app", "goto", "--fop", "--bar", "7" };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareSubcommand("goto", nullptr, 1);
+        pGotoCmd->DeclareSwitchOption(Foo, "foo", nullptr, 0);
+        pGotoCmd->DeclareVariableOption(Bar, "bar", nullptr, 0);
+
+        EXPECT_EQ(InCommand::InCommandStatus::UnknownOption, CmdReader.ReadOptions());
+        EXPECT_EQ(2, CmdReader.ReadIndex());
+    }
+
+    {
+        const char* argv[] = { "app", "goto", "--foo", "--bar", "hello" };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareSubcommand("goto", nullptr, 1);
+        pGotoCmd->DeclareSwitchOption(Foo, "foo", nullptr, 0);
+        pGotoCmd->DeclareVariableOption(Bar, "bar", nullptr, 0);
+
+        EXPECT_EQ(InCommand::InCommandStatus::InvalidValue, CmdReader.ReadOptions());
+        EXPECT_EQ(4, CmdReader.ReadIndex());
+    }
+
+    {
+        const char* argv[] = { "app", "goto", "--foo", "--bar"};
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareSubcommand("goto", nullptr, 1);
+        pGotoCmd->DeclareSwitchOption(Foo, "foo", nullptr, 0);
+        pGotoCmd->DeclareVariableOption(Bar, "bar", nullptr, 0);
+
+        EXPECT_EQ(InCommand::InCommandStatus::MissingOptionValue, CmdReader.ReadOptions());
+        EXPECT_EQ(4, CmdReader.ReadIndex());
+    }
+
+    {
+        const char* argv[] = { "app", "goto", "--foo", "--bar", "7" };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareSubcommand("goto", nullptr, 1);
+        pGotoCmd->DeclareSwitchOption(Foo, "foo", nullptr, 0);
+        const char* barValues[] = { "1", "3", "5" };
+        pGotoCmd->DeclareVariableOption(Bar, "bar", 3, barValues, nullptr, 0);
+
+        EXPECT_EQ(InCommand::InCommandStatus::InvalidValue, CmdReader.ReadOptions());
+        EXPECT_EQ(4, CmdReader.ReadIndex());
     }
 }

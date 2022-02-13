@@ -25,10 +25,10 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     struct InCommandException
     {
-        InCommandStatus e;
+        InCommandStatus status;
 
         InCommandException(InCommandStatus error) :
-            e(error) {}
+            status(error) {}
     };
 
     //------------------------------------------------------------------------------------------------
@@ -94,7 +94,7 @@ namespace InCommand
         virtual bool HasValue() const = 0;
     };
 
-    //------------------------------------------------------------------------------------------------
+    //------------------------------------------------------------------------------------------------0
     template<class _T>
     class CInCommandTypedValue : public CInCommandValue
     {
@@ -104,7 +104,7 @@ namespace InCommand
         CInCommandTypedValue() = default;
         explicit CInCommandTypedValue(const _T& value) : m_value(value) {}
         operator _T() const { return m_value.value(); }
-        CInCommandTypedValue & operator=(const _T & value) { m_value = std::optional<_T>(value); return *this; }
+        CInCommandTypedValue & operator=(const _T & value) { m_value = value; return *this; }
         const _T &Value() const { return m_value.value(); }
         virtual bool HasValue() const final { return m_value.has_value(); }
         virtual InCommandStatus SetFromString(const std::string &s) final
@@ -122,6 +122,35 @@ namespace InCommand
         }
     };
 
+    //------------------------------------------------------------------------------------------------
+    template<>
+    class CInCommandTypedValue<bool> : public CInCommandValue
+    {
+        bool m_value = false;
+
+    public:
+        CInCommandTypedValue() = default;
+        explicit CInCommandTypedValue(bool value) : m_value(value) {}
+        operator bool() const { return m_value; }
+        CInCommandTypedValue & operator=(bool value) { m_value = value; return *this; }
+        const bool Value() const { return m_value; }
+        virtual bool HasValue() const final { return true; }
+        virtual InCommandStatus SetFromString(const std::string &s) final
+        {
+            try
+            {
+                m_value = FromString<bool>(s);
+            }
+            catch (const std::invalid_argument& )
+            {
+                return InCommandStatus::InvalidValue;
+            }
+
+            return InCommandStatus::Success;
+        }
+    };
+
+    //------------------------------------------------------------------------------------------------
     using InCommandString = CInCommandTypedValue<std::string>;
     using InCommandBool = CInCommandTypedValue<bool>;
     using InCommandInt = CInCommandTypedValue<int>;
@@ -296,7 +325,10 @@ namespace InCommand
                     return InCommandStatus::InvalidValue;
             }
 
-            m_value.SetFromString(args.At(it));
+            auto result = m_value.SetFromString(args.At(it));
+            if (result != InCommandStatus::Success)
+                return result;
+
             ++it;
             return InCommandStatus::Success;
         }
@@ -381,5 +413,7 @@ namespace InCommand
         InCommandStatus ReadOptions();
 
         std::string LastErrorString() const;
+        InCommandStatus LastStatus() const { return m_LastStatus; }
+        int ReadIndex() const { return m_ArgIt.Index(); }
     };
 }
