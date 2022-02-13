@@ -105,7 +105,7 @@ namespace InCommand
         explicit CInCommandTypedValue(const _T& value) : m_value(value) {}
         operator _T() const { return m_value.value(); }
         CInCommandTypedValue & operator=(const _T & value) { m_value = std::optional<_T>(value); return *this; }
-        const _T &Get() const { return m_value.value(); }
+        const _T &Value() const { return m_value.value(); }
         virtual bool HasValue() const final { return m_value.has_value(); }
         virtual InCommandStatus SetFromString(const std::string &s) final
         {
@@ -130,7 +130,7 @@ namespace InCommand
     template<class _T>
     std::ostream& operator<<(std::ostream &s, const CInCommandTypedValue<_T>& v)
     {
-        s << v.Get();
+        s << v.Value();
         return s;
     }
 

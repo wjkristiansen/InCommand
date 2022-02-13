@@ -57,7 +57,7 @@ int main(int argc, const char *argv[])
         return -1;
     }
 
-    if (Message.Get()[0] != 0)
+    if (Message.Value()[0] != 0)
     {
         for (int i = 0; i < result; ++i)
             std::cout << Message << std::endl;

@@ -29,8 +29,8 @@ TEST(InCommand, BasicParams)
     CmdReader.ReadOptions();
 
     EXPECT_TRUE(IsReal);
-    EXPECT_EQ(std::string("Fred"),Name.Get());
-    EXPECT_EQ(std::string("red"), Color.Get());
+    EXPECT_EQ(std::string("Fred"),Name.Value());
+    EXPECT_EQ(std::string("red"), Color.Value());
 }
 
 TEST(InCommand, ParameterParams)
@@ -59,9 +59,9 @@ TEST(InCommand, ParameterParams)
     CmdReader.ReadOptions();
 
     EXPECT_TRUE(SomeSwitch);
-    EXPECT_EQ(File1.Get(), std::string(argv[1]));
-    EXPECT_EQ(File2.Get(), std::string(argv[3]));
-    EXPECT_EQ(File3.Get(), std::string(argv[4]));
+    EXPECT_EQ(File1.Value(), std::string(argv[1]));
+    EXPECT_EQ(File2.Value(), std::string(argv[3]));
+    EXPECT_EQ(File3.Value(), std::string(argv[4]));
 }
 
 template<typename E>
@@ -162,7 +162,7 @@ TEST(InCommand, SubCommands)
             LateDeclareOptions(pScope);
             EXPECT_EQ(InCommand::InCommandStatus::Success, CmdReader.ReadOptions());
 
-            EXPECT_EQ(Lives.Get(), std::string("8"));
+            EXPECT_EQ(Lives.Value(), std::string("8"));
 
             break; }
         case 2: {
