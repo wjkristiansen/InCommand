@@ -19,7 +19,7 @@ TEST(InCommand, BasicParams)
 
     const char* colors[] = { "red", "green", "blue" };
 
-    InCommand::CCommandReader CmdReader("app", argc, argv);
+    InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
     CmdReader.DefaultCommand()->DeclareSwitchOption(IsReal, "is-real", nullptr);
     CmdReader.DefaultCommand()->DeclareVariableOption(Name, "name", nullptr);
     CmdReader.DefaultCommand()->DeclareVariableOption(Color, "color", 3, colors, nullptr);
@@ -50,7 +50,7 @@ TEST(InCommand, ParameterParams)
     InCommand::InCommandString File2;
     InCommand::InCommandString File3;
 
-    InCommand::CCommandReader CmdReader("app", argc, argv);
+    InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
     CmdReader.DefaultCommand()->DeclareParameterOption(File1, "file1", nullptr);
     CmdReader.DefaultCommand()->DeclareParameterOption(File2, "file2", nullptr);
     CmdReader.DefaultCommand()->DeclareParameterOption(File3, "file3", nullptr);
@@ -93,7 +93,7 @@ TEST(InCommand, SubCommands)
         InCommand::InCommandBool Walk(false);
         InCommand::InCommandString Lives("9");
 
-        InCommand::CCommandReader CmdReader("app", 0, nullptr);
+        InCommand::CCommandReader CmdReader("app", "test argument list", 0, nullptr);
         CmdReader.DefaultCommand()->DeclareSwitchOption(Help, "help", nullptr);
         InCommand::CCommand* pPlantCommand = CmdReader.DefaultCommand()->DeclareSubcommand("plant", nullptr, to_underlying(ScopeId::Plant));
         pPlantCommand->DeclareSwitchOption(List, "list", nullptr);

@@ -10,7 +10,7 @@ int main(int argc, const char *argv[])
     InCommand::InCommandInt Val2;
     InCommand::InCommandString Message("");
 
-    InCommand::CCommandReader CmdReader("sample", argc, argv);
+    InCommand::CCommandReader CmdReader("sample", "Sample app for demonstrating use of InCommand command line reader utility", argc, argv);
 
     CmdReader.DefaultCommand()->DeclareSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
 
@@ -38,7 +38,6 @@ int main(int argc, const char *argv[])
     if(ShowHelp || 0 == pCmd->Id())
     {
         std::cout << std::endl;
-        std::cout << "Sample app for demonstrating use of InCommand command line reader utility" << std::endl << std::endl;
         std::cout << pCmd->UsageString() << std::endl;
         return 0;
     }

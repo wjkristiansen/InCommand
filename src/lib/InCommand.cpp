@@ -150,6 +150,8 @@ namespace InCommand
     std::string CCommand::UsageString() const
     {
         std::ostringstream s;
+        s << m_Description << std::endl;
+        s << std::endl;
         s << "USAGE" << std::endl;
         s << std::endl;
         static const int colwidth = 30;
@@ -284,8 +286,8 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandReader::CCommandReader(const char* appName, int argc, const char* argv[]) :
-        m_DefaultCmd(appName, nullptr, 0),
+    CCommandReader::CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]) :
+        m_DefaultCmd(appName, defaultDescription, 0),
         m_ArgList(argc, argv)
     {}
 

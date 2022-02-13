@@ -352,7 +352,7 @@ namespace InCommand
         friend class CCommand;
 
     public:
-        CCommandReader(const char* appName, int argc, const char* argv[]);
+        CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]);
 
         void Reset(int argc, const char* argv[])
         {
