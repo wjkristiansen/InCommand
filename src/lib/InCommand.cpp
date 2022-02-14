@@ -28,7 +28,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommand::CCommand(const char* name, const char* description, int scopeId) :
+    CCommandCtx::CCommandCtx(const char* name, const char* description, int scopeId) :
         m_ScopeId(scopeId),
         m_Description(description ? description : "")
     {
@@ -37,9 +37,9 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommand* CCommand::FetchCommand(CCommandReader* pReader)
+    CCommandCtx* CCommandCtx::FetchCommandCtx(CCommandReader* pReader)
     {
-        CCommand *pScope = this;
+        CCommandCtx *pScope = this;
 
         ++pReader->m_ArgIt;
         if (pReader->m_ArgIt != pReader->m_ArgList.End())
@@ -47,7 +47,7 @@ namespace InCommand
             auto subIt = m_Subcommands.find(pReader->m_ArgList.At(pReader->m_ArgIt));
             if (subIt != m_Subcommands.end())
             {
-                pScope = subIt->second->FetchCommand(pReader);
+                pScope = subIt->second->FetchCommandCtx(pReader);
             }
         }
 
@@ -55,7 +55,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    InCommandStatus CCommand::FetchOptions(CCommandReader *pReader) const
+    InCommandStatus CCommandCtx::FetchOptions(CCommandReader *pReader) const
     {
         InCommandStatus result = InCommandStatus::Success;
 
@@ -120,19 +120,19 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommand* CCommand::DeclareSubcommand(const char* name, const char* description, int scopeId)
+    CCommandCtx* CCommandCtx::DeclareCommandCtx(const char* name, const char* description, int scopeId)
     {
         auto it = m_Subcommands.find(name);
         if (it != m_Subcommands.end())
             throw InCommandException(InCommandStatus::DuplicateCommand);
 
-        auto result = m_Subcommands.emplace(name, std::make_shared<CCommand>(name, description, scopeId));
+        auto result = m_Subcommands.emplace(name, std::make_shared<CCommandCtx>(name, description, scopeId));
         result.first->second->m_pSuperScope = this;
         return result.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    std::string CCommand::CommandChainString() const
+    std::string CCommandCtx::CommandChainString() const
     {
         std::ostringstream s;
         if (m_pSuperScope)
@@ -147,7 +147,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    std::string CCommand::UsageString() const
+    std::string CCommandCtx::UsageString() const
     {
         std::ostringstream s;
         s << m_Description << std::endl;
@@ -229,7 +229,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareSwitchOption(InCommandBool& boundValue, const char* name, const char *description, char shortKey)
+    const COption* CCommandCtx::DeclareSwitchOption(InCommandBool& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -242,7 +242,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareVariableOption(CInCommandValue& boundValue, const char* name, const char *description, char shortKey)
+    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -255,7 +255,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const char* domain[], const char *description, char shortKey)
+    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const char* domain[], const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -268,7 +268,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareParameterOption(CInCommandValue& boundValue, const char* name, const char* description)
+    const COption* CCommandCtx::DeclareParameterOption(CInCommandValue& boundValue, const char* name, const char* description)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
@@ -287,26 +287,26 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------
     CCommandReader::CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]) :
-        m_DefaultCmd(appName, defaultDescription, 0),
+        m_DefaultCtx(appName, defaultDescription, 0),
         m_ArgList(argc, argv)
     {}
 
     //------------------------------------------------------------------------------------------------
-    CCommand *CCommandReader::ReadCommand()
+    CCommandCtx *CCommandReader::ReadCommandCtx()
     {
         m_ArgIt = m_ArgList.Begin();
-        m_pActiveCommand = m_DefaultCmd.FetchCommand(this);
+        m_pActiveCtx = m_DefaultCtx.FetchCommandCtx(this);
         m_LastStatus = InCommandStatus::Success;
-        return m_pActiveCommand;
+        return m_pActiveCtx;
     }
 
     //------------------------------------------------------------------------------------------------
     InCommandStatus CCommandReader::ReadOptions()
     {
-        if (!m_pActiveCommand)
-            ReadCommand();
+        if (!m_pActiveCtx)
+            ReadCommandCtx();
 
-        m_LastStatus =  m_pActiveCommand->FetchOptions(this);
+        m_LastStatus =  m_pActiveCtx->FetchOptions(this);
         return m_LastStatus;
     }
 

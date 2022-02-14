@@ -335,26 +335,26 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CCommand
+    class CCommandCtx
     {
         int m_ScopeId = 0;
         std::string m_Name;
         std::string m_Description;
         std::map<std::string, std::shared_ptr<COption>> m_Options;
         std::map<char, std::shared_ptr<COption>> m_ShortOptions;
-        std::map<std::string, std::shared_ptr<CCommand>> m_Subcommands;
+        std::map<std::string, std::shared_ptr<CCommandCtx>> m_Subcommands;
         std::vector<std::shared_ptr<COption>> m_ParameterOptions;
-        CCommand* m_pSuperScope = nullptr;
+        CCommandCtx* m_pSuperScope = nullptr;
 
-        CCommand* FetchCommand(class CCommandReader *pReader);
+        CCommandCtx* FetchCommandCtx(class CCommandReader *pReader);
         InCommandStatus FetchOptions(class CCommandReader *pReader) const;
 
     public:
-        CCommand(const char* name, const char* description, int scopeId = 0);
-        CCommand(CCommand&& o) = delete;
-        ~CCommand() = default;
+        CCommandCtx(const char* name, const char* description, int scopeId = 0);
+        CCommandCtx(CCommandCtx&& o) = delete;
+        ~CCommandCtx() = default;
 
-        CCommand* DeclareSubcommand(const char* name, const char* description, int scopeId = 0);
+        CCommandCtx* DeclareCommandCtx(const char* name, const char* description, int scopeId = 0);
         const COption* DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);
         const COption* DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
         const COption* DeclareVariableOption(CInCommandValue& value, const char* name, const char* description, char shortKey = 0);
@@ -374,14 +374,14 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     class CCommandReader
     {
-        CCommand m_DefaultCmd;
+        CCommandCtx m_DefaultCtx;
         CArgumentList m_ArgList;
         CArgumentIterator m_ArgIt;
-        CCommand* m_pActiveCommand = nullptr;
+        CCommandCtx* m_pActiveCtx = nullptr;
         InCommandStatus m_LastStatus = InCommandStatus::Success;
         size_t m_ParametersRead = 0;
 
-        friend class CCommand;
+        friend class CCommandCtx;
 
     public:
         CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]);
@@ -394,18 +394,19 @@ namespace InCommand
             m_LastStatus = InCommandStatus::Success;
         }
 
-        // Returns the default command pointer, used for declaring subcommands.
-        CCommand* DefaultCommand() { return &m_DefaultCmd; }
+        // Returns the default command context pointer, used for declaring subcommands.
+        CCommandCtx* DefaultCommandCtx() { return &m_DefaultCtx; }
 
-        // Returns the active CCommand pointer, or nullptr if the active command
+        // Returns the active command context pointer, or nullptr if the active command
         // has not been fetched.
-        CCommand* ActiveCommand() { return m_pActiveCommand; }
+        CCommandCtx* ActiveCommandCtx() { return m_pActiveCtx; }
 
-        // Reads the command chain from the argument list and returns the active command from
-        // the argument list. Afterward, the argument iterator index points to
-        // the first command option argument in the argument list.
+        // Reads the command context chain from the argument list
+        // and returns the active command context.
+        // Afterward, the argument iterator index points to
+        // the first option argument in the argument list.
         // Allows the application to delay-declare command options.
-        CCommand* ReadCommand();
+        CCommandCtx* ReadCommandCtx();
 
         // Reads the command options from the argument list, setting the bound values.
         // Requires the active command be set by calling ReadActiveCommand.

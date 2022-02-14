@@ -5,7 +5,7 @@ This is a work-in-progress. Most of the primary features are functional, but qui
 InCommand is a command line parsing utility. Command lines are expected to have the following syntax:
 
 ```
-app-name [subcommand [subcommand[...]]] [options...]
+app-name [command [command[...]]] [options...]
 ```
 
 # Arguments
@@ -16,17 +16,15 @@ Arguments are the space-delimitted strings in a command line. Typically, these a
 int main(int argc, const char *argv[])
 ```
 
-Arguments are either subcommands or options, with subcommands appearing before any options in the argument list.
+Arguments are either commands or options, with commands appearing before any options in the argument list.
 
 ---
 
-## Subcommand Arguments
+## Command Arguments
 
-The presence of a subcommand sets the command scope to the given subcommand. Once a subcommand is specified, the subsequent command arguments are considered part of that command scope.
+A sequence of command arguments describes a command context. If no command arguments are given the default command is active. A command context is declared as either a subcontext of the default command context or of another declared command context.
 
-Subcommands must be given at the beginning of a command scope. No more than one subcommand will be parsed per command scope.
-
-Subcommands must be declared before parsing. Subcommands can be chained, meaning at any given subcommand can declare its own set of subcommands. No more than one subcommand may be used for each subcommand level.
+Command arguments must be at the start of the argument list, preceding any option arguments. Only one command context is active in a given command line.
 
 Example:
 
