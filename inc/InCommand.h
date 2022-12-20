@@ -48,6 +48,22 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------
     template<typename _T>
+    inline std::string ToString(const _T &v)
+    {
+        std::ostringstream ss;
+        ss << v;
+        return ss.str();
+    }
+
+    //------------------------------------------------------------------------------------------------
+    template<>
+    inline std::string ToString<std::string>(const std::string &s)
+    {
+        return s;
+    }
+
+    //------------------------------------------------------------------------------------------------
+    template<typename _T>
     inline _T FromString(const std::string &s)
     {
         return _T();
@@ -92,6 +108,7 @@ namespace InCommand
     public:
         virtual InCommandStatus SetFromString(const std::string &s) = 0;
         virtual bool HasValue() const = 0;
+        virtual std::string ToString() const = 0;
     };
 
     //------------------------------------------------------------------------------------------------0
@@ -102,7 +119,7 @@ namespace InCommand
 
     public:
         CInCommandTypedValue() = default;
-        explicit CInCommandTypedValue(const _T& value) : m_value(value) {}
+        CInCommandTypedValue(const _T& value) : m_value(value) {}
         operator _T() const { return m_value.value(); }
         CInCommandTypedValue & operator=(const _T & value) { m_value = value; return *this; }
         const _T &Value() const { return m_value.value(); }
@@ -119,6 +136,13 @@ namespace InCommand
             }
 
             return InCommandStatus::Success;
+        }
+        virtual std::string ToString() const
+        {
+            if(!m_value.has_value())
+                return "(empty)";
+
+            return InCommand::ToString(m_value.value());
         }
     };
 
@@ -147,6 +171,10 @@ namespace InCommand
             }
 
             return InCommandStatus::Success;
+        }
+        virtual std::string ToString() const
+        {
+            return m_value ? "true" : "false";
         }
     };
 
@@ -308,6 +336,16 @@ namespace InCommand
                 m_domain.insert(domain[i]);
         }
 
+        CVariableOption(CInCommandValue& value, const char* name, int domainSize, const CInCommandValue *pDomainValues, const char* description, char shortKey = 0) :
+            COption(name, description),
+            m_value(value)
+        {
+            m_shortKey = shortKey;
+
+            for (int i = 0; i < domainSize; ++i)
+                m_domain.insert(pDomainValues[i].ToString());
+        }
+
         virtual OptionType Type() const final { return OptionType::Variable; }
         virtual InCommandStatus ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
@@ -359,6 +397,7 @@ namespace InCommand
         const COption* DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
         const COption* DeclareVariableOption(CInCommandValue& value, const char* name, const char* description, char shortKey = 0);
         const COption* DeclareVariableOption(CInCommandValue& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
+        const COption* DeclareVariableOption(CInCommandValue& value, const char* name, int domainSize, const CInCommandValue *pDomainValues, const char* description, char shortKey = 0);
 
         std::string CommandChainString() const;
 

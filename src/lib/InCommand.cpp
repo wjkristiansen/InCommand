@@ -268,6 +268,19 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
+    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const CInCommandValue *pDomainValues, const char* description, char shortKey)
+    {
+        auto it = m_Options.find(name);
+        if (it != m_Options.end())
+            throw InCommandException(InCommandStatus::DuplicateOption);
+
+        auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, pDomainValues, description, shortKey));
+        if (shortKey)
+            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
+        return insert.first->second.get();
+    }
+
+    //------------------------------------------------------------------------------------------------
     const COption* CCommandCtx::DeclareParameterOption(CInCommandValue& boundValue, const char* name, const char* description)
     {
         auto it = m_Options.find(name);
