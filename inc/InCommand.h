@@ -111,6 +111,96 @@ namespace InCommand
         virtual std::string ToString() const = 0;
     };
 
+    //------------------------------------------------------------------------------------------------
+    class CInCommandVariableDomain
+    {
+        std::set<std::string> m_values;
+
+    public:
+        CInCommandVariableDomain() = default;
+
+        template<class _T>
+        CInCommandVariableDomain(int NumValues, const _T* pValues)
+        {
+            for (int i = 0; i < NumValues; ++i)
+            {
+                m_values.emplace(InCommand::ToString(pValues[i]));
+            }
+        }
+
+        template<class _T>
+        CInCommandVariableDomain(const _T& v0, const _T& v1)
+        {
+            m_values.emplace(InCommand::ToString(v0));
+            m_values.emplace(InCommand::ToString(v1));
+        }
+
+        template<class _T>
+        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3)
+        {
+            m_values.emplace(InCommand::ToString(v0));
+            m_values.emplace(InCommand::ToString(v1));
+            m_values.emplace(InCommand::ToString(v2));
+            m_values.emplace(InCommand::ToString(v3));
+        }
+
+        template<class _T>
+        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4)
+        {
+            m_values.emplace(InCommand::ToString(v0));
+            m_values.emplace(InCommand::ToString(v1));
+            m_values.emplace(InCommand::ToString(v2));
+            m_values.emplace(InCommand::ToString(v3));
+            m_values.emplace(InCommand::ToString(v4));
+        }
+
+        template<class _T>
+        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5)
+        {
+            m_values.emplace(InCommand::ToString(v0));
+            m_values.emplace(InCommand::ToString(v1));
+            m_values.emplace(InCommand::ToString(v2));
+            m_values.emplace(InCommand::ToString(v3));
+            m_values.emplace(InCommand::ToString(v4));
+            m_values.emplace(InCommand::ToString(v5));
+        }
+
+        template<class _T>
+        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5, const _T& v6)
+        {
+            m_values.emplace(InCommand::ToString(v0));
+            m_values.emplace(InCommand::ToString(v1));
+            m_values.emplace(InCommand::ToString(v2));
+            m_values.emplace(InCommand::ToString(v3));
+            m_values.emplace(InCommand::ToString(v4));
+            m_values.emplace(InCommand::ToString(v5));
+            m_values.emplace(InCommand::ToString(v6));
+        }
+
+        template<class _T>
+        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5, const _T& v6, const _T& v7)
+        {
+            m_values.emplace(InCommand::ToString(v0));
+            m_values.emplace(InCommand::ToString(v1));
+            m_values.emplace(InCommand::ToString(v2));
+            m_values.emplace(InCommand::ToString(v3));
+            m_values.emplace(InCommand::ToString(v4));
+            m_values.emplace(InCommand::ToString(v5));
+            m_values.emplace(InCommand::ToString(v6));
+            m_values.emplace(InCommand::ToString(v7));
+        }
+
+        bool HasValues() const { return !m_values.empty(); }
+
+        template<class _T>
+        bool ContainsValue(const _T& value) const
+        {
+            std::string valueString = InCommand::ToString(value);
+            auto it = m_values.find(valueString);
+            return it != m_values.end();
+        }
+    };
+
     //------------------------------------------------------------------------------------------------0
     template<class _T>
     class CInCommandTypedValue : public CInCommandValue
@@ -315,8 +405,7 @@ namespace InCommand
     class CVariableOption : public COption
     {
         CInCommandValue &m_value;
-
-        std::set<std::string> m_domain;
+        CInCommandVariableDomain m_domain;
 
     public:
         CVariableOption(CInCommandValue &value, const char* name, const char* description, char shortKey = 0) :
@@ -326,24 +415,12 @@ namespace InCommand
             m_shortKey = shortKey;
         }
 
-        CVariableOption(CInCommandValue &value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0) :
+        CVariableOption(CInCommandValue& value, const char* name, const CInCommandVariableDomain &domain, const char* description, char shortKey = 0) :
             COption(name, description),
-            m_value(value)
+            m_value(value),
+            m_domain(domain)
         {
             m_shortKey = shortKey;
-
-            for (int i = 0; i < domainSize; ++i)
-                m_domain.insert(domain[i]);
-        }
-
-        CVariableOption(CInCommandValue& value, const char* name, int domainSize, const CInCommandValue *pDomainValues, const char* description, char shortKey = 0) :
-            COption(name, description),
-            m_value(value)
-        {
-            m_shortKey = shortKey;
-
-            for (int i = 0; i < domainSize; ++i)
-                m_domain.insert(pDomainValues[i].ToString());
         }
 
         virtual OptionType Type() const final { return OptionType::Variable; }
@@ -354,12 +431,11 @@ namespace InCommand
             if (it == args.End())
                 return InCommandStatus::MissingOptionValue;
 
-            if (!m_domain.empty())
+            if (m_domain.HasValues())
             {
                 // See if the given value is a valid 
                 // domain value.
-                auto vit = m_domain.find(args.At(it));
-                if (vit == m_domain.end())
+                if( !m_domain.ContainsValue(args.At(it)))
                     return InCommandStatus::InvalidValue;
             }
 
@@ -397,7 +473,7 @@ namespace InCommand
         const COption* DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
         const COption* DeclareVariableOption(CInCommandValue& value, const char* name, const char* description, char shortKey = 0);
         const COption* DeclareVariableOption(CInCommandValue& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
-        const COption* DeclareVariableOption(CInCommandValue& value, const char* name, int domainSize, const CInCommandValue *pDomainValues, const char* description, char shortKey = 0);
+        const COption* DeclareVariableOption(CInCommandValue& value, const char* name, const CInCommandVariableDomain& domain, const char* description, char shortKey = 0);
 
         std::string CommandChainString() const;
 

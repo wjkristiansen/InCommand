@@ -255,26 +255,27 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const char* domain[], const char *description, char shortKey)
+    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const char* domainValueStrings[], const char *description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
             throw InCommandException(InCommandStatus::DuplicateOption);
 
-        auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, domain, description, shortKey));
+        CInCommandVariableDomain domain(domainSize, domainValueStrings);
+        auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domain, description, shortKey));
         if (shortKey)
             m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const CInCommandValue *pDomainValues, const char* description, char shortKey)
+    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, const CInCommandVariableDomain &domain, const char* description, char shortKey)
     {
         auto it = m_Options.find(name);
         if (it != m_Options.end())
             throw InCommandException(InCommandStatus::DuplicateOption);
 
-        auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domainSize, pDomainValues, description, shortKey));
+        auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domain, description, shortKey));
         if (shortKey)
             m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
