@@ -1,94 +1,86 @@
 # Introduction
 
-This is a work-in-progress. Most of the primary features are functional, but quite a bit of polish is still needed.
+This is a work in progress. Most of the primary features are functional, but quite a bit of polish is still needed.
 
-InCommand is a command line parsing utility. Command lines are expected to have the following syntax:
-
-```
-app-name [command [command[...]]] [options...]
-```
-
-# Arguments
-
-Arguments are the space-delimitted strings in a command line. Typically, these are passed into the main function in a program's main function as 'argv'.
-
-```C
-int main(int argc, const char *argv[])
-```
-
-Arguments are either commands or options, with commands appearing before any options in the argument list.
-
----
-
-## Command Arguments
-
-A sequence of command arguments describes a command context. If no command arguments are given the default command is active. A command context is declared as either a subcontext of the default command context or of another declared command context.
-
-Command arguments must be at the start of the argument list, preceding any option arguments. Only one command context is active in a given command line.
-
-Example:
+InCommand is a command line interface (CLI) argument processor. Command lines are expected to have the following syntax:
 
 ```
-foo.exe subcom-A subcom-B-of-A subcom-C-of-B-of-A --switch-on-subcom-C-of-B-of-A
+app-name [command args...] [parameter args...]
 ```
 
 ---
 
-## Parameter Options
+## Definition of Terms
 
-Parameter options contain only a value. Typically, parameter arguments do not start with '--' or '-', as these give the appearance of variable or switch options.
+### Arguments
 
-Any option argument that doesn't begin with '--' or '-' is assumed to be a parameter value. Values are assigned to parameters in the order they are declared. An error is produced if there are more parameters in the argument list than declared parameters.
+Arguments are the elements of a command representing individual action or parameter arguments.
+
+### Command Arguments
+
+Command arguments describe the action that a command needs to perform.
+
+### Command Context
+
+A command context encapsulates a given command argument and defines the parameter rules for the context. Command contexts may be nested to support rich command syntax. For example, command context nesting can be useful for creating command categories:
+
+``` sh
+fooApp config reset
+```
+
+In this case, the command argument 'reset' is nested with the command argument 'config'.
+
+Command arguments must be at the start of the argument list, preceding any parameter arguments. Only one action is active in a given command.
+
+### Parameter Arguments
+
+Parameter arguments are given after command arguments. Parameter arguments can either be options or inputs.
+
+### Option Parameter Arguments
+
+Option argument strings are prefixed with `--`. Option argument types and values are constrained by the rules set in a declared command context.
+
+Option parameters are typed. Boolean options are `true` if they are present in the command arguments.
 
 Example:
 
-```
-foo.exe myfile1.foo myfile2.foo
-```
-
----
-
-## Variable and Switch Options
-
-Syntactically, variable and switch option arguments use '--' followed by the name of the option. Optionally, a single letter short-form label may be declared, which is preceded by a single hyphen '-'.
-
-Example
-```
-foo.exe --long-option-name
+``` sh
+fooApp config reset --force
 ```
 
-or
-
-```
-foo.exe -l
-```
-
-### Switch Options
-
-Switch options are boolean values considered to be 'on' when present in the options list. 
+All other option parameters must be immediately followed by an input value of a matching type.
 
 Example:
 
-```
-foo.exe --reset
+``` sh
+fooApp config reset --mode quick
 ```
 
-### Variable Options
-
-Variable arguments are name/value string pairs. The value string is taken from the next argument in the argument list. A default value is assigned if the variable is not present in the argument list.
+If needed, option parameter values can be constrained to a limited domain of input values.
 
 Example:
 
-```
-foo.exe --file hello.txt
+Assume option 'color' is declared as constrained to the set ['red', 'green', 'blue']
+
+``` sh
+fooApp --color red
 ```
 
-Variable options may be constrained to a pre-declared domain of values. An error results if an assigned value is not in the domain.
+InCommand supports optional short-form single letter aliases for option parameter arguments. Short-form options are preceded by `-` instead of `--`.
 
 Example:
 
-Assume Variable 'color' is declared as constrained to the set ['red', 'green', 'blue']
-
+``` sh
+fooApp --long-option-name
+fooApp -l
 ```
-foo.exe --color red
+
+### Input Parameter Arguments
+
+Input parameter arguments have no prefix like `--` or `-`. The number if input parameters is constrained by the associate command context or option parameter rules.
+
+Example:
+
+``` sh
+fooApp merge myfile1.foo myfile2.foo --outfile mergedfile.foo
 ```
