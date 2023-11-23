@@ -20,9 +20,9 @@ TEST(InCommand, BasicParams)
     const char* colors[] = { "red", "green", "blue" };
 
     InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
-    CmdReader.DefaultCommandCtx()->DeclareBoolParameter(IsReal, "is-real", nullptr);
-    CmdReader.DefaultCommandCtx()->DeclareOptionParameter(Name, "name", nullptr);
-    CmdReader.DefaultCommandCtx()->DeclareOptionParameter(Color, "color", 3, colors, nullptr);
+    CmdReader.DefaultCommand()->DeclareBoolParameter(IsReal, "is-real", nullptr);
+    CmdReader.DefaultCommand()->DeclareOptionParameter(Name, "name", nullptr);
+    CmdReader.DefaultCommand()->DeclareOptionParameter(Color, "color", 3, colors, nullptr);
 
     InCommand::CArgumentList args(argc, argv);
     InCommand::CArgumentIterator it = args.Begin();
@@ -51,10 +51,10 @@ TEST(InCommand, ParameterParams)
     InCommand::String File3;
 
     InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
-    CmdReader.DefaultCommandCtx()->DeclareInputParameter(File1, "file1", nullptr);
-    CmdReader.DefaultCommandCtx()->DeclareInputParameter(File2, "file2", nullptr);
-    CmdReader.DefaultCommandCtx()->DeclareInputParameter(File3, "file3", nullptr);
-    CmdReader.DefaultCommandCtx()->DeclareBoolParameter(SomeSwitch, "some-switch", nullptr);
+    CmdReader.DefaultCommand()->DeclareInputParameter(File1, "file1", nullptr);
+    CmdReader.DefaultCommand()->DeclareInputParameter(File2, "file2", nullptr);
+    CmdReader.DefaultCommand()->DeclareInputParameter(File3, "file3", nullptr);
+    CmdReader.DefaultCommand()->DeclareBoolParameter(SomeSwitch, "some-switch", nullptr);
 
     CmdReader.ReadParameterArguments();
 
@@ -94,17 +94,17 @@ TEST(InCommand, SubCommands)
         InCommand::String Lives("9");
 
         InCommand::CCommandReader CmdReader("app", "test argument list", 0, nullptr);
-        CmdReader.DefaultCommandCtx()->DeclareBoolParameter(Help, "help", nullptr);
-        InCommand::CCommandCtx* pPlantCommand = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("plant", nullptr, to_underlying(ScopeId::Plant));
+        CmdReader.DefaultCommand()->DeclareBoolParameter(Help, "help", nullptr);
+        InCommand::CCommand* pPlantCommand = CmdReader.DefaultCommand()->DeclareCommand("plant", nullptr, to_underlying(ScopeId::Plant));
         pPlantCommand->DeclareBoolParameter(List, "list", nullptr);
-        InCommand::CCommandCtx* pShrubCommand = pPlantCommand->DeclareCommandCtx("shrub", nullptr, to_underlying(ScopeId::Shrub));
+        InCommand::CCommand* pShrubCommand = pPlantCommand->DeclareCommand("shrub", nullptr, to_underlying(ScopeId::Shrub));
         pShrubCommand->DeclareBoolParameter(Prune, "prune", nullptr);
         pShrubCommand->DeclareBoolParameter(Burn, "burn", nullptr);
-        InCommand::CCommandCtx* pAnimalCommand = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("animal", nullptr, to_underlying(ScopeId::Animal));
-        pAnimalCommand->DeclareCommandCtx("dog", nullptr, to_underlying(ScopeId::Dog));
-        pAnimalCommand->DeclareCommandCtx("cat", nullptr, to_underlying(ScopeId::Cat));
+        InCommand::CCommand* pAnimalCommand = CmdReader.DefaultCommand()->DeclareCommand("animal", nullptr, to_underlying(ScopeId::Animal));
+        pAnimalCommand->DeclareCommand("dog", nullptr, to_underlying(ScopeId::Dog));
+        pAnimalCommand->DeclareCommand("cat", nullptr, to_underlying(ScopeId::Cat));
 
-        auto LateDeclareOptions = [&](InCommand::CCommandCtx* pCommandScope)
+        auto LateDeclareOptions = [&](InCommand::CCommand* pCommandScope)
         {
             switch (static_cast<ScopeId>(pCommandScope->Id()))
             {
@@ -137,7 +137,7 @@ TEST(InCommand, SubCommands)
             const int argc = sizeof(argv) / sizeof(argv[0]);
 
             CmdReader.Reset(argc, argv);
-            InCommand::CCommandCtx *pCtx = CmdReader.ReadCommandArguments();
+            InCommand::CCommand *pCtx = CmdReader.ReadCommandArguments();
             LateDeclareOptions(pCtx);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadParameterArguments());
 
@@ -158,7 +158,7 @@ TEST(InCommand, SubCommands)
 
             CmdReader.Reset(argc, argv);
 
-            InCommand::CCommandCtx *pCtx = CmdReader.ReadCommandArguments();
+            InCommand::CCommand *pCtx = CmdReader.ReadCommandArguments();
             LateDeclareOptions(pCtx);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadParameterArguments());
 
@@ -175,7 +175,7 @@ TEST(InCommand, SubCommands)
 
             CmdReader.Reset(argc, argv);
 
-            InCommand::CCommandCtx* pCtx = CmdReader.ReadCommandArguments();
+            InCommand::CCommand* pCtx = CmdReader.ReadCommandArguments();
             LateDeclareOptions(pCtx);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadParameterArguments());
 
@@ -195,10 +195,10 @@ TEST(InCommand, Errors)
         const char* argv[] = { "app", "goto", "--foo", "--bar" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
         InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
-        auto *pGotoCmd = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("goto", nullptr, 1);
+        auto *pGotoCmd = CmdReader.DefaultCommand()->DeclareCommand("goto", nullptr, 1);
         try
         {
-            CmdReader.DefaultCommandCtx()->DeclareCommandCtx("goto", nullptr, 1);; // Duplicate command "goto"
+            CmdReader.DefaultCommand()->DeclareCommand("goto", nullptr, 1);; // Duplicate command "goto"
         }
         catch(const InCommand::Exception& e)
         {
@@ -210,10 +210,10 @@ TEST(InCommand, Errors)
         const char* argv[] = { "app", "goto", "--foo", "--bar", "7" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
         InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
-        CmdReader.DefaultCommandCtx()->DeclareBoolParameter(Foo, "foo", nullptr, 0);
+        CmdReader.DefaultCommand()->DeclareBoolParameter(Foo, "foo", nullptr, 0);
         try
         {
-            CmdReader.DefaultCommandCtx()->DeclareOptionParameter(Bar, "foo", nullptr, 0); // Duplicate option "foo"
+            CmdReader.DefaultCommand()->DeclareOptionParameter(Bar, "foo", nullptr, 0); // Duplicate option "foo"
         }
         catch (const InCommand::Exception& e)
         {
@@ -226,7 +226,7 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
         InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
 
-        auto* pGotoCmd = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("goto", nullptr, 1);
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolParameter(Foo, "foo", nullptr, 0);
         pGotoCmd->DeclareOptionParameter(Bar, "bar", nullptr, 0);
 
@@ -239,7 +239,7 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
         InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
 
-        auto* pGotoCmd = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("goto", nullptr, 1);
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolParameter(Foo, "foo", nullptr, 0);
         pGotoCmd->DeclareOptionParameter(Bar, "bar", nullptr, 0);
 
@@ -252,7 +252,7 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
         InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
 
-        auto* pGotoCmd = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("goto", nullptr, 1);
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolParameter(Foo, "foo", nullptr, 0);
         pGotoCmd->DeclareOptionParameter(Bar, "bar", nullptr, 0);
 
@@ -265,7 +265,7 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
         InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
 
-        auto* pGotoCmd = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("goto", nullptr, 1);
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolParameter(Foo, "foo", nullptr, 0);
         pGotoCmd->DeclareOptionParameter(Bar, "bar", nullptr, 0);
 
@@ -278,7 +278,7 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
         InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
 
-        auto* pGotoCmd = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("goto", nullptr, 1);
+        auto* pGotoCmd = CmdReader.DefaultCommand()->DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolParameter(Foo, "foo", nullptr, 0);
         const char* barValues[] = { "1", "3", "5" };
         pGotoCmd->DeclareOptionParameter(Bar, "bar", 3, barValues, nullptr, 0);

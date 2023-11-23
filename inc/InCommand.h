@@ -443,26 +443,26 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CCommandCtx
+    class CCommand
     {
         int m_ScopeId = 0;
         std::string m_Name;
         std::string m_Description;
         std::map<std::string, std::shared_ptr<CParameter>> m_Parameters;
         std::map<char, std::shared_ptr<CParameter>> m_ShortOptions;
-        std::map<std::string, std::shared_ptr<CCommandCtx>> m_Subcommands;
+        std::map<std::string, std::shared_ptr<CCommand>> m_Subcommands;
         std::vector<std::shared_ptr<CParameter>> m_InputParameters;
-        CCommandCtx* m_pSuperScope = nullptr;
+        CCommand* m_pSuperScope = nullptr;
 
-        CCommandCtx* ReadCommandArguments(class CCommandReader *pReader);
+        CCommand* ReadCommandArguments(class CCommandReader *pReader);
         Status ReadParameterArguments(class CCommandReader *pReader) const;
 
     public:
-        CCommandCtx(const char* name, const char* description, int scopeId = 0);
-        CCommandCtx(CCommandCtx&& o) = delete;
-        ~CCommandCtx() = default;
+        CCommand(const char* name, const char* description, int scopeId = 0);
+        CCommand(CCommand&& o) = delete;
+        ~CCommand() = default;
 
-        CCommandCtx* DeclareCommandCtx(const char* name, const char* description, int scopeId = 0);
+        CCommand* DeclareCommand(const char* name, const char* description, int scopeId = 0);
         const CParameter* DeclareInputParameter(Value &value, const char* name, const char* description);
         const CParameter* DeclareBoolParameter(Bool &value, const char* name, const char* description, char shortKey = 0);
         const CParameter* DeclareOptionParameter(Value& value, const char* name, const char* description, char shortKey = 0);
@@ -483,14 +483,14 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     class CCommandReader
     {
-        CCommandCtx m_DefaultCtx;
+        CCommand m_DefaultCtx;
         CArgumentList m_ArgList;
         CArgumentIterator m_ArgIt;
-        CCommandCtx* m_pActiveCtx = nullptr;
+        CCommand* m_pActiveCtx = nullptr;
         Status m_LastStatus = Status::Success;
         size_t m_ParametersRead = 0;
 
-        friend class CCommandCtx;
+        friend class CCommand;
 
     public:
         CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]);
@@ -504,18 +504,18 @@ namespace InCommand
         }
 
         // Returns the default command context pointer, used for declaring subcommands.
-        CCommandCtx* DefaultCommandCtx() { return &m_DefaultCtx; }
+        CCommand* DefaultCommand() { return &m_DefaultCtx; }
 
         // Returns the active command context pointer, or nullptr if the active command
         // has not been fetched.
-        CCommandCtx* ActiveCommandCtx() { return m_pActiveCtx; }
+        CCommand* ActiveCommand() { return m_pActiveCtx; }
 
         // Reads the command arguments from the argument list
         // and returns the matching command context.
         // Afterward, the argument iterator index points to
         // the first option argument in the argument list.
         // Allows the application to delay-declare command options.
-        CCommandCtx* ReadCommandArguments();
+        CCommand* ReadCommandArguments();
 
         // Reads the parameter values from the argument list, setting the bound values.
         // Requires the active command be set by calling ReadActiveCommand.

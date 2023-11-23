@@ -12,21 +12,21 @@ int main(int argc, const char *argv[])
 
     InCommand::CCommandReader CmdReader("sample", "Sample app for demonstrating use of InCommand command line reader utility", argc, argv);
 
-    CmdReader.DefaultCommandCtx()->DeclareBoolParameter(ShowHelp, "help", "Display help for sample commands.", 'h');
+    CmdReader.DefaultCommand()->DeclareBoolParameter(ShowHelp, "help", "Display help for sample commands.", 'h');
 
-    InCommand::CCommandCtx *pAddCmd = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("add", "Adds two integers", 1);
+    InCommand::CCommand *pAddCmd = CmdReader.DefaultCommand()->DeclareCommand("add", "Adds two integers", 1);
     pAddCmd->DeclareBoolParameter(ShowHelp, "help", "Display help for sample add.", 'h');
     pAddCmd->DeclareInputParameter(Val1, "value1", "First add value");
     pAddCmd->DeclareInputParameter(Val2, "value2", "Second add value");
     pAddCmd->DeclareOptionParameter(Message, "message", "Print <message> N-times where N = value1 + value2", 'm');
 
-    InCommand::CCommandCtx *pMulCmd = CmdReader.DefaultCommandCtx()->DeclareCommandCtx("mul", "Multiplies two integers", 2);
+    InCommand::CCommand *pMulCmd = CmdReader.DefaultCommand()->DeclareCommand("mul", "Multiplies two integers", 2);
     pMulCmd->DeclareBoolParameter(ShowHelp, "help", "Display help for sample multiply.", 'h');
     pMulCmd->DeclareInputParameter(Val1, "value1", "First multiply value");
     pMulCmd->DeclareInputParameter(Val2, "value2", "Second multiply value");
     pMulCmd->DeclareOptionParameter(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
 
-    InCommand::CCommandCtx *pCmd = CmdReader.ReadCommandArguments();
+    InCommand::CCommand *pCmd = CmdReader.ReadCommandArguments();
     InCommand::Status fetchResult = CmdReader.ReadParameterArguments();
     if (InCommand::Status::Success != fetchResult)
     {
