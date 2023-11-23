@@ -17,10 +17,12 @@ include_directories(
 add_subdirectory(src)
 
 if( IN_COMMAND_TEST )
+    cmake_policy(SET CMP0135 NEW)
+    
     include(FetchContent)
     FetchContent_Declare(
       googletest
-      URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
+      URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
     )
 
     # For Windows: Prevent overriding the parent project's compiler/linker settings
