@@ -28,7 +28,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandCtx::CCommandCtx(const char* name, const char* description, int scopeId) :
+    CCommand::CCommand(const char* name, const char* description, int scopeId) :
         m_ScopeId(scopeId),
         m_Description(description ? description : "")
     {
@@ -37,9 +37,9 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandCtx* CCommandCtx::ReadCommandArguments(CCommandReader* pReader)
+    CCommand* CCommand::ReadCommandArguments(CCommandReader* pReader)
     {
-        CCommandCtx *pScope = this;
+        CCommand *pScope = this;
 
         ++pReader->m_ArgIt;
         if (pReader->m_ArgIt != pReader->m_ArgList.End())
@@ -55,7 +55,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    Status CCommandCtx::ReadParameterArguments(CCommandReader *pReader) const
+    Status CCommand::ReadParameterArguments(CCommandReader *pReader) const
     {
         Status result = Status::Success;
 
@@ -120,19 +120,19 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandCtx* CCommandCtx::DeclareCommandCtx(const char* name, const char* description, int scopeId)
+    CCommand* CCommand::DeclareCommand(const char* name, const char* description, int scopeId)
     {
         auto it = m_Subcommands.find(name);
         if (it != m_Subcommands.end())
             throw Exception(Status::DuplicateCommand);
 
-        auto result = m_Subcommands.emplace(name, std::make_shared<CCommandCtx>(name, description, scopeId));
+        auto result = m_Subcommands.emplace(name, std::make_shared<CCommand>(name, description, scopeId));
         result.first->second->m_pSuperScope = this;
         return result.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    std::string CCommandCtx::CommandChainString() const
+    std::string CCommand::CommandChainString() const
     {
         std::ostringstream s;
         if (m_pSuperScope)
@@ -147,7 +147,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    std::string CCommandCtx::UsageString() const
+    std::string CCommand::UsageString() const
     {
         std::ostringstream s;
         s << m_Description << std::endl;
@@ -229,7 +229,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommandCtx::DeclareBoolParameter(Bool& boundValue, const char* name, const char *description, char shortKey)
+    const CParameter* CCommand::DeclareBoolParameter(Bool& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
@@ -242,7 +242,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommandCtx::DeclareOptionParameter(Value& boundValue, const char* name, const char *description, char shortKey)
+    const CParameter* CCommand::DeclareOptionParameter(Value& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
@@ -255,7 +255,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommandCtx::DeclareOptionParameter(Value& boundValue, const char* name, int domainSize, const char* domainValueStrings[], const char *description, char shortKey)
+    const CParameter* CCommand::DeclareOptionParameter(Value& boundValue, const char* name, int domainSize, const char* domainValueStrings[], const char *description, char shortKey)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
@@ -269,7 +269,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommandCtx::DeclareOptionParameter(Value& boundValue, const char* name, const Domain &domain, const char* description, char shortKey)
+    const CParameter* CCommand::DeclareOptionParameter(Value& boundValue, const char* name, const Domain &domain, const char* description, char shortKey)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
@@ -282,7 +282,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommandCtx::DeclareInputParameter(Value& boundValue, const char* name, const char* description)
+    const CParameter* CCommand::DeclareInputParameter(Value& boundValue, const char* name, const char* description)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
@@ -306,7 +306,7 @@ namespace InCommand
     {}
 
     //------------------------------------------------------------------------------------------------
-    CCommandCtx *CCommandReader::ReadCommandArguments()
+    CCommand *CCommandReader::ReadCommandArguments()
     {
         m_ArgIt = m_ArgList.Begin();
         m_pActiveCtx = m_DefaultCtx.ReadCommandArguments(this);
