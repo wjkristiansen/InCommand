@@ -5,22 +5,22 @@
 
 namespace InCommand
 {
-    static std::string OptionUsageString(const COption *pOption)
+    static std::string ParameterUsageString(const CParameter *pParameter)
     {
         //------------------------------------------------------------------------------------------------
         std::ostringstream s;
-        if (pOption->Type() == OptionType::Parameter)
+        if (pParameter->Type() == ParameterType::Input)
         {
-            s << "<" << pOption->Name() << ">";
+            s << "<" << pParameter->Name() << ">";
         }
         else
         {
-            if (pOption->ShortKey())
+            if (pParameter->ShortKey())
             {
-                s << '-' << pOption->ShortKey() << ", ";
+                s << '-' << pParameter->ShortKey() << ", ";
             }
-            s << "--" << pOption->Name();
-            if (pOption->Type() == OptionType::Variable)
+            s << "--" << pParameter->Name();
+            if (pParameter->Type() == ParameterType::Option)
                 s << " <value>";
         }
 
@@ -37,7 +37,7 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandCtx* CCommandCtx::FetchCommandCtx(CCommandReader* pReader)
+    CCommandCtx* CCommandCtx::ReadCommandArguments(CCommandReader* pReader)
     {
         CCommandCtx *pScope = this;
 
@@ -47,7 +47,7 @@ namespace InCommand
             auto subIt = m_Subcommands.find(pReader->m_ArgList.At(pReader->m_ArgIt));
             if (subIt != m_Subcommands.end())
             {
-                pScope = subIt->second->FetchCommandCtx(pReader);
+                pScope = subIt->second->ReadCommandArguments(pReader);
             }
         }
 
@@ -55,9 +55,9 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    InCommandStatus CCommandCtx::FetchOptions(CCommandReader *pReader) const
+    Status CCommandCtx::ReadParameterArguments(CCommandReader *pReader) const
     {
-        InCommandStatus result = InCommandStatus::Success;
+        Status result = Status::Success;
 
         if (pReader->m_ArgIt == pReader->m_ArgList.End())
         {
@@ -69,48 +69,48 @@ namespace InCommand
         {
             if (pReader->m_ArgList.At(pReader->m_ArgIt)[0] == '-')
             {
-                const COption* pOption = nullptr;
+                const CParameter* pParameter = nullptr;
 
                 if (pReader->m_ArgList.At(pReader->m_ArgIt)[1] == '-')
                 {
                     // Long-form option
-                    auto optIt = m_Options.find(pReader->m_ArgList.At(pReader->m_ArgIt).substr(2));
-                    if (optIt == m_Options.end() || optIt->second->Type() == OptionType::Parameter)
+                    auto optIt = m_Parameters.find(pReader->m_ArgList.At(pReader->m_ArgIt).substr(2));
+                    if (optIt == m_Parameters.end() || optIt->second->Type() == ParameterType::Input)
                     {
-                        result = InCommandStatus::UnknownOption;
+                        result = Status::UnknownOption;
                         return result;
                     }
-                    pOption = optIt->second.get();
+                    pParameter = optIt->second.get();
                 }
                 else
                 {
                     auto optIt = m_ShortOptions.find(pReader->m_ArgList.At(pReader->m_ArgIt)[1]);
                     if (optIt == m_ShortOptions.end())
                     {
-                        result = InCommandStatus::UnknownOption;
+                        result = Status::UnknownOption;
                         return result;
                     }
-                    pOption = optIt->second.get();
+                    pParameter = optIt->second.get();
                 }
 
-                if (pOption)
+                if (pParameter)
                 {
-                    result = pOption->ParseArgs(pReader->m_ArgList, pReader->m_ArgIt);
-                    if (result != InCommandStatus::Success)
+                    result = pParameter->ParseArgs(pReader->m_ArgList, pReader->m_ArgIt);
+                    if (result != Status::Success)
                         return result;
                 }
             }
             else
             {
                 // Assume parameter option
-                if (pReader->m_ParametersRead == m_ParameterOptions.size())
+                if (pReader->m_ParametersRead == m_InputParameters.size())
                 {
-                    result = InCommandStatus::UnexpectedArgument;
+                    result = Status::UnexpectedArgument;
                     return result;
                 }
 
-                result = m_ParameterOptions[pReader->m_ParametersRead]->ParseArgs(pReader->m_ArgList, pReader->m_ArgIt);
-                if (result != InCommandStatus::Success)
+                result = m_InputParameters[pReader->m_ParametersRead]->ParseArgs(pReader->m_ArgList, pReader->m_ArgIt);
+                if (result != Status::Success)
                     return result;
                 pReader->m_ParametersRead++;
             }
@@ -124,7 +124,7 @@ namespace InCommand
     {
         auto it = m_Subcommands.find(name);
         if (it != m_Subcommands.end())
-            throw InCommandException(InCommandStatus::DuplicateCommand);
+            throw Exception(Status::DuplicateCommand);
 
         auto result = m_Subcommands.emplace(name, std::make_shared<CCommandCtx>(name, description, scopeId));
         result.first->second->m_pSuperScope = this;
@@ -165,12 +165,12 @@ namespace InCommand
             s << " [<command> [<command options>]]" << std::endl;
         }
 
-        if (!m_Options.empty())
+        if (!m_Parameters.empty())
         {
             s << "  " + commandChainString;
 
             // Parameter options first
-            for (auto& nko : m_ParameterOptions)
+            for (auto& nko : m_InputParameters)
             {
                 s << " <" << nko->Name() << ">";
             }
@@ -194,27 +194,27 @@ namespace InCommand
 
         s << std::endl;
 
-        if (!m_Options.empty())
+        if (!m_Parameters.empty())
         {
             // Parameter options first
             s << "OPTIONS" << std::endl;
             s << std::endl;
 
             // Parameter options details
-            for (auto& nko : m_ParameterOptions)
+            for (auto& nko : m_InputParameters)
             {
-                s << std::setw(colwidth) << std::left << "  " + OptionUsageString(nko.get());
+                s << std::setw(colwidth) << std::left << "  " + ParameterUsageString(nko.get());
                 s << nko->Description() << std::endl;
             }
 
             // Keyed-options details
-            for (auto& ko : m_Options)
+            for (auto& ko : m_Parameters)
             {
                 auto type = ko.second->Type();
-                if (type == OptionType::Parameter)
+                if (type == ParameterType::Input)
                     continue; // Already dumped
-                s << std::setw(colwidth) << std::left << "  " + OptionUsageString(ko.second.get());
-                if (OptionUsageString(ko.second.get()).length() + 4 > colwidth)
+                s << std::setw(colwidth) << std::left << "  " + ParameterUsageString(ko.second.get());
+                if (ParameterUsageString(ko.second.get()).length() + 4 > colwidth)
                 {
                     s << std::endl;
                     s << std::setw(colwidth) << ' ';
@@ -229,74 +229,74 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommandCtx::DeclareSwitchOption(InCommandBool& boundValue, const char* name, const char *description, char shortKey)
+    const CParameter* CCommandCtx::DeclareBoolParameter(Bool& boundValue, const char* name, const char *description, char shortKey)
     {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw InCommandException(InCommandStatus::DuplicateOption);
+        auto it = m_Parameters.find(name);
+        if (it != m_Parameters.end())
+            throw Exception(Status::DuplicateOption);
 
-        auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, description, shortKey));
+        auto insert = m_Parameters.emplace(name, std::make_shared<CBoolParameter>(boundValue, name, description, shortKey));
         if (shortKey)
             m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, const char *description, char shortKey)
+    const CParameter* CCommandCtx::DeclareOptionParameter(Value& boundValue, const char* name, const char *description, char shortKey)
     {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw InCommandException(InCommandStatus::DuplicateOption);
+        auto it = m_Parameters.find(name);
+        if (it != m_Parameters.end())
+            throw Exception(Status::DuplicateOption);
 
-        auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, description, shortKey));
+        auto insert = m_Parameters.emplace(name, std::make_shared<COptionParameter>(boundValue, name, description, shortKey));
         if (shortKey)
             m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, int domainSize, const char* domainValueStrings[], const char *description, char shortKey)
+    const CParameter* CCommandCtx::DeclareOptionParameter(Value& boundValue, const char* name, int domainSize, const char* domainValueStrings[], const char *description, char shortKey)
     {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw InCommandException(InCommandStatus::DuplicateOption);
+        auto it = m_Parameters.find(name);
+        if (it != m_Parameters.end())
+            throw Exception(Status::DuplicateOption);
 
-        CInCommandVariableDomain domain(domainSize, domainValueStrings);
-        auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domain, description, shortKey));
+        Domain domain(domainSize, domainValueStrings);
+        auto insert = m_Parameters.emplace(name, std::make_shared<COptionParameter>(boundValue, name, domain, description, shortKey));
         if (shortKey)
             m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommandCtx::DeclareVariableOption(CInCommandValue& boundValue, const char* name, const CInCommandVariableDomain &domain, const char* description, char shortKey)
+    const CParameter* CCommandCtx::DeclareOptionParameter(Value& boundValue, const char* name, const Domain &domain, const char* description, char shortKey)
     {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw InCommandException(InCommandStatus::DuplicateOption);
+        auto it = m_Parameters.find(name);
+        if (it != m_Parameters.end())
+            throw Exception(Status::DuplicateOption);
 
-        auto insert = m_Options.emplace(name, std::make_shared<CVariableOption>(boundValue, name, domain, description, shortKey));
+        auto insert = m_Parameters.emplace(name, std::make_shared<COptionParameter>(boundValue, name, domain, description, shortKey));
         if (shortKey)
             m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    const COption* CCommandCtx::DeclareParameterOption(CInCommandValue& boundValue, const char* name, const char* description)
+    const CParameter* CCommandCtx::DeclareInputParameter(Value& boundValue, const char* name, const char* description)
     {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw InCommandException(InCommandStatus::DuplicateOption);
+        auto it = m_Parameters.find(name);
+        if (it != m_Parameters.end())
+            throw Exception(Status::DuplicateOption);
 
 
-        std::shared_ptr<CParameterOption> pOption = std::make_shared<CParameterOption>(boundValue, name, description);
+        std::shared_ptr<CInputParameter> pParameter = std::make_shared<CInputParameter>(boundValue, name, description);
 
         // Add the parameter option to the declared options map
-        m_Options.insert(std::make_pair(name, pOption));
+        m_Parameters.insert(std::make_pair(name, pParameter));
 
         // Add to the array of parameter options
-        m_ParameterOptions.push_back(pOption);
-        return m_ParameterOptions.back().get();
+        m_InputParameters.push_back(pParameter);
+        return m_InputParameters.back().get();
     }
 
     //------------------------------------------------------------------------------------------------
@@ -306,21 +306,21 @@ namespace InCommand
     {}
 
     //------------------------------------------------------------------------------------------------
-    CCommandCtx *CCommandReader::ReadCommandCtx()
+    CCommandCtx *CCommandReader::ReadCommandArguments()
     {
         m_ArgIt = m_ArgList.Begin();
-        m_pActiveCtx = m_DefaultCtx.FetchCommandCtx(this);
-        m_LastStatus = InCommandStatus::Success;
+        m_pActiveCtx = m_DefaultCtx.ReadCommandArguments(this);
+        m_LastStatus = Status::Success;
         return m_pActiveCtx;
     }
 
     //------------------------------------------------------------------------------------------------
-    InCommandStatus CCommandReader::ReadOptions()
+    Status CCommandReader::ReadParameterArguments()
     {
         if (!m_pActiveCtx)
-            ReadCommandCtx();
+            ReadCommandArguments();
 
-        m_LastStatus =  m_pActiveCtx->FetchOptions(this);
+        m_LastStatus =  m_pActiveCtx->ReadParameterArguments(this);
         return m_LastStatus;
     }
 
@@ -331,23 +331,23 @@ namespace InCommand
 
         switch (m_LastStatus)
         {
-        case InCommandStatus::Success:
+        case Status::Success:
             s << "Success";
             break;
 
-        case InCommandStatus::UnexpectedArgument:
+        case Status::UnexpectedArgument:
             s << "Unexpected Argument: \"" << m_ArgList.At(m_ArgIt) << "\"";
             break;
 
-        case InCommandStatus::InvalidValue:
+        case Status::InvalidValue:
             s << "Invalid Value: \"" << m_ArgList.At(m_ArgIt) << "\"";
             break;
 
-        case InCommandStatus::MissingOptionValue:
+        case Status::MissingOptionValue:
             s << "Missing Option Value";
             break;
 
-        case InCommandStatus::UnknownOption:
+        case Status::UnknownOption:
             s << "Unknown Option: \"" << m_ArgList.At(m_ArgIt) << "\"";
             break;
 

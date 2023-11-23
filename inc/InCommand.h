@@ -12,7 +12,7 @@
 namespace InCommand
 {
     //------------------------------------------------------------------------------------------------
-    enum class InCommandStatus : int
+    enum class Status : int
     {
         Success,
         DuplicateCommand,
@@ -24,27 +24,20 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    struct InCommandException
+    struct Exception
     {
-        InCommandStatus status;
+        Status status;
 
-        InCommandException(InCommandStatus error) :
+        Exception(Status error) :
             status(error) {}
     };
 
     //------------------------------------------------------------------------------------------------
-    struct OptionScanResult
+    enum class ParameterType
     {
-        int NumParameters = 0;
-        InCommandStatus Status = InCommandStatus::Success;
-    };
-
-    //------------------------------------------------------------------------------------------------
-    enum class OptionType
-    {
-        Parameter,          // A string option not associated with a declared key
-        Switch,             // Boolean treated as 'true' if present and 'false' if not
-        Variable,           // Name/Value pair
+        Input,
+        Option,
+        Bool
     };
 
     //------------------------------------------------------------------------------------------------
@@ -79,7 +72,7 @@ namespace InCommand
         if(s == "false" || s == "off" || s == "0")
             return true;
 
-        throw InCommandException(InCommandStatus::InvalidValue);
+        throw Exception(Status::InvalidValue);
     }
 
     //------------------------------------------------------------------------------------------------
@@ -104,24 +97,24 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    class CInCommandValue
+    class Value
     {
     public:
-        virtual InCommandStatus SetFromString(const std::string &s) = 0;
+        virtual Status SetFromString(const std::string &s) = 0;
         virtual bool HasValue() const = 0;
         virtual std::string ToString() const = 0;
     };
 
     //------------------------------------------------------------------------------------------------
-    class CInCommandVariableDomain
+    class Domain
     {
         std::set<std::string> m_values;
 
     public:
-        CInCommandVariableDomain() = default;
+        Domain() = default;
 
         template<class _T>
-        CInCommandVariableDomain(int NumValues, const _T* pValues)
+        Domain(int NumValues, const _T* pValues)
         {
             for (int i = 0; i < NumValues; ++i)
             {
@@ -130,14 +123,14 @@ namespace InCommand
         }
 
         template<class _T>
-        CInCommandVariableDomain(const _T& v0, const _T& v1)
+        Domain(const _T& v0, const _T& v1)
         {
             m_values.emplace(InCommand::ToString(v0));
             m_values.emplace(InCommand::ToString(v1));
         }
 
         template<class _T>
-        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3)
+        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3)
         {
             m_values.emplace(InCommand::ToString(v0));
             m_values.emplace(InCommand::ToString(v1));
@@ -146,7 +139,7 @@ namespace InCommand
         }
 
         template<class _T>
-        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4)
+        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4)
         {
             m_values.emplace(InCommand::ToString(v0));
             m_values.emplace(InCommand::ToString(v1));
@@ -156,7 +149,7 @@ namespace InCommand
         }
 
         template<class _T>
-        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5)
+        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5)
         {
             m_values.emplace(InCommand::ToString(v0));
             m_values.emplace(InCommand::ToString(v1));
@@ -167,7 +160,7 @@ namespace InCommand
         }
 
         template<class _T>
-        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5, const _T& v6)
+        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5, const _T& v6)
         {
             m_values.emplace(InCommand::ToString(v0));
             m_values.emplace(InCommand::ToString(v1));
@@ -179,7 +172,7 @@ namespace InCommand
         }
 
         template<class _T>
-        CInCommandVariableDomain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5, const _T& v6, const _T& v7)
+        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5, const _T& v6, const _T& v7)
         {
             m_values.emplace(InCommand::ToString(v0));
             m_values.emplace(InCommand::ToString(v1));
@@ -204,18 +197,18 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------0
     template<class _T>
-    class CInCommandTypedValue : public CInCommandValue
+    class CTypedValue : public Value
     {
         std::optional<_T> m_value;
 
     public:
-        CInCommandTypedValue() = default;
-        CInCommandTypedValue(const _T& value) : m_value(value) {}
+        CTypedValue() = default;
+        CTypedValue(const _T& value) : m_value(value) {}
         operator _T() const { return m_value.value(); }
-        CInCommandTypedValue & operator=(const _T & value) { m_value = value; return *this; }
+        CTypedValue & operator=(const _T & value) { m_value = value; return *this; }
         const _T &Value() const { return m_value.value(); }
         virtual bool HasValue() const final { return m_value.has_value(); }
-        virtual InCommandStatus SetFromString(const std::string &s) final
+        virtual Status SetFromString(const std::string &s) final
         {
             try
             {
@@ -223,10 +216,10 @@ namespace InCommand
             }
             catch (const std::invalid_argument& )
             {
-                return InCommandStatus::InvalidValue;
+                return Status::InvalidValue;
             }
 
-            return InCommandStatus::Success;
+            return Status::Success;
         }
         virtual std::string ToString() const
         {
@@ -239,18 +232,18 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------
     template<>
-    class CInCommandTypedValue<bool> : public CInCommandValue
+    class CTypedValue<bool> : public Value
     {
         bool m_value = false;
 
     public:
-        CInCommandTypedValue() = default;
-        explicit CInCommandTypedValue(bool value) : m_value(value) {}
+        CTypedValue() = default;
+        explicit CTypedValue(bool value) : m_value(value) {}
         operator bool() const { return m_value; }
-        CInCommandTypedValue & operator=(bool value) { m_value = value; return *this; }
+        CTypedValue & operator=(bool value) { m_value = value; return *this; }
         const bool Value() const { return m_value; }
         virtual bool HasValue() const final { return true; }
-        virtual InCommandStatus SetFromString(const std::string &s) final
+        virtual Status SetFromString(const std::string &s) final
         {
             try
             {
@@ -258,10 +251,10 @@ namespace InCommand
             }
             catch (const std::invalid_argument& )
             {
-                return InCommandStatus::InvalidValue;
+                return Status::InvalidValue;
             }
 
-            return InCommandStatus::Success;
+            return Status::Success;
         }
         virtual std::string ToString() const
         {
@@ -270,13 +263,13 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    using InCommandString = CInCommandTypedValue<std::string>;
-    using InCommandBool = CInCommandTypedValue<bool>;
-    using InCommandInt = CInCommandTypedValue<int>;
-    using InCommandUInt = CInCommandTypedValue<unsigned int>;
+    using String = CTypedValue<std::string>;
+    using Bool = CTypedValue<bool>;
+    using Int = CTypedValue<int>;
+    using UInt = CTypedValue<unsigned int>;
 
     template<class _T>
-    std::ostream& operator<<(std::ostream &s, const CInCommandTypedValue<_T>& v)
+    std::ostream& operator<<(std::ostream &s, const CTypedValue<_T>& v)
     {
         s << v.Value();
         return s;
@@ -323,14 +316,14 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class COption
+    class CParameter
     {
     protected:
         std::string m_name;
         std::string m_description;
         char m_shortKey = 0;
 
-        COption(const char* name, const char* description) :
+        CParameter(const char* name, const char* description) :
             m_name(name)
         {
             if (description)
@@ -338,12 +331,12 @@ namespace InCommand
         }
 
     public:
-        virtual ~COption() = default;
+        virtual ~CParameter() = default;
 
-        virtual OptionType Type() const = 0;
+        virtual ParameterType Type() const = 0;
 
         // Returns the index of the first unparsed argument
-        virtual InCommandStatus ParseArgs(const CArgumentList &args, CArgumentIterator &it) const = 0;
+        virtual Status ParseArgs(const CArgumentList &args, CArgumentIterator &it) const = 0;
 
         const std::string &Name() const { return m_name; }
         const std::string &Description() const { return m_description; }
@@ -351,101 +344,101 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CParameterOption : public COption
+    class CInputParameter : public CParameter
     {
-        CInCommandValue &m_value;
+        Value &m_value;
 
     public:
-        CParameterOption(CInCommandValue &value, const char* name, const char* description) :
-            COption(name, description),
+        CInputParameter(Value &value, const char* name, const char* description) :
+            CParameter(name, description),
             m_value(value)
         {}
 
-        virtual OptionType Type() const final { return OptionType::Parameter; }
-        virtual InCommandStatus ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
+        virtual ParameterType Type() const final { return ParameterType::Input; }
+        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             if (it == args.End())
-                return InCommandStatus::Success;
+                return Status::Success;
 
             auto result = m_value.SetFromString(args.At(it));
-            if (result != InCommandStatus::Success)
+            if (result != Status::Success)
                 return result;
 
             ++it;
-            return InCommandStatus::Success;
+            return Status::Success;
         }
     };
 
     //------------------------------------------------------------------------------------------------
-    class CSwitchOption : public COption
+    class CBoolParameter : public CParameter
     {
-        InCommandBool& m_value;
+        Bool& m_value;
 
     public:
-        CSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0) :
-            COption(name, description),
+        CBoolParameter(Bool &value, const char* name, const char* description, char shortKey = 0) :
+            CParameter(name, description),
             m_value(value)
         {
             m_shortKey = shortKey;
         }
 
-        virtual OptionType Type() const final { return OptionType::Switch; }
-        virtual InCommandStatus ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
+        virtual ParameterType Type() const final { return ParameterType::Bool; }
+        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             if (it == args.End())
-                return InCommandStatus::Success;
+                return Status::Success;
 
             m_value = true; // Present means true
             ++it;
 
-            return InCommandStatus::Success;
+            return Status::Success;
         }
     };
 
     //------------------------------------------------------------------------------------------------
-    class CVariableOption : public COption
+    class COptionParameter : public CParameter
     {
-        CInCommandValue &m_value;
-        CInCommandVariableDomain m_domain;
+        Value &m_value;
+        Domain m_domain;
 
     public:
-        CVariableOption(CInCommandValue &value, const char* name, const char* description, char shortKey = 0) :
-            COption(name, description),
+        COptionParameter(Value &value, const char* name, const char* description, char shortKey = 0) :
+            CParameter(name, description),
             m_value(value)
         {
             m_shortKey = shortKey;
         }
 
-        CVariableOption(CInCommandValue& value, const char* name, const CInCommandVariableDomain &domain, const char* description, char shortKey = 0) :
-            COption(name, description),
+        COptionParameter(Value& value, const char* name, const Domain &domain, const char* description, char shortKey = 0) :
+            CParameter(name, description),
             m_value(value),
             m_domain(domain)
         {
             m_shortKey = shortKey;
         }
 
-        virtual OptionType Type() const final { return OptionType::Variable; }
-        virtual InCommandStatus ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
+        virtual ParameterType Type() const final { return ParameterType::Option; }
+        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             ++it;
 
             if (it == args.End())
-                return InCommandStatus::MissingOptionValue;
+                return Status::MissingOptionValue;
 
             if (m_domain.HasValues())
             {
                 // See if the given value is a valid 
                 // domain value.
                 if( !m_domain.ContainsValue(args.At(it)))
-                    return InCommandStatus::InvalidValue;
+                    return Status::InvalidValue;
             }
 
             auto result = m_value.SetFromString(args.At(it));
-            if (result != InCommandStatus::Success)
+            if (result != Status::Success)
                 return result;
 
             ++it;
-            return InCommandStatus::Success;
+            return Status::Success;
         }
     };
 
@@ -455,14 +448,14 @@ namespace InCommand
         int m_ScopeId = 0;
         std::string m_Name;
         std::string m_Description;
-        std::map<std::string, std::shared_ptr<COption>> m_Options;
-        std::map<char, std::shared_ptr<COption>> m_ShortOptions;
+        std::map<std::string, std::shared_ptr<CParameter>> m_Parameters;
+        std::map<char, std::shared_ptr<CParameter>> m_ShortOptions;
         std::map<std::string, std::shared_ptr<CCommandCtx>> m_Subcommands;
-        std::vector<std::shared_ptr<COption>> m_ParameterOptions;
+        std::vector<std::shared_ptr<CParameter>> m_InputParameters;
         CCommandCtx* m_pSuperScope = nullptr;
 
-        CCommandCtx* FetchCommandCtx(class CCommandReader *pReader);
-        InCommandStatus FetchOptions(class CCommandReader *pReader) const;
+        CCommandCtx* ReadCommandArguments(class CCommandReader *pReader);
+        Status ReadParameterArguments(class CCommandReader *pReader) const;
 
     public:
         CCommandCtx(const char* name, const char* description, int scopeId = 0);
@@ -470,11 +463,11 @@ namespace InCommand
         ~CCommandCtx() = default;
 
         CCommandCtx* DeclareCommandCtx(const char* name, const char* description, int scopeId = 0);
-        const COption* DeclareParameterOption(CInCommandValue &value, const char* name, const char* description);
-        const COption* DeclareSwitchOption(InCommandBool &value, const char* name, const char* description, char shortKey = 0);
-        const COption* DeclareVariableOption(CInCommandValue& value, const char* name, const char* description, char shortKey = 0);
-        const COption* DeclareVariableOption(CInCommandValue& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
-        const COption* DeclareVariableOption(CInCommandValue& value, const char* name, const CInCommandVariableDomain& domain, const char* description, char shortKey = 0);
+        const CParameter* DeclareInputParameter(Value &value, const char* name, const char* description);
+        const CParameter* DeclareBoolParameter(Bool &value, const char* name, const char* description, char shortKey = 0);
+        const CParameter* DeclareOptionParameter(Value& value, const char* name, const char* description, char shortKey = 0);
+        const CParameter* DeclareOptionParameter(Value& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
+        const CParameter* DeclareOptionParameter(Value& value, const char* name, const Domain& domain, const char* description, char shortKey = 0);
 
         std::string CommandChainString() const;
 
@@ -494,7 +487,7 @@ namespace InCommand
         CArgumentList m_ArgList;
         CArgumentIterator m_ArgIt;
         CCommandCtx* m_pActiveCtx = nullptr;
-        InCommandStatus m_LastStatus = InCommandStatus::Success;
+        Status m_LastStatus = Status::Success;
         size_t m_ParametersRead = 0;
 
         friend class CCommandCtx;
@@ -507,7 +500,7 @@ namespace InCommand
             m_ArgList = CArgumentList(argc, argv);
             m_ArgIt = m_ArgList.Begin();
             m_ParametersRead = 0;
-            m_LastStatus = InCommandStatus::Success;
+            m_LastStatus = Status::Success;
         }
 
         // Returns the default command context pointer, used for declaring subcommands.
@@ -517,20 +510,20 @@ namespace InCommand
         // has not been fetched.
         CCommandCtx* ActiveCommandCtx() { return m_pActiveCtx; }
 
-        // Reads the command context chain from the argument list
-        // and returns the active command context.
+        // Reads the command arguments from the argument list
+        // and returns the matching command context.
         // Afterward, the argument iterator index points to
         // the first option argument in the argument list.
         // Allows the application to delay-declare command options.
-        CCommandCtx* ReadCommandCtx();
+        CCommandCtx* ReadCommandArguments();
 
-        // Reads the command options from the argument list, setting the bound values.
+        // Reads the parameter values from the argument list, setting the bound values.
         // Requires the active command be set by calling ReadActiveCommand.
         // Reads the active command if ReadCommand was not previously called.
-        InCommandStatus ReadOptions();
+        Status ReadParameterArguments();
 
         std::string LastErrorString() const;
-        InCommandStatus LastStatus() const { return m_LastStatus; }
+        Status LastStatus() const { return m_LastStatus; }
         int ReadIndex() const { return m_ArgIt.Index(); }
     };
 }
