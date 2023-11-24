@@ -37,7 +37,6 @@ namespace InCommand
     {
         Input,
         Option,
-        Bool
     };
 
     //------------------------------------------------------------------------------------------------
@@ -370,46 +369,22 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CBoolParameter : public CParameter
+    template<class _T>
+    class TOptionParameter : public CParameter
     {
-        Bool& m_value;
-
-    public:
-        CBoolParameter(Bool &value, const char* name, const char* description, char shortKey = 0) :
-            CParameter(name, description),
-            m_value(value)
-        {
-            m_shortKey = shortKey;
-        }
-
-        virtual ParameterType Type() const final { return ParameterType::Bool; }
-        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
-        {
-            if (it == args.End())
-                return Status::Success;
-
-            m_value = true; // Present means true
-            ++it;
-
-            return Status::Success;
-        }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    class COptionParameter : public CParameter
-    {
-        Value &m_value;
+    protected:
+        _T &m_value;
         Domain m_domain;
 
     public:
-        COptionParameter(Value &value, const char* name, const char* description, char shortKey = 0) :
+        TOptionParameter(_T &value, const char* name, const char* description, char shortKey = 0) :
             CParameter(name, description),
             m_value(value)
         {
             m_shortKey = shortKey;
         }
 
-        COptionParameter(Value& value, const char* name, const Domain &domain, const char* description, char shortKey = 0) :
+        TOptionParameter(_T& value, const char* name, const Domain &domain, const char* description, char shortKey = 0) :
             CParameter(name, description),
             m_value(value),
             m_domain(domain)
@@ -418,7 +393,7 @@ namespace InCommand
         }
 
         virtual ParameterType Type() const final { return ParameterType::Option; }
-        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
+        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const
         {
             ++it;
 
@@ -438,6 +413,31 @@ namespace InCommand
                 return result;
 
             ++it;
+            return Status::Success;
+        }
+    };
+
+    using COptionParameter = TOptionParameter<Value>;
+
+    //------------------------------------------------------------------------------------------------
+    class CBoolParameter : public TOptionParameter<CTypedValue<bool>>
+    {
+    public:
+        CBoolParameter(Bool &value, const char* name, const char* description, char shortKey = 0) :
+            TOptionParameter(value, name, description, shortKey)
+        {}
+
+        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
+        {
+            if (it == args.End())
+            {
+                m_value = false; // Not present means falseS
+                return Status::Success;
+            }
+
+            m_value = true; // = CTypedValue<bool>(true); // Present means true
+            ++it;
+
             return Status::Success;
         }
     };
