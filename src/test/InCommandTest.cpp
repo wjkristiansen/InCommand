@@ -137,8 +137,8 @@ TEST(InCommand, SubCommands)
             const int argc = sizeof(argv) / sizeof(argv[0]);
 
             CmdReader.Reset(argc, argv);
-            InCommand::CCommand *pCtx = CmdReader.ReadCommandArguments();
-            LateDeclareOptions(pCtx);
+            InCommand::CCommand *pCommand = CmdReader.ReadCommandArguments();
+            LateDeclareOptions(pCommand);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadParameterArguments());
 
             EXPECT_TRUE(Burn);
@@ -158,8 +158,8 @@ TEST(InCommand, SubCommands)
 
             CmdReader.Reset(argc, argv);
 
-            InCommand::CCommand *pCtx = CmdReader.ReadCommandArguments();
-            LateDeclareOptions(pCtx);
+            InCommand::CCommand *pCommand = CmdReader.ReadCommandArguments();
+            LateDeclareOptions(pCommand);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadParameterArguments());
 
             EXPECT_EQ(Lives.Value(), std::string("8"));
@@ -175,8 +175,8 @@ TEST(InCommand, SubCommands)
 
             CmdReader.Reset(argc, argv);
 
-            InCommand::CCommand* pCtx = CmdReader.ReadCommandArguments();
-            LateDeclareOptions(pCtx);
+            InCommand::CCommand* pCommand = CmdReader.ReadCommandArguments();
+            LateDeclareOptions(pCommand);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadParameterArguments());
 
             EXPECT_TRUE(Help);

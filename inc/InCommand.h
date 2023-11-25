@@ -484,7 +484,7 @@ namespace InCommand
         CCommand m_RootCommand;
         CArgumentList m_ArgList;
         CArgumentIterator m_ArgIt;
-        CCommand* m_pActiveCtx = nullptr;
+        CCommand* m_pActiveCommand = nullptr;
         Status m_LastStatus = Status::Success;
         size_t m_ParametersRead = 0;
 
@@ -506,7 +506,7 @@ namespace InCommand
 
         // Returns the active command context pointer, or nullptr if the active command
         // has not been fetched.
-        CCommand* ActiveCommand() { return m_pActiveCtx; }
+        CCommand* ActiveCommand() { return m_pActiveCommand; }
 
         // Reads the command arguments from the argument list
         // and returns the matching command context.
