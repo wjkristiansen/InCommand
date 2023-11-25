@@ -450,9 +450,9 @@ namespace InCommand
         std::string m_Description;
         std::map<std::string, std::shared_ptr<CParameter>> m_Parameters;
         std::map<char, std::shared_ptr<CParameter>> m_ShortOptions;
-        std::map<std::string, std::shared_ptr<CCommand>> m_Subcommands;
+        std::map<std::string, std::shared_ptr<CCommand>> m_InnerCommands;
         std::vector<std::shared_ptr<CParameter>> m_InputParameters;
-        CCommand* m_pSuperScope = nullptr;
+        CCommand* m_pOuterCommand = nullptr;
 
 
     public:
@@ -468,27 +468,22 @@ namespace InCommand
         const CParameter* DeclareOptionParameter(Value& value, const char* name, const Domain& domain, const char* description, char shortKey = 0);
 
         std::string CommandChainString() const;
-
-        friend class CCommandReader;
-
         std::string UsageString() const;
 
         // Useful for switch/case using command scope id
         const std::string& Name() const { return m_Name; }
         int Id() const { return m_ScopeId; }
+
+        friend class CCommandReader;
     };
 
     //------------------------------------------------------------------------------------------------
-    class CCommandReader
+    class CCommandReader : public CCommand
     {
-        CCommand m_RootCommand;
         CArgumentList m_ArgList;
         CArgumentIterator m_ArgIt;
-        CCommand* m_pActiveCommand = nullptr;
         Status m_LastStatus = Status::Success;
-        size_t m_ParametersRead = 0;
-
-        friend class CCommand;
+        size_t m_InputParameterArgsRead = 0;
 
     public:
         CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]);
@@ -497,28 +492,24 @@ namespace InCommand
         {
             m_ArgList = CArgumentList(argc, argv);
             m_ArgIt = m_ArgList.Begin();
-            m_ParametersRead = 0;
+            m_InputParameterArgsRead = 0;
             m_LastStatus = Status::Success;
         }
 
-        // Returns the default command context pointer, used for declaring subcommands.
-        CCommand* RootCommand() { return &m_RootCommand; }
-
-        // Returns the active command context pointer, or nullptr if the active command
-        // has not been fetched.
-        CCommand* ActiveCommand() { return m_pActiveCommand; }
-
         // Reads the command arguments from the argument list
-        // and returns the matching command context.
+        // and returns the matching command matching the provided command arguments.
         // Afterward, the argument iterator index points to
         // the first option argument in the argument list.
         // Allows the application to delay-declare command options.
-        CCommand* ReadCommandArguments();
+        CCommand* PreReadCommandArguments();
 
-        // Reads the parameter values from the argument list, setting the bound values.
-        // Requires the active command be set by calling ReadActiveCommand.
+        // Reads the parameter values from the argument list for the provided command,
+        // setting the bound values.
+        // Requires pre-reading the active command by using PreReadCommandArguments..
         // Reads the active command if ReadCommand was not previously called.
-        Status ReadParameterArguments();
+        Status ReadParameterArguments(const CCommand *pCommand);
+
+        Status ReadArguments();
 
         std::string LastErrorString() const;
         Status LastStatus() const { return m_LastStatus; }

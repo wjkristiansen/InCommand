@@ -39,12 +39,12 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     CCommand* CCommand::DeclareCommand(const char* name, const char* description, int scopeId)
     {
-        auto it = m_Subcommands.find(name);
-        if (it != m_Subcommands.end())
+        auto it = m_InnerCommands.find(name);
+        if (it != m_InnerCommands.end())
             throw Exception(Status::DuplicateCommand);
 
-        auto result = m_Subcommands.emplace(name, std::make_shared<CCommand>(name, description, scopeId));
-        result.first->second->m_pSuperScope = this;
+        auto result = m_InnerCommands.emplace(name, std::make_shared<CCommand>(name, description, scopeId));
+        result.first->second->m_pOuterCommand = this;
         return result.first->second.get();
     }
 
@@ -52,9 +52,9 @@ namespace InCommand
     std::string CCommand::CommandChainString() const
     {
         std::ostringstream s;
-        if (m_pSuperScope)
+        if (m_pOuterCommand)
         {
-            s << m_pSuperScope->CommandChainString();
+            s << m_pOuterCommand->CommandChainString();
             s << " ";
         }
 
@@ -75,7 +75,7 @@ namespace InCommand
 
         std::string commandChainString = CommandChainString();
 
-        if (!m_Subcommands.empty())
+        if (!m_InnerCommands.empty())
         {
             s << "  " + commandChainString;
 
@@ -97,12 +97,12 @@ namespace InCommand
 
         s << std::endl;
 
-        if (!m_Subcommands.empty())
+        if (!m_InnerCommands.empty())
         {
             s << "COMMANDS" << std::endl;
             s << std::endl;
 
-            for (auto subIt : m_Subcommands)
+            for (auto subIt : m_InnerCommands)
             {
                 s << std::setw(colwidth) << std::left << "  " + subIt.second->Name();
                 s << subIt.second->m_Description << std::endl;
@@ -218,37 +218,36 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------
     CCommandReader::CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]) :
-        m_RootCommand(appName, defaultDescription, 0),
-        m_ArgList(argc, argv)
-    {}
+        m_ArgList(argc, argv),
+        CCommand(appName, defaultDescription)
+    {
+    }
 
     //------------------------------------------------------------------------------------------------
-    CCommand *CCommandReader::ReadCommandArguments()
+    CCommand *CCommandReader::PreReadCommandArguments()
     {
         m_ArgIt = m_ArgList.Begin();
 
-        CCommand *pCommand = &m_RootCommand;
+        CCommand *pCommand = this;
 
         ++m_ArgIt;
         while (m_ArgIt != m_ArgList.End())
         {
-            auto subIt = pCommand->m_Subcommands.find(m_ArgList.At(m_ArgIt));
-            if (subIt == pCommand->m_Subcommands.end())
+            auto subIt = pCommand->m_InnerCommands.find(m_ArgList.At(m_ArgIt));
+            if (subIt == pCommand->m_InnerCommands.end())
                 break;
             pCommand = subIt->second.get();
             ++m_ArgIt;
         }
 
-        m_pActiveCommand = pCommand;
-
-        return m_pActiveCommand;
+        return pCommand;
     }
 
     //------------------------------------------------------------------------------------------------
-    Status CCommandReader::ReadParameterArguments()
+    Status CCommandReader::ReadParameterArguments(const CCommand *pCommand)
     {
-        if (!m_pActiveCommand)
-            ReadCommandArguments();
+        if (!pCommand)
+            pCommand = PreReadCommandArguments();
 
         Status result = Status::Success;
 
@@ -267,8 +266,8 @@ namespace InCommand
                 if (m_ArgList.At(m_ArgIt)[1] == '-')
                 {
                     // Long-form option
-                    auto optIt = m_pActiveCommand->m_Parameters.find(m_ArgList.At(m_ArgIt).substr(2));
-                    if (optIt == m_pActiveCommand->m_Parameters.end() || optIt->second->Type() == ParameterType::Input)
+                    auto optIt = pCommand->m_Parameters.find(m_ArgList.At(m_ArgIt).substr(2));
+                    if (optIt == pCommand->m_Parameters.end() || optIt->second->Type() == ParameterType::Input)
                     {
                         result = Status::UnknownOption;
                         return result;
@@ -277,8 +276,8 @@ namespace InCommand
                 }
                 else
                 {
-                    auto optIt = m_pActiveCommand->m_ShortOptions.find(m_ArgList.At(m_ArgIt)[1]);
-                    if (optIt == m_pActiveCommand->m_ShortOptions.end())
+                    auto optIt = pCommand->m_ShortOptions.find(m_ArgList.At(m_ArgIt)[1]);
+                    if (optIt == pCommand->m_ShortOptions.end())
                     {
                         result = Status::UnknownOption;
                         return result;
@@ -296,20 +295,28 @@ namespace InCommand
             else
             {
                 // Assume parameter option
-                if (m_ParametersRead == m_pActiveCommand->m_InputParameters.size())
+                if (m_InputParameterArgsRead == pCommand->m_InputParameters.size())
                 {
                     result = Status::UnexpectedArgument;
                     return result;
                 }
 
-                result = m_pActiveCommand->m_InputParameters[m_ParametersRead]->ParseArgs(m_ArgList, m_ArgIt);
+                result = pCommand->m_InputParameters[m_InputParameterArgsRead]->ParseArgs(m_ArgList, m_ArgIt);
                 if (result != Status::Success)
                     return result;
-                m_ParametersRead++;
+                m_InputParameterArgsRead++;
             }
         }
 
         return result;
+    }
+
+    //------------------------------------------------------------------------------------------------
+    Status CCommandReader::ReadArguments()
+    {
+        CCommand *pCommand = PreReadCommandArguments();
+
+        return ReadParameterArguments(pCommand);
     }
 
     //------------------------------------------------------------------------------------------------
