@@ -301,7 +301,7 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------
     CCommandReader::CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]) :
-        m_DefaultCtx(appName, defaultDescription, 0),
+        m_RootCommand(appName, defaultDescription, 0),
         m_ArgList(argc, argv)
     {}
 
@@ -309,7 +309,7 @@ namespace InCommand
     CCommand *CCommandReader::ReadCommandArguments()
     {
         m_ArgIt = m_ArgList.Begin();
-        m_pActiveCtx = m_DefaultCtx.ReadCommandArguments(this);
+        m_pActiveCtx = m_RootCommand.ReadCommandArguments(this);
         m_LastStatus = Status::Success;
         return m_pActiveCtx;
     }

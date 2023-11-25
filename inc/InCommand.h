@@ -483,7 +483,7 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     class CCommandReader
     {
-        CCommand m_DefaultCtx;
+        CCommand m_RootCommand;
         CArgumentList m_ArgList;
         CArgumentIterator m_ArgIt;
         CCommand* m_pActiveCtx = nullptr;
@@ -504,7 +504,7 @@ namespace InCommand
         }
 
         // Returns the default command context pointer, used for declaring subcommands.
-        CCommand* DefaultCommand() { return &m_DefaultCtx; }
+        CCommand* RootCommand() { return &m_RootCommand; }
 
         // Returns the active command context pointer, or nullptr if the active command
         // has not been fetched.
