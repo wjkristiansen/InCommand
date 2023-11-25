@@ -454,8 +454,6 @@ namespace InCommand
         std::vector<std::shared_ptr<CParameter>> m_InputParameters;
         CCommand* m_pSuperScope = nullptr;
 
-        CCommand* ReadCommandArguments(class CCommandReader *pReader);
-        Status ReadParameterArguments(class CCommandReader *pReader) const;
 
     public:
         CCommand(const char* name, const char* description, int scopeId = 0);

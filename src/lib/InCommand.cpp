@@ -37,89 +37,6 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommand* CCommand::ReadCommandArguments(CCommandReader* pReader)
-    {
-        CCommand *pScope = this;
-
-        ++pReader->m_ArgIt;
-        if (pReader->m_ArgIt != pReader->m_ArgList.End())
-        {
-            auto subIt = m_Subcommands.find(pReader->m_ArgList.At(pReader->m_ArgIt));
-            if (subIt != m_Subcommands.end())
-            {
-                pScope = subIt->second->ReadCommandArguments(pReader);
-            }
-        }
-
-        return pScope;
-    }
-
-    //------------------------------------------------------------------------------------------------
-    Status CCommand::ReadParameterArguments(CCommandReader *pReader) const
-    {
-        Status result = Status::Success;
-
-        if (pReader->m_ArgIt == pReader->m_ArgList.End())
-        {
-            return result;
-        }
-
-        // Parse the options
-        while(pReader->m_ArgIt != pReader->m_ArgList.End())
-        {
-            if (pReader->m_ArgList.At(pReader->m_ArgIt)[0] == '-')
-            {
-                const CParameter* pParameter = nullptr;
-
-                if (pReader->m_ArgList.At(pReader->m_ArgIt)[1] == '-')
-                {
-                    // Long-form option
-                    auto optIt = m_Parameters.find(pReader->m_ArgList.At(pReader->m_ArgIt).substr(2));
-                    if (optIt == m_Parameters.end() || optIt->second->Type() == ParameterType::Input)
-                    {
-                        result = Status::UnknownOption;
-                        return result;
-                    }
-                    pParameter = optIt->second.get();
-                }
-                else
-                {
-                    auto optIt = m_ShortOptions.find(pReader->m_ArgList.At(pReader->m_ArgIt)[1]);
-                    if (optIt == m_ShortOptions.end())
-                    {
-                        result = Status::UnknownOption;
-                        return result;
-                    }
-                    pParameter = optIt->second.get();
-                }
-
-                if (pParameter)
-                {
-                    result = pParameter->ParseArgs(pReader->m_ArgList, pReader->m_ArgIt);
-                    if (result != Status::Success)
-                        return result;
-                }
-            }
-            else
-            {
-                // Assume parameter option
-                if (pReader->m_ParametersRead == m_InputParameters.size())
-                {
-                    result = Status::UnexpectedArgument;
-                    return result;
-                }
-
-                result = m_InputParameters[pReader->m_ParametersRead]->ParseArgs(pReader->m_ArgList, pReader->m_ArgIt);
-                if (result != Status::Success)
-                    return result;
-                pReader->m_ParametersRead++;
-            }
-        }
-
-        return result;
-    }
-
-    //------------------------------------------------------------------------------------------------
     CCommand* CCommand::DeclareCommand(const char* name, const char* description, int scopeId)
     {
         auto it = m_Subcommands.find(name);
@@ -309,9 +226,22 @@ namespace InCommand
     CCommand *CCommandReader::ReadCommandArguments()
     {
         m_ArgIt = m_ArgList.Begin();
-        m_pActiveCtx = m_RootCommand.ReadCommandArguments(this);
-        m_LastStatus = Status::Success;
-        return m_pActiveCtx;
+
+        CCommand *pScope = &m_RootCommand;
+
+        ++m_ArgIt;
+        while (m_ArgIt != m_ArgList.End())
+        {
+            auto subIt = pScope->m_Subcommands.find(m_ArgList.At(m_ArgIt));
+            if (subIt == pScope->m_Subcommands.end())
+                break;
+            pScope = subIt->second.get();
+            ++m_ArgIt;
+        }
+
+        m_pActiveCtx = pScope;
+
+        return pScope;
     }
 
     //------------------------------------------------------------------------------------------------
@@ -320,8 +250,66 @@ namespace InCommand
         if (!m_pActiveCtx)
             ReadCommandArguments();
 
-        m_LastStatus =  m_pActiveCtx->ReadParameterArguments(this);
-        return m_LastStatus;
+        Status result = Status::Success;
+
+        if (m_ArgIt == m_ArgList.End())
+        {
+            return result;
+        }
+
+        // Parse the options
+        while(m_ArgIt != m_ArgList.End())
+        {
+            if (m_ArgList.At(m_ArgIt)[0] == '-')
+            {
+                const CParameter* pParameter = nullptr;
+
+                if (m_ArgList.At(m_ArgIt)[1] == '-')
+                {
+                    // Long-form option
+                    auto optIt = m_pActiveCtx->m_Parameters.find(m_ArgList.At(m_ArgIt).substr(2));
+                    if (optIt == m_pActiveCtx->m_Parameters.end() || optIt->second->Type() == ParameterType::Input)
+                    {
+                        result = Status::UnknownOption;
+                        return result;
+                    }
+                    pParameter = optIt->second.get();
+                }
+                else
+                {
+                    auto optIt = m_pActiveCtx->m_ShortOptions.find(m_ArgList.At(m_ArgIt)[1]);
+                    if (optIt == m_pActiveCtx->m_ShortOptions.end())
+                    {
+                        result = Status::UnknownOption;
+                        return result;
+                    }
+                    pParameter = optIt->second.get();
+                }
+
+                if (pParameter)
+                {
+                    result = pParameter->ParseArgs(m_ArgList, m_ArgIt);
+                    if (result != Status::Success)
+                        return result;
+                }
+            }
+            else
+            {
+                // Assume parameter option
+                if (m_ParametersRead == m_pActiveCtx->m_InputParameters.size())
+                {
+                    result = Status::UnexpectedArgument;
+                    return result;
+                }
+
+                result = m_pActiveCtx->m_InputParameters[m_ParametersRead]->ParseArgs(m_ArgList, m_ArgIt);
+                if (result != Status::Success)
+                    return result;
+                m_ParametersRead++;
+            }
+        }
+
+        return result;
     }
 
     //------------------------------------------------------------------------------------------------
