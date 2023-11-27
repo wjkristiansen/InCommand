@@ -16,10 +16,10 @@ namespace InCommand
     {
         Success,
         DuplicateCommand,
-        DuplicateOption,
+        DuplicateParameter,
         UnexpectedArgument,
-        MissingOptionValue,
-        UnknownOption,
+        MissingParameterValue,
+        UnknownParameter,
         InvalidValue
     };
 
@@ -36,7 +36,7 @@ namespace InCommand
     enum class ParameterType
     {
         Input,
-        Option,
+        Switch,
     };
 
     //------------------------------------------------------------------------------------------------
@@ -370,21 +370,21 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------
     template<class _T>
-    class TOptionParameter : public CParameter
+    class TSwitchParameter : public CParameter
     {
     protected:
         _T &m_value;
         Domain m_domain;
 
     public:
-        TOptionParameter(_T &value, const char* name, const char* description, char shortKey = 0) :
+        TSwitchParameter(_T &value, const char* name, const char* description, char shortKey = 0) :
             CParameter(name, description),
             m_value(value)
         {
             m_shortKey = shortKey;
         }
 
-        TOptionParameter(_T& value, const char* name, const Domain &domain, const char* description, char shortKey = 0) :
+        TSwitchParameter(_T& value, const char* name, const Domain &domain, const char* description, char shortKey = 0) :
             CParameter(name, description),
             m_value(value),
             m_domain(domain)
@@ -392,13 +392,13 @@ namespace InCommand
             m_shortKey = shortKey;
         }
 
-        virtual ParameterType Type() const final { return ParameterType::Option; }
+        virtual ParameterType Type() const final { return ParameterType::Switch; }
         virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const
         {
             ++it;
 
             if (it == args.End())
-                return Status::MissingOptionValue;
+                return Status::MissingParameterValue;
 
             if (m_domain.HasValues())
             {
@@ -417,14 +417,14 @@ namespace InCommand
         }
     };
 
-    using COptionParameter = TOptionParameter<Value>;
+    using CSwitchParameter = TSwitchParameter<Value>;
 
     //------------------------------------------------------------------------------------------------
-    class CBoolParameter : public TOptionParameter<CTypedValue<bool>>
+    class CBoolParameter : public TSwitchParameter<CTypedValue<bool>>
     {
     public:
         CBoolParameter(Bool &value, const char* name, const char* description, char shortKey = 0) :
-            TOptionParameter(value, name, description, shortKey)
+            TSwitchParameter(value, name, description, shortKey)
         {}
 
         virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
@@ -449,7 +449,7 @@ namespace InCommand
         std::string m_Name;
         std::string m_Description;
         std::map<std::string, std::shared_ptr<CParameter>> m_Parameters;
-        std::map<char, std::shared_ptr<CParameter>> m_ShortOptions;
+        std::map<char, std::shared_ptr<CParameter>> m_ShortParameters;
         std::map<std::string, std::shared_ptr<CCommand>> m_InnerCommands;
         std::vector<std::shared_ptr<CParameter>> m_InputParameters;
         CCommand* m_pOuterCommand = nullptr;
@@ -462,10 +462,10 @@ namespace InCommand
 
         CCommand* DeclareCommand(const char* name, const char* description, int scopeId = 0);
         const CParameter* DeclareInputParameter(Value &value, const char* name, const char* description);
-        const CParameter* DeclareBoolParameter(Bool &value, const char* name, const char* description, char shortKey = 0);
-        const CParameter* DeclareOptionParameter(Value& value, const char* name, const char* description, char shortKey = 0);
-        const CParameter* DeclareOptionParameter(Value& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
-        const CParameter* DeclareOptionParameter(Value& value, const char* name, const Domain& domain, const char* description, char shortKey = 0);
+        const CParameter* DeclareBoolSwitchParameter(Bool &value, const char* name, const char* description, char shortKey = 0);
+        const CParameter* DeclareSwitchParameter(Value& value, const char* name, const char* description, char shortKey = 0);
+        const CParameter* DeclareSwitchParameter(Value& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
+        const CParameter* DeclareSwitchParameter(Value& value, const char* name, const Domain& domain, const char* description, char shortKey = 0);
 
         std::string CommandChainString() const;
         std::string UsageString() const;

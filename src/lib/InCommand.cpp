@@ -20,7 +20,7 @@ namespace InCommand
                 s << '-' << pParameter->ShortKey() << ", ";
             }
             s << "--" << pParameter->Name();
-            if (pParameter->Type() == ParameterType::Option)
+            if (pParameter->Type() == ParameterType::Switch)
                 s << " <value>";
         }
 
@@ -146,55 +146,55 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommand::DeclareBoolParameter(Bool& boundValue, const char* name, const char *description, char shortKey)
+    const CParameter* CCommand::DeclareBoolSwitchParameter(Bool& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
-            throw Exception(Status::DuplicateOption);
+            throw Exception(Status::DuplicateParameter);
 
         auto insert = m_Parameters.emplace(name, std::make_shared<CBoolParameter>(boundValue, name, description, shortKey));
         if (shortKey)
-            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
+            m_ShortParameters.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommand::DeclareOptionParameter(Value& boundValue, const char* name, const char *description, char shortKey)
+    const CParameter* CCommand::DeclareSwitchParameter(Value& boundValue, const char* name, const char *description, char shortKey)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
-            throw Exception(Status::DuplicateOption);
+            throw Exception(Status::DuplicateParameter);
 
-        auto insert = m_Parameters.emplace(name, std::make_shared<COptionParameter>(boundValue, name, description, shortKey));
+        auto insert = m_Parameters.emplace(name, std::make_shared<CSwitchParameter>(boundValue, name, description, shortKey));
         if (shortKey)
-            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
+            m_ShortParameters.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommand::DeclareOptionParameter(Value& boundValue, const char* name, int domainSize, const char* domainValueStrings[], const char *description, char shortKey)
+    const CParameter* CCommand::DeclareSwitchParameter(Value& boundValue, const char* name, int domainSize, const char* domainValueStrings[], const char *description, char shortKey)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
-            throw Exception(Status::DuplicateOption);
+            throw Exception(Status::DuplicateParameter);
 
         Domain domain(domainSize, domainValueStrings);
-        auto insert = m_Parameters.emplace(name, std::make_shared<COptionParameter>(boundValue, name, domain, description, shortKey));
+        auto insert = m_Parameters.emplace(name, std::make_shared<CSwitchParameter>(boundValue, name, domain, description, shortKey));
         if (shortKey)
-            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
+            m_ShortParameters.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
     //------------------------------------------------------------------------------------------------
-    const CParameter* CCommand::DeclareOptionParameter(Value& boundValue, const char* name, const Domain &domain, const char* description, char shortKey)
+    const CParameter* CCommand::DeclareSwitchParameter(Value& boundValue, const char* name, const Domain &domain, const char* description, char shortKey)
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
-            throw Exception(Status::DuplicateOption);
+            throw Exception(Status::DuplicateParameter);
 
-        auto insert = m_Parameters.emplace(name, std::make_shared<COptionParameter>(boundValue, name, domain, description, shortKey));
+        auto insert = m_Parameters.emplace(name, std::make_shared<CSwitchParameter>(boundValue, name, domain, description, shortKey));
         if (shortKey)
-            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
+            m_ShortParameters.insert(std::make_pair(shortKey, insert.first->second));
         return insert.first->second.get();
     }
 
@@ -203,7 +203,7 @@ namespace InCommand
     {
         auto it = m_Parameters.find(name);
         if (it != m_Parameters.end())
-            throw Exception(Status::DuplicateOption);
+            throw Exception(Status::DuplicateParameter);
 
 
         std::shared_ptr<CInputParameter> pParameter = std::make_shared<CInputParameter>(boundValue, name, description);
@@ -269,17 +269,17 @@ namespace InCommand
                     auto optIt = pCommand->m_Parameters.find(m_ArgList.At(m_ArgIt).substr(2));
                     if (optIt == pCommand->m_Parameters.end() || optIt->second->Type() == ParameterType::Input)
                     {
-                        result = Status::UnknownOption;
+                        result = Status::UnknownParameter;
                         return result;
                     }
                     pParameter = optIt->second.get();
                 }
                 else
                 {
-                    auto optIt = pCommand->m_ShortOptions.find(m_ArgList.At(m_ArgIt)[1]);
-                    if (optIt == pCommand->m_ShortOptions.end())
+                    auto optIt = pCommand->m_ShortParameters.find(m_ArgList.At(m_ArgIt)[1]);
+                    if (optIt == pCommand->m_ShortParameters.end())
                     {
-                        result = Status::UnknownOption;
+                        result = Status::UnknownParameter;
                         return result;
                     }
                     pParameter = optIt->second.get();
@@ -338,12 +338,12 @@ namespace InCommand
             s << "Invalid Value: \"" << m_ArgList.At(m_ArgIt) << "\"";
             break;
 
-        case Status::MissingOptionValue:
-            s << "Missing Option Value";
+        case Status::MissingParameterValue:
+            s << "Missing Parameter Value";
             break;
 
-        case Status::UnknownOption:
-            s << "Unknown Option: \"" << m_ArgList.At(m_ArgIt) << "\"";
+        case Status::UnknownParameter:
+            s << "Unknown Parameter: \"" << m_ArgList.At(m_ArgIt) << "\"";
             break;
 
         default:
