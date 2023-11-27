@@ -36,11 +36,11 @@ Command arguments must be at the start of the argument list, preceding any param
 
 Parameter arguments are given after command arguments. Parameter arguments can either be options or inputs.
 
-### Option Parameter Arguments
+### Switch Parameter Arguments
 
-Option argument strings are prefixed with `--`. Option argument types and values are constrained by the rules set in a declared command context.
+Switch argument strings are prefixed with `--`. Switch parameter argument types and values are constrained by the rules set in a declared command.
 
-Option parameters are typed. Boolean options are `true` if they are present in the command arguments.
+Switch parameters are typed. Boolean switch values are `true` only if they are present in the command arguments.
 
 Example:
 
