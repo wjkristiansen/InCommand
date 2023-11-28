@@ -18,69 +18,70 @@ Arguments are the elements of a command representing individual action or parame
 
 ### Command Arguments
 
-Command arguments describe the action that a command needs to perform.
-
-### Command Context
-
-A command context encapsulates a given command argument and defines the parameter rules for the context. Command contexts may be nested to support rich command syntax. For example, command context nesting can be useful for creating command categories:
-
-``` sh
-fooApp config reset
-```
-
-In this case, the command argument 'reset' is nested with the command argument 'config'.
-
-Command arguments must be at the start of the argument list, preceding any parameter arguments. Only one action is active in a given command.
+Arguments that represent the action to be taken.
 
 ### Parameter Arguments
 
-Parameter arguments are given after command arguments. Parameter arguments can either be options or inputs.
+Parameter arguments are given after command arguments. Parameters can either be switch parameters or input parameters.
 
-### Switch Parameter Arguments
+### Command reader
 
-Switch argument strings are prefixed with `--`. Switch parameter argument types and values are constrained by the rules set in a declared command.
+The command reader reads command and parameter arguments, sets variables, and provides the top-level command scope.
 
-Switch parameters are typed. Boolean switch values are `true` only if they are present in the command arguments.
+### Command Scope
 
-Example:
+A command scope encapsulates a group of nested command arguments. Complex command arguments can be structured hierarchically. This can be useful if commands require context or categorization. All command arguments are declared under an existing command scope. The command reader provides the root command scope.
+
+For example:
 
 ``` sh
-fooApp config reset --force
+rocket launch
+rocket fuel refill
+rocket fuel dump
 ```
 
-All other option parameters must be immediately followed by an input value of a matching type.
+Command arguments must be first in the argument list, preceding any parameter arguments. Only one action is active in a given command. Note that `planets` itself represents a valid command scope.
 
-Example:
+### Switch Parameters
+
+Switch parameters are prefixed with `--` (long form) or `-` (short form). Switch parameters represent a name/value pair and are expressed as `--<name> [value]`. For example:
 
 ``` sh
-fooApp config reset --mode quick
+rocket launch --destination mars
 ```
 
-If needed, option parameter values can be constrained to a limited domain of input values.
-
-Example:
-
-Assume option 'color' is declared as constrained to the set ['red', 'green', 'blue']
+All switch parameters are declared with a name. Switch parameters may optionally be given a single-character (short form) name. Short form switch arguments are preceded by a single `-` instead of `--`. For example:
 
 ``` sh
-fooApp --color red
+rocket fuel refill --type oxygen
+rocket fuel refill -t hydrogen
 ```
 
-InCommand supports optional short-form single letter aliases for option parameter arguments. Short-form options are preceded by `-` instead of `--`.
-
-Example:
+Values can be optionally constrained to a pre-declared set. Example:
 
 ``` sh
-fooApp --long-option-name
-fooApp -l
+# Okay:
+rocket fuel refill -t oxygen 
+rocket fuel refill -t hydrogen
+
+# Not okay:
+rocket fuel refill -t bananas
 ```
 
-### Input Parameter Arguments
-
-Input parameter arguments have no prefix like `--` or `-`. The number if input parameters is constrained by the associate command context or option parameter rules.
+Boolean switch parameters do not take a value argument. Instead, boolean parameters are treated as `true` if they are present in the argument list.
 
 Example:
 
 ``` sh
-fooApp merge myfile1.foo myfile2.foo --outfile mergedfile.foo
+rocket fuel refill --all
+```
+
+### Input Parameters
+
+Input parameter arguments have no prefix like `--` or `-`. Input parameters can still be named to aid in usage output.
+
+Example:
+
+``` sh
+rocket rename Enterprise
 ```
