@@ -11,22 +11,22 @@ int main(int argc, const char *argv[])
     InCommand::String Message("");
 
     InCommand::CCommandReader CmdReader("sample", "Sample app for demonstrating use of InCommand command line reader utility", argc, argv);
-    CmdReader.DeclareBoolSwitchParameter(ShowHelp, "help", "Display help for sample commands.", 'h');
+    CmdReader.DeclareBoolSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
 
     InCommand::CCommand *pAddCmd = CmdReader.DeclareCommand("add", "Adds two integers", 1);
-    pAddCmd->DeclareBoolSwitchParameter(ShowHelp, "help", "Display help for sample add.", 'h');
-    pAddCmd->DeclareInputParameter(Val1, "value1", "First add value");
-    pAddCmd->DeclareInputParameter(Val2, "value2", "Second add value");
-    pAddCmd->DeclareSwitchParameter(Message, "message", "Print <message> N-times where N = value1 + value2", 'm');
+    pAddCmd->DeclareBoolSwitchOption(ShowHelp, "help", "Display help for sample add.", 'h');
+    pAddCmd->DeclareInputOption(Val1, "value1", "First add value");
+    pAddCmd->DeclareInputOption(Val2, "value2", "Second add value");
+    pAddCmd->DeclareSwitchOption(Message, "message", "Print <message> N-times where N = value1 + value2", 'm');
 
     InCommand::CCommand *pMulCmd = CmdReader.DeclareCommand("mul", "Multiplies two integers", 2);
-    pMulCmd->DeclareBoolSwitchParameter(ShowHelp, "help", "Display help for sample multiply.", 'h');
-    pMulCmd->DeclareInputParameter(Val1, "value1", "First multiply value");
-    pMulCmd->DeclareInputParameter(Val2, "value2", "Second multiply value");
-    pMulCmd->DeclareSwitchParameter(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
+    pMulCmd->DeclareBoolSwitchOption(ShowHelp, "help", "Display help for sample multiply.", 'h');
+    pMulCmd->DeclareInputOption(Val1, "value1", "First multiply value");
+    pMulCmd->DeclareInputOption(Val2, "value2", "Second multiply value");
+    pMulCmd->DeclareSwitchOption(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
 
     const InCommand::CCommand *pCmd = CmdReader.PreReadCommandArguments();
-    InCommand::Status fetchResult = CmdReader.ReadParameterArguments(pCmd);
+    InCommand::Status fetchResult = CmdReader.ReadOptionArguments(pCmd);
     if (InCommand::Status::Success != fetchResult)
     {
         std::cout << std::endl;
