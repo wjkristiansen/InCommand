@@ -467,7 +467,7 @@ namespace InCommand
         const CParameter* DeclareSwitchParameter(Value& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
         const CParameter* DeclareSwitchParameter(Value& value, const char* name, const Domain& domain, const char* description, char shortKey = 0);
 
-        std::string CommandChainString() const;
+        std::string CommandScopeString() const;
         std::string UsageString() const;
 
         // Useful for switch/case using command scope id
