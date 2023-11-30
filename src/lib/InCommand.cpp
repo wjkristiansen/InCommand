@@ -49,12 +49,12 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    std::string CCommand::CommandChainString() const
+    std::string CCommand::CommandScopeString() const
     {
         std::ostringstream s;
         if (m_pOuterCommand)
         {
-            s << m_pOuterCommand->CommandChainString();
+            s << m_pOuterCommand->CommandScopeString();
             s << " ";
         }
 
@@ -69,22 +69,15 @@ namespace InCommand
         std::ostringstream s;
         s << m_Description << std::endl;
         s << std::endl;
-        s << "USAGE" << std::endl;
+        s << "USAGE:" << std::endl;
         s << std::endl;
         static const int colwidth = 30;
 
-        std::string commandChainString = CommandChainString();
-
-        if (!m_InnerCommands.empty())
-        {
-            s << "  " + commandChainString;
-
-            s << " [<command> [<command options>]]" << std::endl;
-        }
+        std::string commandScopeString = CommandScopeString();
 
         if (!m_Parameters.empty())
         {
-            s << "  " + commandChainString;
+            s << "  " + commandScopeString;
 
             // Parameter options first
             for (auto& nko : m_InputParameters)
@@ -93,6 +86,13 @@ namespace InCommand
             }
 
             s << " [<options>]" << std::endl;
+        }
+
+        if (!m_InnerCommands.empty())
+        {
+            s << "  " + commandScopeString;
+
+            s << " [<command> [<options>]]" << std::endl;
         }
 
         s << std::endl;
@@ -109,6 +109,17 @@ namespace InCommand
             };
         }
 
+        if (!m_Parameters.empty())
+        {
+            // Input parameters first
+            for (auto& inputParam : m_InputParameters)
+            {
+                s << " <" << inputParam->Name() << ">";
+            }
+        }
+
+        s << std::endl;
+
         s << std::endl;
 
         if (!m_Parameters.empty())
@@ -118,10 +129,10 @@ namespace InCommand
             s << std::endl;
 
             // Parameter options details
-            for (auto& nko : m_InputParameters)
+            for (auto& inputParam : m_InputParameters)
             {
-                s << std::setw(colwidth) << std::left << "  " + ParameterUsageString(nko.get());
-                s << nko->Description() << std::endl;
+                s << std::setw(colwidth) << std::left << "  " + ParameterUsageString(inputParam.get());
+                s << inputParam->Description() << std::endl;
             }
 
             // Keyed-options details
