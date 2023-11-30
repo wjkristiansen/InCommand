@@ -5,7 +5,7 @@ This is a work in progress. Most of the primary features are functional, but qui
 InCommand is a command line interface (CLI) argument processor. Command lines are expected to have the following syntax:
 
 ```
-app-name [command args...] [parameter args...]
+app-name [command args...] [option args...]
 ```
 
 ---
@@ -14,19 +14,19 @@ app-name [command args...] [parameter args...]
 
 ### Arguments
 
-Arguments are the elements of a command representing individual action or parameter arguments.
+Arguments are the elements of a command representing individual action or option arguments.
 
 ### Command Arguments
 
 Arguments that represent the action to be taken.
 
-### Parameter Arguments
+### Option Arguments
 
-Parameter arguments are given after command arguments. Parameters can either be switch parameters or input parameters.
+Option arguments are given after command arguments. Options can either be switch options or input options.
 
 ### Command reader
 
-The command reader reads command and parameter arguments, sets variables, and provides the top-level command scope.
+The command reader reads command and option arguments, sets variables, and provides the top-level command scope.
 
 ### Command Scope
 
@@ -40,17 +40,17 @@ rocket fuel refill
 rocket fuel dump
 ```
 
-Command arguments must be first in the argument list, preceding any parameter arguments. Only one action is active in a given command. Note that `planets` itself represents a valid command scope.
+Command arguments must be first in the argument list, preceding any option arguments. Only one action is active in a given command. Note that `planets` itself represents a valid command scope.
 
-### Switch Parameters
+### Switch Options
 
-Switch parameters are prefixed with `--` (long form) or `-` (short form). Switch parameters represent a name/value pair and are expressed as `--<name> [value]`. For example:
+Switch options are prefixed with `--` (long form) or `-` (short form). Switch options represent a name/value pair and are expressed as `--<name> [value]`. For example:
 
 ``` sh
 rocket launch --destination mars
 ```
 
-All switch parameters are declared with a name. Switch parameters may optionally be given a single-character (short form) name. Short form switch arguments are preceded by a single `-` instead of `--`. For example:
+All switch options are declared with a name. Switch options may optionally be given a single-character (short form) name. Short form switch arguments are preceded by a single `-` instead of `--`. For example:
 
 ``` sh
 rocket fuel refill --type oxygen
@@ -68,7 +68,7 @@ rocket fuel refill -t hydrogen
 rocket fuel refill -t bananas
 ```
 
-Boolean switch parameters do not take a value argument. Instead, boolean parameters are treated as `true` if they are present in the argument list.
+Boolean switch options do not take a value argument. Instead, boolean options are treated as `true` if they are present in the argument list.
 
 Example:
 
@@ -76,9 +76,9 @@ Example:
 rocket fuel refill --all
 ```
 
-### Input Parameters
+### Input Options
 
-Input parameter arguments have no prefix like `--` or `-`. Input parameters can still be named to aid in usage output.
+Input option arguments have no prefix like `--` or `-`. Input options can still be named to aid in usage output.
 
 Example:
 

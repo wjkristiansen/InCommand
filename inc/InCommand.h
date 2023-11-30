@@ -16,10 +16,10 @@ namespace InCommand
     {
         Success,
         DuplicateCommand,
-        DuplicateParameter,
+        DuplicateOption,
         UnexpectedArgument,
-        MissingParameterValue,
-        UnknownParameter,
+        MissingOptionValue,
+        UnknownOption,
         InvalidValue
     };
 
@@ -33,7 +33,7 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    enum class ParameterType
+    enum class OptionType
     {
         Input,
         Switch,
@@ -315,14 +315,14 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CParameter
+    class COption
     {
     protected:
         std::string m_name;
         std::string m_description;
         char m_shortKey = 0;
 
-        CParameter(const char* name, const char* description) :
+        COption(const char* name, const char* description) :
             m_name(name)
         {
             if (description)
@@ -330,9 +330,9 @@ namespace InCommand
         }
 
     public:
-        virtual ~CParameter() = default;
+        virtual ~COption() = default;
 
-        virtual ParameterType Type() const = 0;
+        virtual OptionType Type() const = 0;
 
         // Returns the index of the first unparsed argument
         virtual Status ParseArgs(const CArgumentList &args, CArgumentIterator &it) const = 0;
@@ -343,17 +343,17 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class CInputParameter : public CParameter
+    class CInputOption : public COption
     {
         Value &m_value;
 
     public:
-        CInputParameter(Value &value, const char* name, const char* description) :
-            CParameter(name, description),
+        CInputOption(Value &value, const char* name, const char* description) :
+            COption(name, description),
             m_value(value)
         {}
 
-        virtual ParameterType Type() const final { return ParameterType::Input; }
+        virtual OptionType Type() const final { return OptionType::Input; }
         virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
         {
             if (it == args.End())
@@ -370,35 +370,35 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------
     template<class _T>
-    class TSwitchParameter : public CParameter
+    class TSwitchOption : public COption
     {
     protected:
         _T &m_value;
         Domain m_domain;
 
     public:
-        TSwitchParameter(_T &value, const char* name, const char* description, char shortKey = 0) :
-            CParameter(name, description),
+        TSwitchOption(_T &value, const char* name, const char* description, char shortKey = 0) :
+            COption(name, description),
             m_value(value)
         {
             m_shortKey = shortKey;
         }
 
-        TSwitchParameter(_T& value, const char* name, const Domain &domain, const char* description, char shortKey = 0) :
-            CParameter(name, description),
+        TSwitchOption(_T& value, const char* name, const Domain &domain, const char* description, char shortKey = 0) :
+            COption(name, description),
             m_value(value),
             m_domain(domain)
         {
             m_shortKey = shortKey;
         }
 
-        virtual ParameterType Type() const final { return ParameterType::Switch; }
+        virtual OptionType Type() const final { return OptionType::Switch; }
         virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const
         {
             ++it;
 
             if (it == args.End())
-                return Status::MissingParameterValue;
+                return Status::MissingOptionValue;
 
             if (m_domain.HasValues())
             {
@@ -417,14 +417,14 @@ namespace InCommand
         }
     };
 
-    using CSwitchParameter = TSwitchParameter<Value>;
+    using CSwitchOption = TSwitchOption<Value>;
 
     //------------------------------------------------------------------------------------------------
-    class CBoolParameter : public TSwitchParameter<CTypedValue<bool>>
+    class CBoolOption : public TSwitchOption<CTypedValue<bool>>
     {
     public:
-        CBoolParameter(Bool &value, const char* name, const char* description, char shortKey = 0) :
-            TSwitchParameter(value, name, description, shortKey)
+        CBoolOption(Bool &value, const char* name, const char* description, char shortKey = 0) :
+            TSwitchOption(value, name, description, shortKey)
         {}
 
         virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
@@ -448,10 +448,10 @@ namespace InCommand
         int m_ScopeId = 0;
         std::string m_Name;
         std::string m_Description;
-        std::map<std::string, std::shared_ptr<CParameter>> m_Parameters;
-        std::map<char, std::shared_ptr<CParameter>> m_ShortParameters;
+        std::map<std::string, std::shared_ptr<COption>> m_Options;
+        std::map<char, std::shared_ptr<COption>> m_ShortOptions;
         std::map<std::string, std::shared_ptr<CCommand>> m_InnerCommands;
-        std::vector<std::shared_ptr<CParameter>> m_InputParameters;
+        std::vector<std::shared_ptr<COption>> m_InputOptions;
         CCommand* m_pOuterCommand = nullptr;
 
 
@@ -461,11 +461,11 @@ namespace InCommand
         ~CCommand() = default;
 
         CCommand* DeclareCommand(const char* name, const char* description, int scopeId = 0);
-        const CParameter* DeclareInputParameter(Value &value, const char* name, const char* description);
-        const CParameter* DeclareBoolSwitchParameter(Bool &value, const char* name, const char* description, char shortKey = 0);
-        const CParameter* DeclareSwitchParameter(Value& value, const char* name, const char* description, char shortKey = 0);
-        const CParameter* DeclareSwitchParameter(Value& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
-        const CParameter* DeclareSwitchParameter(Value& value, const char* name, const Domain& domain, const char* description, char shortKey = 0);
+        const COption* DeclareInputOption(Value &value, const char* name, const char* description);
+        const COption* DeclareBoolSwitchOption(Bool &value, const char* name, const char* description, char shortKey = 0);
+        const COption* DeclareSwitchOption(Value& value, const char* name, const char* description, char shortKey = 0);
+        const COption* DeclareSwitchOption(Value& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
+        const COption* DeclareSwitchOption(Value& value, const char* name, const Domain& domain, const char* description, char shortKey = 0);
 
         std::string CommandScopeString() const;
         std::string UsageString() const;
@@ -483,7 +483,7 @@ namespace InCommand
         CArgumentList m_ArgList;
         CArgumentIterator m_ArgIt;
         Status m_LastStatus = Status::Success;
-        size_t m_InputParameterArgsRead = 0;
+        size_t m_InputOptionArgsRead = 0;
 
     public:
         CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]);
@@ -492,7 +492,7 @@ namespace InCommand
         {
             m_ArgList = CArgumentList(argc, argv);
             m_ArgIt = m_ArgList.Begin();
-            m_InputParameterArgsRead = 0;
+            m_InputOptionArgsRead = 0;
             m_LastStatus = Status::Success;
         }
 
@@ -503,11 +503,11 @@ namespace InCommand
         // Allows the application to delay-declare command options.
         CCommand* PreReadCommandArguments();
 
-        // Reads the parameter values from the argument list for the provided command,
+        // Reads the option values from the argument list for the provided command,
         // setting the bound values.
         // Requires pre-reading the active command by using PreReadCommandArguments..
         // Reads the active command if ReadCommand was not previously called.
-        Status ReadParameterArguments(const CCommand *pCommand);
+        Status ReadOptionArguments(const CCommand *pCommand);
 
         Status ReadArguments();
 
