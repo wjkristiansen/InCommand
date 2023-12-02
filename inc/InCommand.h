@@ -295,6 +295,8 @@ namespace InCommand
         std::vector<std::string> m_args;
 
     public:
+        CArgumentList() = default;
+
         CArgumentList(int argc, const char* argv[])
         {
             if (argc > 0)
@@ -486,22 +488,14 @@ namespace InCommand
         size_t m_InputOptionArgsRead = 0;
 
     public:
-        CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]);
-
-        void Reset(int argc, const char* argv[])
-        {
-            m_ArgList = CArgumentList(argc, argv);
-            m_ArgIt = m_ArgList.Begin();
-            m_InputOptionArgsRead = 0;
-            m_LastStatus = Status::Success;
-        }
+        CCommandReader(const char* appName, const char *defaultDescription);
 
         // Reads the command arguments from the argument list
         // and returns the matching command matching the provided command arguments.
         // Afterward, the argument iterator index points to
         // the first option argument in the argument list.
         // Allows the application to delay-declare command options.
-        CCommand* PreReadCommandArguments();
+        CCommand* PreReadCommandArguments(int argc, const char* argv[]);
 
         // Reads the option values from the argument list for the provided command,
         // setting the bound values.
@@ -509,7 +503,7 @@ namespace InCommand
         // Reads the active command if ReadCommand was not previously called.
         Status ReadOptionArguments(const CCommand *pCommand);
 
-        Status ReadArguments();
+        Status ReadArguments(int argc, const char* argv[]);
 
         std::string LastErrorString() const;
         Status LastStatus() const { return m_LastStatus; }

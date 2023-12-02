@@ -19,14 +19,14 @@ TEST(InCommand, BasicOptions)
 
     const char* colors[] = { "red", "green", "blue" };
 
-    InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+    InCommand::CCommandReader CmdReader("app", "test argument list");
     CmdReader.DeclareBoolSwitchOption(IsReal, "is-real", nullptr);
     CmdReader.DeclareSwitchOption(Name, "name", nullptr);
     CmdReader.DeclareSwitchOption(Color, "color", 3, colors, nullptr);
 
     InCommand::CArgumentList args(argc, argv);
     InCommand::CArgumentIterator it = args.Begin();
-    CmdReader.ReadOptionArguments(nullptr);
+    CmdReader.ReadArguments(argc, argv);
 
     EXPECT_TRUE(IsReal);
     EXPECT_EQ(std::string("Fred"),Name.Value());
@@ -50,13 +50,13 @@ TEST(InCommand, OptionOptions)
     InCommand::String File2;
     InCommand::String File3;
 
-    InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+    InCommand::CCommandReader CmdReader("app", "test argument list");
     CmdReader.DeclareInputOption(File1, "file1", nullptr);
     CmdReader.DeclareInputOption(File2, "file2", nullptr);
     CmdReader.DeclareInputOption(File3, "file3", nullptr);
     CmdReader.DeclareBoolSwitchOption(SomeSwitch, "some-switch", nullptr);
 
-    CmdReader.ReadOptionArguments(nullptr);
+    CmdReader.ReadArguments(argc, argv);
 
     EXPECT_TRUE(SomeSwitch);
     EXPECT_EQ(File1.Value(), std::string(argv[1]));
@@ -93,7 +93,7 @@ TEST(InCommand, SubCommands)
         InCommand::Bool Walk;
         InCommand::String Lives("9");
 
-        InCommand::CCommandReader CmdReader("app", "test argument list", 0, nullptr);
+        InCommand::CCommandReader CmdReader("app", "test argument list");
         CmdReader.DeclareBoolSwitchOption(Help, "help", nullptr);
         InCommand::CCommand* pPlantCommand = CmdReader.DeclareCommand("plant", nullptr, to_underlying(ScopeId::Plant));
         pPlantCommand->DeclareBoolSwitchOption(List, "list", nullptr);
@@ -136,8 +136,7 @@ TEST(InCommand, SubCommands)
             };
             const int argc = sizeof(argv) / sizeof(argv[0]);
 
-            CmdReader.Reset(argc, argv);
-            InCommand::CCommand *pCommand = CmdReader.PreReadCommandArguments();
+            InCommand::CCommand *pCommand = CmdReader.PreReadCommandArguments(argc, argv);
             LateDeclareOptions(pCommand);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadOptionArguments(pCommand));
 
@@ -156,9 +155,7 @@ TEST(InCommand, SubCommands)
             };
             const int argc = sizeof(argv) / sizeof(argv[0]);
 
-            CmdReader.Reset(argc, argv);
-
-            InCommand::CCommand *pCommand = CmdReader.PreReadCommandArguments();
+            InCommand::CCommand *pCommand = CmdReader.PreReadCommandArguments(argc, argv);
             LateDeclareOptions(pCommand);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadOptionArguments(pCommand));
 
@@ -173,9 +170,7 @@ TEST(InCommand, SubCommands)
             };
             const int argc = sizeof(argv) / sizeof(argv[0]);
 
-            CmdReader.Reset(argc, argv);
-
-            InCommand::CCommand* pCommand = CmdReader.PreReadCommandArguments();
+            InCommand::CCommand* pCommand = CmdReader.PreReadCommandArguments(argc, argv);
             LateDeclareOptions(pCommand);
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadOptionArguments(pCommand));
 
@@ -194,7 +189,7 @@ TEST(InCommand, Errors)
     {
         const char* argv[] = { "app", "goto", "--foo", "--bar" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
-        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        InCommand::CCommandReader CmdReader("app", "test argument list");
         auto *pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
         try
         {
@@ -207,9 +202,7 @@ TEST(InCommand, Errors)
     }
     
     {
-        const char* argv[] = { "app", "goto", "--foo", "--bar", "7" };
-        const int argc = sizeof(argv) / sizeof(argv[0]);
-        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        InCommand::CCommandReader CmdReader("app", "test argument list");
         CmdReader.DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
         try
         {
@@ -225,13 +218,13 @@ TEST(InCommand, Errors)
         const char* argv[] = { "app", "gogo", "--foo", "--bar", "7" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        InCommand::CCommandReader CmdReader("app", "test argument list");
 
         auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
         pGotoCmd->DeclareSwitchOption(Bar, "bar", nullptr, 0);
 
-        EXPECT_EQ(InCommand::Status::UnexpectedArgument, CmdReader.ReadArguments());
+        EXPECT_EQ(InCommand::Status::UnexpectedArgument, CmdReader.ReadArguments(argc, argv));
         EXPECT_EQ(1, CmdReader.ReadIndex());
     }
 
@@ -239,13 +232,13 @@ TEST(InCommand, Errors)
         const char* argv[] = { "app", "goto", "--fop", "--bar", "7" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        InCommand::CCommandReader CmdReader("app", "test argument list");
 
         auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
         pGotoCmd->DeclareSwitchOption(Bar, "bar", nullptr, 0);
 
-        EXPECT_EQ(InCommand::Status::UnknownOption, CmdReader.ReadArguments());
+        EXPECT_EQ(InCommand::Status::UnknownOption, CmdReader.ReadArguments(argc, argv));
         EXPECT_EQ(2, CmdReader.ReadIndex());
     }
 
@@ -253,13 +246,13 @@ TEST(InCommand, Errors)
         const char* argv[] = { "app", "goto", "--foo", "--bar", "hello" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        InCommand::CCommandReader CmdReader("app", "test argument list");
 
         auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
         pGotoCmd->DeclareSwitchOption(Bar, "bar", nullptr, 0);
 
-        EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadArguments());
+        EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadArguments(argc, argv));
         EXPECT_EQ(4, CmdReader.ReadIndex());
     }
 
@@ -267,13 +260,13 @@ TEST(InCommand, Errors)
         const char* argv[] = { "app", "goto", "--foo", "--bar"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        InCommand::CCommandReader CmdReader("app", "test argument list");
 
         auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
         pGotoCmd->DeclareSwitchOption(Bar, "bar", nullptr, 0);
 
-        EXPECT_EQ(InCommand::Status::MissingOptionValue, CmdReader.ReadArguments());
+        EXPECT_EQ(InCommand::Status::MissingOptionValue, CmdReader.ReadArguments(argc, argv));
         EXPECT_EQ(4, CmdReader.ReadIndex());
     }
 
@@ -281,14 +274,14 @@ TEST(InCommand, Errors)
         const char* argv[] = { "app", "goto", "--foo", "--bar", "7" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CCommandReader CmdReader("app", "test argument list", argc, argv);
+        InCommand::CCommandReader CmdReader("app", "test argument list");
 
         auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
         pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
         const char* barValues[] = { "1", "3", "5" };
         pGotoCmd->DeclareSwitchOption(Bar, "bar", 3, barValues, nullptr, 0);
 
-        EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadArguments());
+        EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadArguments(argc, argv));
         EXPECT_EQ(4, CmdReader.ReadIndex());
     }
 }

@@ -10,7 +10,7 @@ int main(int argc, const char *argv[])
     InCommand::Int Val2;
     InCommand::String Message("");
 
-    InCommand::CCommandReader CmdReader("sample", "Sample app for demonstrating use of InCommand command line reader utility", argc, argv);
+    InCommand::CCommandReader CmdReader("sample", "Sample app for demonstrating use of InCommand command line reader utility");
     CmdReader.DeclareBoolSwitchOption(ShowHelp, "help", "Display help for sample commands.", 'h');
 
     InCommand::CCommand *pAddCmd = CmdReader.DeclareCommand("add", "Adds two integers", 1);
@@ -25,7 +25,7 @@ int main(int argc, const char *argv[])
     pMulCmd->DeclareInputOption(Val2, "value2", "Second multiply value");
     pMulCmd->DeclareSwitchOption(Message, "message", "Print <message> N-times where N = value1 * value2", 'm');
 
-    const InCommand::CCommand *pCmd = CmdReader.PreReadCommandArguments();
+    const InCommand::CCommand *pCmd = CmdReader.PreReadCommandArguments(argc, argv);
     InCommand::Status fetchResult = CmdReader.ReadOptionArguments(pCmd);
     if (InCommand::Status::Success != fetchResult)
     {

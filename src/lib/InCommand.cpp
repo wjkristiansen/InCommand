@@ -228,15 +228,15 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommandReader::CCommandReader(const char* appName, const char *defaultDescription, int argc, const char* argv[]) :
-        m_ArgList(argc, argv),
+    CCommandReader::CCommandReader(const char* appName, const char *defaultDescription) :
         CCommand(appName, defaultDescription)
     {
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommand *CCommandReader::PreReadCommandArguments()
+    CCommand *CCommandReader::PreReadCommandArguments(int argc, const char* argv[])
     {
+        m_ArgList = CArgumentList(argc, argv);
         m_ArgIt = m_ArgList.Begin();
 
         CCommand *pCommand = this;
@@ -257,9 +257,6 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     Status CCommandReader::ReadOptionArguments(const CCommand *pCommand)
     {
-        if (!pCommand)
-            pCommand = PreReadCommandArguments();
-
         Status result = Status::Success;
 
         if (m_ArgIt == m_ArgList.End())
@@ -323,9 +320,12 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    Status CCommandReader::ReadArguments()
+    Status CCommandReader::ReadArguments(int argc, const char* argv[])
     {
-        CCommand *pCommand = PreReadCommandArguments();
+        CCommand *pCommand = PreReadCommandArguments(argc, argv);
+
+        m_InputOptionArgsRead = 0;
+        m_LastStatus = Status::Success;
 
         return ReadOptionArguments(pCommand);
     }
