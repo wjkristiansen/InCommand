@@ -22,7 +22,7 @@ if( IN_COMMAND_TEST )
     include(FetchContent)
     FetchContent_Declare(
       googletest
-      URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+      URL https://github.com/google/googletest/releases/download/v1.15.2/googletest-1.15.2.tar.gz
     )
 
     # For Windows: Prevent overriding the parent project's compiler/linker settings
