@@ -240,7 +240,7 @@ namespace InCommand
         explicit CTypedValue(bool value) : m_value(value) {}
         operator bool() const { return m_value; }
         CTypedValue & operator=(bool value) { m_value = value; return *this; }
-        const bool Value() const { return m_value; }
+        bool Value() const { return m_value; }
         virtual bool HasValue() const final { return true; }
         virtual Status SetFromString(const std::string &s) final
         {
