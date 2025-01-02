@@ -1,15 +1,15 @@
-add_executable(Sample
-    Sample.cpp
+add_executable(sample
+sample.cpp
 )
 
-target_link_libraries(Sample
+target_link_libraries(sample
     InCommandLib
     gtest_main
 )
 
 if(MSVC)
-    target_compile_options(Sample PRIVATE /W4 /WX)
+    target_compile_options(sample PRIVATE /W4 /WX)
 else()
-    target_compile_options(Sample PRIVATE -Wall -Wextra -Werror)
+    target_compile_options(sample PRIVATE -Wall -Wextra -Werror)
 endif()
 

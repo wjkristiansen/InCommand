@@ -4,36 +4,169 @@
 
 TEST(InCommand, BasicOptions)
 {
-    const char* argv[] =
+    InCommand::CCommandReader reader("test");
+    size_t catId_foo = reader.DeclareCategory(0, "foo", "Something to do with foo");
+    size_t catId_bar = reader.DeclareCategory(0, "bar", "Something to do with bar");
+    size_t catId_bar_baz = reader.DeclareCategory(catId_bar, "baz", "Something to do with baz");
+    size_t catId_zap = reader.DeclareCategory(0, "zap", "Something to do with zap");
+    auto switchId_help = reader.DeclareSwitch(0, "help", "Ask for help", 'h');
+    auto varId_foo_number = reader.DeclareVariable(catId_foo, "number", "A number");
+    auto varId_bar_word = reader.DeclareVariable(catId_bar, "word", "A word");
+    auto varId_bar_name = reader.DeclareVariable(catId_bar, "name", "A name", 'n');
+    auto varId_bar_baz_color = reader.DeclareVariable(catId_bar_baz, "color", "A color", { "red", "green", "blue", "yellow", "purple" });
+    size_t paramId_zap_file1 = reader.DeclareParameter(catId_zap, "file1", "file 1");
+    size_t paramId_zap_file2 = reader.DeclareParameter(catId_zap, "file2", "file 2");
+
     {
-        "app",
-        "--is-real",
-        "--color",
-        "red",
-    };
-    const int argc = sizeof(argv) / sizeof(argv[0]);
+        const char *argv[] =
+        {
+            "app",
+            "--help",
+            "foo",
+            "--number",
+            "42",
+        };
 
-    InCommand::Bool IsReal;
-    InCommand::String Color;
-    InCommand::String Name("Fred");
+        int argc(std::size(argv));
 
-    const char* colors[] = { "red", "green", "blue" };
+        InCommand::CCommandExpression commandExpression;
+        EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
+        EXPECT_EQ(commandExpression.GetCategoryDepth(), 2);
+        EXPECT_TRUE(commandExpression.GetSwitchIsSet(switchId_help));
+    }
 
-    InCommand::CCommandReader CmdReader("app", "test argument list");
-    CmdReader.DeclareBoolSwitchOption(IsReal, "is-real", nullptr);
-    CmdReader.DeclareSwitchOption(Name, "name", nullptr);
-    CmdReader.DeclareSwitchOption(Color, "color", 3, colors, nullptr);
+    {
+        const char *argv[] =
+        {
+            "app",
+            "bar",
+            "--word",
+            "hello",
+            "baz",
+            "--color",
+            "red"
+        };
 
-    InCommand::CArgumentList args(argc, argv);
-    InCommand::CArgumentIterator it = args.Begin();
-    CmdReader.ReadArguments(argc, argv);
+        int argc(std::size(argv));
 
-    EXPECT_TRUE(IsReal);
-    EXPECT_EQ(std::string("Fred"),Name.Value());
-    EXPECT_EQ(std::string("red"), Color.Value());
+        InCommand::CCommandExpression commandExpression;
+        EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
+        EXPECT_EQ(commandExpression.GetCategoryDepth(), 3);
+        EXPECT_FALSE(commandExpression.GetSwitchIsSet(switchId_help));
+        EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_word, "goodbye"), std::string("hello"));
+        EXPECT_FALSE(commandExpression.GetVariableIsSet(varId_bar_name));
+        EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_name, "Bill"), std::string("Bill"));
+        EXPECT_TRUE(commandExpression.GetVariableIsSet(varId_bar_baz_color));
+        EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_baz_color, "blue"), std::string("red"));
+    }
+
+    {
+        const char *argv[] =
+        {
+            "app",
+            "-h",
+        };
+
+        int argc(std::size(argv));
+
+        InCommand::CCommandExpression commandExpression;
+        EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
+        EXPECT_EQ(commandExpression.GetCategoryDepth(), 1);
+        EXPECT_TRUE(commandExpression.GetSwitchIsSet(switchId_help));
+    }
+
+    {
+        const char *argv[] =
+        {
+            "app",
+            "--help",
+        };
+
+        int argc(std::size(argv));
+
+        InCommand::CCommandExpression commandExpression;
+        EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
+        EXPECT_EQ(commandExpression.GetCategoryDepth(), 1);
+        EXPECT_TRUE(commandExpression.GetSwitchIsSet(switchId_help));
+    }
+
+    {
+        const char *argv[] =
+        {
+            "app",
+            "bar",
+            "--name",
+            "Anna"
+        };
+
+        int argc(std::size(argv));
+
+        InCommand::CCommandExpression commandExpression;
+        EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
+        EXPECT_EQ(commandExpression.GetCategoryDepth(), 2);
+        EXPECT_FALSE(commandExpression.GetSwitchIsSet(switchId_help));
+        EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_name, "Bill"), std::string("Anna"));
+    }
+
+    {
+        const char *argv[] =
+        {
+            "app",
+            "bar",
+            "-n",
+            "Elaine",
+            "baz",
+            "--color",
+            "red"
+        };
+
+        int argc(std::size(argv));
+
+        InCommand::CCommandExpression commandExpression;
+        EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
+        EXPECT_EQ(commandExpression.GetCategoryDepth(), 3);
+        EXPECT_FALSE(commandExpression.GetSwitchIsSet(switchId_help));
+        EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_word, "goodbye"), std::string("goodbye"));
+        EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_name, "Bill"), std::string("Elaine"));
+        EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_baz_color, "blue"), std::string("red"));
+    }
+
+    {
+        const char *argv[] =
+        {
+            "app",
+            "zap",
+            "file1",
+            "file2"
+        };
+
+        int argc(std::size(argv));
+
+        InCommand::CCommandExpression commandExpression;
+        EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
+        EXPECT_EQ(commandExpression.GetCategoryDepth(), 2);
+        EXPECT_EQ(commandExpression.GetParameterValue(paramId_zap_file1, ""), std::string("file1"));
+        EXPECT_EQ(commandExpression.GetParameterValue(paramId_zap_file2, ""), std::string("file2"));
+    }
+
+    {
+        const char *argv[] =
+        {
+            "app",
+            "bar",
+            "baz",
+            "--color",
+            "orange"
+        };
+
+        int argc(std::size(argv));
+
+        InCommand::CCommandExpression commandExpression;
+        EXPECT_EQ(InCommand::Status::InvalidValue, reader.ReadCommandExpression(argc, argv, commandExpression));
+    }
 }
 
-TEST(InCommand, OptionOptions)
+TEST(InCommand, Parameters)
 {
     const char* argv[] =
     {
@@ -45,23 +178,19 @@ TEST(InCommand, OptionOptions)
     };
     const int argc = sizeof(argv) / sizeof(argv[0]);
 
-    InCommand::Bool SomeSwitch;
-    InCommand::String File1;
-    InCommand::String File2;
-    InCommand::String File3;
+    InCommand::CCommandReader CmdReader("app");
+    size_t fileId1 = CmdReader.DeclareParameter(0, "file1", "file 1");
+    size_t fileId2 = CmdReader.DeclareParameter(0, "file2", "file 2");
+    size_t fileId3 = CmdReader.DeclareParameter(0, "file3", "file 3");
+    size_t someSwitchId = CmdReader.DeclareSwitch(0, "some-switch", "Some switch");
 
-    InCommand::CCommandReader CmdReader("app", "test argument list");
-    CmdReader.DeclareInputOption(File1, "file1", nullptr);
-    CmdReader.DeclareInputOption(File2, "file2", nullptr);
-    CmdReader.DeclareInputOption(File3, "file3", nullptr);
-    CmdReader.DeclareBoolSwitchOption(SomeSwitch, "some-switch", nullptr);
+    InCommand::CCommandExpression cmdExpression;
+    EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, cmdExpression));
 
-    CmdReader.ReadArguments(argc, argv);
-
-    EXPECT_TRUE(SomeSwitch);
-    EXPECT_EQ(File1.Value(), std::string(argv[1]));
-    EXPECT_EQ(File2.Value(), std::string(argv[3]));
-    EXPECT_EQ(File3.Value(), std::string(argv[4]));
+    EXPECT_TRUE(cmdExpression.GetSwitchIsSet(someSwitchId));
+    EXPECT_EQ(cmdExpression.GetParameterValue(fileId1, ""), std::string(argv[1]));
+    EXPECT_EQ(cmdExpression.GetParameterValue(fileId2, ""), std::string(argv[3]));
+    EXPECT_EQ(cmdExpression.GetParameterValue(fileId3, ""), std::string(argv[4]));
 }
 
 template<typename E>
@@ -70,11 +199,11 @@ constexpr auto to_underlying(E e) noexcept
     return static_cast<std::underlying_type_t<E>>(e);
 }
 
-TEST(InCommand, SubCommands)
+TEST(InCommand, SubCategories)
 {
-    enum class ScopeId : int
+    enum class CategoryId : size_t
     {
-        Root,
+        Root = 0,
         Plant,
         Tree,
         Shrub,
@@ -83,47 +212,23 @@ TEST(InCommand, SubCommands)
         Cat
     };
 
+    InCommand::CCommandReader CmdReader("app");
+    auto switchId_help = CmdReader.DeclareSwitch(0, "help", "");
+
+    EXPECT_EQ(to_underlying(CategoryId::Plant), CmdReader.DeclareCategory(0, "plant", ""));
+    EXPECT_EQ(to_underlying(CategoryId::Tree), CmdReader.DeclareCategory(to_underlying(CategoryId::Plant), "tree", ""));
+    EXPECT_EQ(to_underlying(CategoryId::Shrub), CmdReader.DeclareCategory(to_underlying(CategoryId::Plant), "shrub", ""));
+    EXPECT_EQ(to_underlying(CategoryId::Animal), CmdReader.DeclareCategory(0, "animal", ""));
+    EXPECT_EQ(to_underlying(CategoryId::Dog), CmdReader.DeclareCategory(to_underlying(CategoryId::Animal), "dog", ""));
+    EXPECT_EQ(to_underlying(CategoryId::Cat), CmdReader.DeclareCategory(to_underlying(CategoryId::Animal), "cat", ""));
+
+    auto listId = CmdReader.DeclareSwitch(to_underlying(CategoryId::Plant), "list", "");
+    auto pruneId = CmdReader.DeclareSwitch(to_underlying(CategoryId::Shrub), "prune", "");
+    auto burnId = CmdReader.DeclareSwitch(to_underlying(CategoryId::Shrub), "burn", "");
+    auto livesId = CmdReader.DeclareVariable(to_underlying(CategoryId::Cat), "lives", "");
+
     for(int i = 0; i < 3; ++i)
     {
-        InCommand::Bool Help;
-        InCommand::Bool List;
-        InCommand::Bool Climb;
-        InCommand::Bool Prune;
-        InCommand::Bool Burn;
-        InCommand::Bool Walk;
-        InCommand::String Lives("9");
-
-        InCommand::CCommandReader CmdReader("app", "test argument list");
-        CmdReader.DeclareBoolSwitchOption(Help, "help", nullptr);
-        InCommand::CCommand* pPlantCommand = CmdReader.DeclareCommand("plant", nullptr, to_underlying(ScopeId::Plant));
-        pPlantCommand->DeclareBoolSwitchOption(List, "list", nullptr);
-        InCommand::CCommand* pShrubCommand = pPlantCommand->DeclareCommand("shrub", nullptr, to_underlying(ScopeId::Shrub));
-        pShrubCommand->DeclareBoolSwitchOption(Prune, "prune", nullptr);
-        pShrubCommand->DeclareBoolSwitchOption(Burn, "burn", nullptr);
-        InCommand::CCommand* pAnimalCommand = CmdReader.DeclareCommand("animal", nullptr, to_underlying(ScopeId::Animal));
-        pAnimalCommand->DeclareCommand("dog", nullptr, to_underlying(ScopeId::Dog));
-        pAnimalCommand->DeclareCommand("cat", nullptr, to_underlying(ScopeId::Cat));
-
-        auto LateDeclareOptions = [&](InCommand::CCommand* pCommandScope)
-        {
-            switch (static_cast<ScopeId>(pCommandScope->Id()))
-            {
-            case ScopeId::Tree:
-                pCommandScope->DeclareBoolSwitchOption(Climb, "climb", nullptr);
-                break;
-            case ScopeId::Animal:
-                pCommandScope->DeclareBoolSwitchOption(List, "list", nullptr);
-                break;
-            case ScopeId::Dog:
-                pCommandScope->DeclareBoolSwitchOption(Walk, "walk", nullptr);
-                break;
-            case ScopeId::Cat:
-                pCommandScope->DeclareSwitchOption(Lives, "lives", nullptr);
-                break;
-            }
-
-        };
-
         switch (i)
         {
         case 0: {
@@ -136,12 +241,14 @@ TEST(InCommand, SubCommands)
             };
             const int argc = sizeof(argv) / sizeof(argv[0]);
 
-            InCommand::CCommand *pCommand = CmdReader.PreReadCommandArguments(argc, argv);
-            LateDeclareOptions(pCommand);
-            EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadOptionArguments(pCommand));
-
-            EXPECT_TRUE(Burn);
-            EXPECT_FALSE(Prune);
+            InCommand::CCommandExpression CmdExpression;
+            EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, CmdExpression));
+            EXPECT_EQ(CmdExpression.GetCategoryDepth(), 3);
+            EXPECT_EQ(CmdExpression.GetCategoryId(0), 0);
+            EXPECT_EQ(CmdExpression.GetCategoryId(1), to_underlying(CategoryId::Plant));
+            EXPECT_EQ(CmdExpression.GetCategoryId(2), to_underlying(CategoryId::Shrub));
+            EXPECT_TRUE(CmdExpression.GetSwitchIsSet(burnId));
+            EXPECT_FALSE(CmdExpression.GetSwitchIsSet(pruneId));
 
             break; }
         case 1: {
@@ -155,11 +262,14 @@ TEST(InCommand, SubCommands)
             };
             const int argc = sizeof(argv) / sizeof(argv[0]);
 
-            InCommand::CCommand *pCommand = CmdReader.PreReadCommandArguments(argc, argv);
-            LateDeclareOptions(pCommand);
-            EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadOptionArguments(pCommand));
-
-            EXPECT_EQ(Lives.Value(), std::string("8"));
+            InCommand::CCommandExpression CmdExpression;
+            EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, CmdExpression));
+            EXPECT_EQ(CmdExpression.GetCategoryDepth(), 3);
+            EXPECT_EQ(CmdExpression.GetCategoryId(0), 0);
+            EXPECT_EQ(CmdExpression.GetCategoryId(1), to_underlying(CategoryId::Animal));
+            EXPECT_EQ(CmdExpression.GetCategoryId(2), to_underlying(CategoryId::Cat));
+            EXPECT_TRUE(CmdExpression.GetVariableIsSet(livesId));
+            EXPECT_EQ(CmdExpression.GetVariableValue(livesId, "9"), "8");
 
             break; }
         case 2: {
@@ -170,11 +280,11 @@ TEST(InCommand, SubCommands)
             };
             const int argc = sizeof(argv) / sizeof(argv[0]);
 
-            InCommand::CCommand* pCommand = CmdReader.PreReadCommandArguments(argc, argv);
-            LateDeclareOptions(pCommand);
-            EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadOptionArguments(pCommand));
-
-            EXPECT_TRUE(Help);
+            InCommand::CCommandExpression CmdExpression;
+            EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, CmdExpression));
+            EXPECT_EQ(CmdExpression.GetCategoryDepth(), 1);
+            EXPECT_EQ(CmdExpression.GetCategoryId(0), 0);
+            EXPECT_TRUE(CmdExpression.GetSwitchIsSet(switchId_help));
 
             break; }
         }
@@ -183,34 +293,29 @@ TEST(InCommand, SubCommands)
 
 TEST(InCommand, Errors)
 {
-    InCommand::Bool Foo;
-    InCommand::Int Bar;
-
     {
-        const char* argv[] = { "app", "goto", "--foo", "--bar" };
-        const int argc = sizeof(argv) / sizeof(argv[0]);
-        InCommand::CCommandReader CmdReader("app", "test argument list");
-        auto *pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
+        InCommand::CCommandReader CmdReader("app");
+        CmdReader.DeclareCategory(0, "goto", "");
         try
         {
-            CmdReader.DeclareCommand("goto", nullptr, 1);; // Duplicate command "goto"
+            CmdReader.DeclareCategory(0, "goto", ""); // Duplicate category "goto"
         }
         catch(const InCommand::Exception& e)
         {
-            EXPECT_EQ(e.status, InCommand::Status::DuplicateCommand);
+            EXPECT_EQ(e.Status(), InCommand::Status::DuplicateCategory);
         }
     }
     
     {
-        InCommand::CCommandReader CmdReader("app", "test argument list");
-        CmdReader.DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
+        InCommand::CCommandReader CmdReader("app");
+        CmdReader.DeclareSwitch(0, "foo", "");
         try
         {
-            CmdReader.DeclareSwitchOption(Bar, "foo", nullptr, 0); // Duplicate option "foo"
+            CmdReader.DeclareSwitch(0, "foo", ""); // Duplicate switch option "foo"
         }
         catch (const InCommand::Exception& e)
         {
-            EXPECT_EQ(e.status, InCommand::Status::DuplicateOption);
+            EXPECT_EQ(e.Status(), InCommand::Status::DuplicateOption);
         }
     }
 
@@ -218,70 +323,75 @@ TEST(InCommand, Errors)
         const char* argv[] = { "app", "gogo", "--foo", "--bar", "7" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CCommandReader CmdReader("app", "test argument list");
+        InCommand::CCommandReader CmdReader("app");
 
-        auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
-        pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
-        pGotoCmd->DeclareSwitchOption(Bar, "bar", nullptr, 0);
+        const size_t gotoId = CmdReader.DeclareCategory(0, "goto", "");
+        CmdReader.DeclareSwitch(gotoId, "foo", "");
+        CmdReader.DeclareVariable(gotoId, "bar", "");
 
-        EXPECT_EQ(InCommand::Status::UnexpectedArgument, CmdReader.ReadArguments(argc, argv));
-        EXPECT_EQ(1, CmdReader.ReadIndex());
-    }
-
-    {
-        const char* argv[] = { "app", "goto", "--fop", "--bar", "7" };
-        const int argc = sizeof(argv) / sizeof(argv[0]);
-
-        InCommand::CCommandReader CmdReader("app", "test argument list");
-
-        auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
-        pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
-        pGotoCmd->DeclareSwitchOption(Bar, "bar", nullptr, 0);
-
-        EXPECT_EQ(InCommand::Status::UnknownOption, CmdReader.ReadArguments(argc, argv));
-        EXPECT_EQ(2, CmdReader.ReadIndex());
-    }
-
-    {
-        const char* argv[] = { "app", "goto", "--foo", "--bar", "hello" };
-        const int argc = sizeof(argv) / sizeof(argv[0]);
-
-        InCommand::CCommandReader CmdReader("app", "test argument list");
-
-        auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
-        pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
-        pGotoCmd->DeclareSwitchOption(Bar, "bar", nullptr, 0);
-
-        EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadArguments(argc, argv));
-        EXPECT_EQ(4, CmdReader.ReadIndex());
-    }
-
-    {
-        const char* argv[] = { "app", "goto", "--foo", "--bar"};
-        const int argc = sizeof(argv) / sizeof(argv[0]);
-
-        InCommand::CCommandReader CmdReader("app", "test argument list");
-
-        auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
-        pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
-        pGotoCmd->DeclareSwitchOption(Bar, "bar", nullptr, 0);
-
-        EXPECT_EQ(InCommand::Status::MissingOptionValue, CmdReader.ReadArguments(argc, argv));
-        EXPECT_EQ(4, CmdReader.ReadIndex());
+        InCommand::CCommandExpression cmdExp;
+        EXPECT_EQ(InCommand::Status::UnexpectedArgument, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
     }
 
     {
         const char* argv[] = { "app", "goto", "--foo", "--bar", "7" };
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CCommandReader CmdReader("app", "test argument list");
+        InCommand::CCommandReader CmdReader("app");
 
-        auto* pGotoCmd = CmdReader.DeclareCommand("goto", nullptr, 1);
-        pGotoCmd->DeclareBoolSwitchOption(Foo, "foo", nullptr, 0);
-        const char* barValues[] = { "1", "3", "5" };
-        pGotoCmd->DeclareSwitchOption(Bar, "bar", 3, barValues, nullptr, 0);
+        const size_t gotoId = CmdReader.DeclareCategory(0, "goto", "");
+        CmdReader.DeclareSwitch(gotoId, "fop", "");
+        CmdReader.DeclareVariable(gotoId, "bar", "");
 
-        EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadArguments(argc, argv));
-        EXPECT_EQ(4, CmdReader.ReadIndex());
+        InCommand::CCommandExpression cmdExp;
+        EXPECT_EQ(InCommand::Status::UnknownOption, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
+    }
+
+    {
+        const char* argv[] = { "app", "--foo", "hello" };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+
+        InCommand::CCommandReader CmdReader("app");
+
+        size_t gotoId = CmdReader.DeclareCategory(0, "goto", "");
+        CmdReader.DeclareVariable(0, "foo", "", {"cat", "dog", "fish"});
+
+        InCommand::CCommandExpression cmdExp;
+        EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
+    }
+
+    {
+        const char* argv[] = { "app", "--foo"};
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+
+        InCommand::CCommandReader CmdReader("app");
+        CmdReader.DeclareVariable(0, "foo", "", {"cat", "dog", "fish"});
+
+        InCommand::CCommandExpression cmdExp;
+        EXPECT_EQ(InCommand::Status::MissingVariableValue, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
+    }
+
+    {
+        const char* argv[] = { "app", "--foo", "--bar"};
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+
+        InCommand::CCommandReader CmdReader("app");
+        CmdReader.DeclareVariable(0, "foo", "", { "cat", "dog", "fish" });
+        CmdReader.DeclareSwitch(0, "bar", "");
+
+        InCommand::CCommandExpression cmdExp;
+        EXPECT_EQ(InCommand::Status::MissingVariableValue, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
+    }
+
+    {
+        const char* argv[] = { "app", "--foo", "7" };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+
+        InCommand::CCommandReader CmdReader("app");
+
+        CmdReader.DeclareVariable(0, "foo", "", { "1", "3", "5" });
+
+        InCommand::CCommandExpression cmdExp;
+        EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
     }
 }

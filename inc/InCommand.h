@@ -5,6 +5,9 @@
 #include <string>
 #include <map>
 #include <set>
+#include <deque>
+#include <unordered_set>
+#include <unordered_map>
 #include <ostream>
 #include <sstream>
 #include <optional>
@@ -15,498 +18,241 @@ namespace InCommand
     enum class Status : int
     {
         Success,
-        DuplicateCommand,
+        DuplicateCategory,
         DuplicateOption,
         UnexpectedArgument,
-        MissingOptionValue,
         UnknownOption,
-        InvalidValue
+        MissingVariableValue,
+        TooManyParameters,
+        InvalidValue,
+        OutOfRange,
+        NotFound
     };
 
     //------------------------------------------------------------------------------------------------
-    struct Exception
+    class Exception
     {
-        Status status;
-
-        Exception(Status error) :
-            status(error) {}
-    };
-
-    //------------------------------------------------------------------------------------------------
-    enum class OptionType
-    {
-        Input,
-        Switch,
-    };
-
-    //------------------------------------------------------------------------------------------------
-    template<typename _T>
-    inline std::string ToString(const _T &v)
-    {
-        std::ostringstream ss;
-        ss << v;
-        return ss.str();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    template<>
-    inline std::string ToString<std::string>(const std::string &s)
-    {
-        return s;
-    }
-
-    //------------------------------------------------------------------------------------------------
-    template<typename _T>
-    inline _T FromString(const std::string &s)
-    {
-        return _T();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    template<>
-    inline bool FromString<bool>(const std::string &s)
-    {
-        if(s == "true" || s == "on" || s == "1")
-            return true;
-        if(s == "false" || s == "off" || s == "0")
-            return true;
-
-        throw Exception(Status::InvalidValue);
-    }
-
-    //------------------------------------------------------------------------------------------------
-    template<>
-    inline int FromString<int>(const std::string &s)
-    {
-        return std::stoi(s); // may throw on conversion error
-    }
-
-    //------------------------------------------------------------------------------------------------
-    template<>
-    inline unsigned int FromString<unsigned int>(const std::string &s)
-    {
-        return (unsigned int) std::stoul(s); // may throw on conversion error
-    }
-
-    //------------------------------------------------------------------------------------------------
-    template<>
-    inline std::string FromString<std::string>(const std::string &s)
-    {
-        return s;
-    }
-
-    //------------------------------------------------------------------------------------------------
-    class Value
-    {
-    public:
-        virtual Status SetFromString(const std::string &s) = 0;
-        virtual bool HasValue() const = 0;
-        virtual std::string ToString() const = 0;
-    };
-
-    //------------------------------------------------------------------------------------------------
-    class Domain
-    {
-        std::set<std::string> m_values;
+        Status m_Status;
+        std::string m_Message;
 
     public:
-        Domain() = default;
-
-        template<class _T>
-        Domain(int NumValues, const _T* pValues)
+        Exception(Status status, const std::string &message = std::string()) :
+            m_Status(status),
+            m_Message(message)
         {
-            for (int i = 0; i < NumValues; ++i)
-            {
-                m_values.emplace(InCommand::ToString(pValues[i]));
-            }
         }
 
-        template<class _T>
-        Domain(const _T& v0, const _T& v1)
-        {
-            m_values.emplace(InCommand::ToString(v0));
-            m_values.emplace(InCommand::ToString(v1));
-        }
-
-        template<class _T>
-        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3)
-        {
-            m_values.emplace(InCommand::ToString(v0));
-            m_values.emplace(InCommand::ToString(v1));
-            m_values.emplace(InCommand::ToString(v2));
-            m_values.emplace(InCommand::ToString(v3));
-        }
-
-        template<class _T>
-        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4)
-        {
-            m_values.emplace(InCommand::ToString(v0));
-            m_values.emplace(InCommand::ToString(v1));
-            m_values.emplace(InCommand::ToString(v2));
-            m_values.emplace(InCommand::ToString(v3));
-            m_values.emplace(InCommand::ToString(v4));
-        }
-
-        template<class _T>
-        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5)
-        {
-            m_values.emplace(InCommand::ToString(v0));
-            m_values.emplace(InCommand::ToString(v1));
-            m_values.emplace(InCommand::ToString(v2));
-            m_values.emplace(InCommand::ToString(v3));
-            m_values.emplace(InCommand::ToString(v4));
-            m_values.emplace(InCommand::ToString(v5));
-        }
-
-        template<class _T>
-        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5, const _T& v6)
-        {
-            m_values.emplace(InCommand::ToString(v0));
-            m_values.emplace(InCommand::ToString(v1));
-            m_values.emplace(InCommand::ToString(v2));
-            m_values.emplace(InCommand::ToString(v3));
-            m_values.emplace(InCommand::ToString(v4));
-            m_values.emplace(InCommand::ToString(v5));
-            m_values.emplace(InCommand::ToString(v6));
-        }
-
-        template<class _T>
-        Domain(const _T& v0, const _T& v1, const _T& v2, const _T& v3, const _T& v4, const _T& v5, const _T& v6, const _T& v7)
-        {
-            m_values.emplace(InCommand::ToString(v0));
-            m_values.emplace(InCommand::ToString(v1));
-            m_values.emplace(InCommand::ToString(v2));
-            m_values.emplace(InCommand::ToString(v3));
-            m_values.emplace(InCommand::ToString(v4));
-            m_values.emplace(InCommand::ToString(v5));
-            m_values.emplace(InCommand::ToString(v6));
-            m_values.emplace(InCommand::ToString(v7));
-        }
-
-        bool HasValues() const { return !m_values.empty(); }
-
-        template<class _T>
-        bool ContainsValue(const _T& value) const
-        {
-            std::string valueString = InCommand::ToString(value);
-            auto it = m_values.find(valueString);
-            return it != m_values.end();
-        }
-    };
-
-    //------------------------------------------------------------------------------------------------0
-    template<class _T>
-    class CTypedValue : public Value
-    {
-        std::optional<_T> m_value;
-
-    public:
-        CTypedValue() = default;
-        CTypedValue(const _T& value) : m_value(value) {}
-        operator _T() const { return m_value.value(); }
-        CTypedValue & operator=(const _T & value) { m_value = value; return *this; }
-        const _T &Value() const { return m_value.value(); }
-        virtual bool HasValue() const final { return m_value.has_value(); }
-        virtual Status SetFromString(const std::string &s) final
-        {
-            try
-            {
-                m_value = FromString<_T>(s);
-            }
-            catch (const std::invalid_argument& )
-            {
-                return Status::InvalidValue;
-            }
-
-            return Status::Success;
-        }
-        virtual std::string ToString() const
-        {
-            if(!m_value.has_value())
-                return "(empty)";
-
-            return InCommand::ToString(m_value.value());
-        }
+        Status Status() const { return m_Status; }
+        const std::string &Message() const { return m_Message; }
     };
 
     //------------------------------------------------------------------------------------------------
-    template<>
-    class CTypedValue<bool> : public Value
+    class CCommandExpression
     {
-        bool m_value = false;
-
-    public:
-        CTypedValue() = default;
-        explicit CTypedValue(bool value) : m_value(value) {}
-        operator bool() const { return m_value; }
-        CTypedValue & operator=(bool value) { m_value = value; return *this; }
-        bool Value() const { return m_value; }
-        virtual bool HasValue() const final { return true; }
-        virtual Status SetFromString(const std::string &s) final
-        {
-            try
-            {
-                m_value = FromString<bool>(s);
-            }
-            catch (const std::invalid_argument& )
-            {
-                return Status::InvalidValue;
-            }
-
-            return Status::Success;
-        }
-        virtual std::string ToString() const
-        {
-            return m_value ? "true" : "false";
-        }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    using String = CTypedValue<std::string>;
-    using Bool = CTypedValue<bool>;
-    using Int = CTypedValue<int>;
-    using UInt = CTypedValue<unsigned int>;
-
-    template<class _T>
-    std::ostream& operator<<(std::ostream &s, const CTypedValue<_T>& v)
-    {
-        s << v.Value();
-        return s;
-    }
-
-    //------------------------------------------------------------------------------------------------
-    class CArgumentIterator
-    {
-        int m_index = 0;
-
-    public:
-        CArgumentIterator() = default;
-        CArgumentIterator(int index) : m_index(index) {}
-        int Index() const { return m_index; }
-        bool operator==(const CArgumentIterator& o) const { return m_index == o.m_index; }
-        bool operator!=(const CArgumentIterator& o) const { return m_index != o.m_index; }
-        CArgumentIterator& operator++() { ++m_index; return *this; }
-        CArgumentIterator operator++(int) { CArgumentIterator old(*this); ++m_index; return old; }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    class CArgumentList
-    {
-        std::vector<std::string> m_args;
-
-    public:
-        CArgumentList() = default;
-
-        CArgumentList(int argc, const char* argv[])
-        {
-            if (argc > 0)
-            {
-                m_args.resize(argc);
-                for (int i = 0; i < argc; ++i)
-                    m_args[i] = argv[i];
-            }
-        }
-
-        CArgumentIterator Begin() const { return CArgumentIterator(0); }
-        CArgumentIterator End() const { return CArgumentIterator(int(m_args.size())); }
-        int Size() const { return int(m_args.size()); }
-        const std::string &At(const CArgumentIterator& it) const
-        {
-            return m_args[it.Index()];
-        }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    class COption
-    {
-    protected:
-        std::string m_name;
-        std::string m_description;
-        char m_shortKey = 0;
-
-        COption(const char* name, const char* description) :
-            m_name(name)
-        {
-            if (description)
-                m_description = description;
-        }
-
-    public:
-        virtual ~COption() = default;
-
-        virtual OptionType Type() const = 0;
-
-        // Returns the index of the first unparsed argument
-        virtual Status ParseArgs(const CArgumentList &args, CArgumentIterator &it) const = 0;
-
-        const std::string &Name() const { return m_name; }
-        const std::string &Description() const { return m_description; }
-        char ShortKey() const { return m_shortKey; }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    class CInputOption : public COption
-    {
-        Value &m_value;
-
-    public:
-        CInputOption(Value &value, const char* name, const char* description) :
-            COption(name, description),
-            m_value(value)
-        {}
-
-        virtual OptionType Type() const final { return OptionType::Input; }
-        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
-        {
-            if (it == args.End())
-                return Status::Success;
-
-            auto result = m_value.SetFromString(args.At(it));
-            if (result != Status::Success)
-                return result;
-
-            ++it;
-            return Status::Success;
-        }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    template<class _T>
-    class TSwitchOption : public COption
-    {
-    protected:
-        _T &m_value;
-        Domain m_domain;
-
-    public:
-        TSwitchOption(_T &value, const char* name, const char* description, char shortKey = 0) :
-            COption(name, description),
-            m_value(value)
-        {
-            m_shortKey = shortKey;
-        }
-
-        TSwitchOption(_T& value, const char* name, const Domain &domain, const char* description, char shortKey = 0) :
-            COption(name, description),
-            m_value(value),
-            m_domain(domain)
-        {
-            m_shortKey = shortKey;
-        }
-
-        virtual OptionType Type() const final { return OptionType::Switch; }
-        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const
-        {
-            ++it;
-
-            if (it == args.End())
-                return Status::MissingOptionValue;
-
-            if (m_domain.HasValues())
-            {
-                // See if the given value is a valid 
-                // domain value.
-                if( !m_domain.ContainsValue(args.At(it)))
-                    return Status::InvalidValue;
-            }
-
-            auto result = m_value.SetFromString(args.At(it));
-            if (result != Status::Success)
-                return result;
-
-            ++it;
-            return Status::Success;
-        }
-    };
-
-    using CSwitchOption = TSwitchOption<Value>;
-
-    //------------------------------------------------------------------------------------------------
-    class CBoolOption : public TSwitchOption<CTypedValue<bool>>
-    {
-    public:
-        CBoolOption(Bool &value, const char* name, const char* description, char shortKey = 0) :
-            TSwitchOption(value, name, description, shortKey)
-        {}
-
-        virtual Status ParseArgs(const CArgumentList& args, CArgumentIterator& it) const final
-        {
-            if (it == args.End())
-            {
-                m_value = false; // Not present means falseS
-                return Status::Success;
-            }
-
-            m_value = true; // = CTypedValue<bool>(true); // Present means true
-            ++it;
-
-            return Status::Success;
-        }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    class CCommand
-    {
-        int m_ScopeId = 0;
-        std::string m_Name;
-        std::string m_Description;
-        std::map<std::string, std::shared_ptr<COption>> m_Options;
-        std::map<char, std::shared_ptr<COption>> m_ShortOptions;
-        std::map<std::string, std::shared_ptr<CCommand>> m_InnerCommands;
-        std::vector<std::shared_ptr<COption>> m_InputOptions;
-        CCommand* m_pOuterCommand = nullptr;
-
-
-    public:
-        CCommand(const char* name, const char* description, int scopeId = 0);
-        CCommand(CCommand&& o) = delete;
-        ~CCommand() = default;
-
-        CCommand* DeclareCommand(const char* name, const char* description, int scopeId = 0);
-        const COption* DeclareInputOption(Value &value, const char* name, const char* description);
-        const COption* DeclareBoolSwitchOption(Bool &value, const char* name, const char* description, char shortKey = 0);
-        const COption* DeclareSwitchOption(Value& value, const char* name, const char* description, char shortKey = 0);
-        const COption* DeclareSwitchOption(Value& value, const char* name, int domainSize, const char* domain[], const char* description, char shortKey = 0);
-        const COption* DeclareSwitchOption(Value& value, const char* name, const Domain& domain, const char* description, char shortKey = 0);
-
-        std::string CommandScopeString() const;
-        std::string UsageString() const;
-
-        // Useful for switch/case using command scope id
-        const std::string& Name() const { return m_Name; }
-        int Id() const { return m_ScopeId; }
-
         friend class CCommandReader;
+
+        struct CategoryLevel
+        {
+            CategoryLevel(size_t categoryId) :
+                CategoryId(categoryId)
+            {
+            }
+            
+            size_t CategoryId;
+            size_t ParameterCount = 0;
+        };
+
+        std::vector<CategoryLevel> m_CategoryLevels;
+        std::unordered_map<size_t, std::string> m_VariableAndParameterMap;
+        std::unordered_set<size_t> m_Switches;
+
+        size_t AddCategoryLevel(size_t categoryId)
+        {
+            size_t levelIndex = m_CategoryLevels.size();
+            m_CategoryLevels.push_back(categoryId);
+            return levelIndex;
+        }
+
+    public:
+        CCommandExpression() = default;
+
+        size_t GetCategoryDepth() const { return m_CategoryLevels.size(); }
+
+        size_t GetCategoryId(size_t levelIndex) const
+        {
+            if (levelIndex > m_CategoryLevels.size())
+                throw Exception(Status::OutOfRange);
+            
+            return m_CategoryLevels[levelIndex].CategoryId;
+        }
+
+        const std::string &GetParameterValue(size_t parameterId, const std::string &defaultValue) const
+        {
+            auto it = m_VariableAndParameterMap.find(parameterId);
+            if (it == m_VariableAndParameterMap.end())
+                return defaultValue;
+            
+            return it->second;
+        }
+
+        const std::string &GetVariableValue(size_t variableId, const std::string &defaultValue) const
+        {
+            auto it = m_VariableAndParameterMap.find(variableId);
+            if (it == m_VariableAndParameterMap.end())
+                return defaultValue;
+
+            return it->second;
+        }
+
+        bool GetVariableIsSet(size_t variableId) const
+        {
+            auto it = m_VariableAndParameterMap.find(variableId);
+            return it != m_VariableAndParameterMap.end();
+        }
+
+        bool GetSwitchIsSet(size_t switchId) const
+        {
+            auto it = m_Switches.find(switchId);
+            return it != m_Switches.end();
+        }
     };
 
     //------------------------------------------------------------------------------------------------
-    class CCommandReader : public CCommand
+    class CCommandReader
     {
-        CArgumentList m_ArgList;
-        CArgumentIterator m_ArgIt;
-        Status m_LastStatus = Status::Success;
-        size_t m_InputOptionArgsRead = 0;
+        enum class OptionType
+        {
+            Variable,
+            Switch,
+            Parameter,
+        };
+        
+        struct OptionDesc
+        {
+            OptionType Type;
+            std::string Name;
+            std::string Description;
+            std::set<std::string> Domain;
+
+            OptionDesc(OptionType type, const std::string &name, const std::string &description) :
+                Type(type),
+                Name(name),
+                Description(description)
+            {
+            }
+
+            OptionDesc(OptionType type, const std::string &name, const std::string &description, const std::vector<std::string> domain) :
+                Type(type),
+                Name(name),
+                Description(description),
+                Domain(std::set<std::string>(domain.begin(), domain.end()))
+            {
+            }
+        };
+
+        struct CategoryDesc
+        {
+            CategoryDesc(size_t parentId, const std::string &name, const std::string &description) :
+                ParentId(parentId),
+                Name(name),
+                Description(description)
+            {
+            }
+            
+            size_t ParentId;
+            std::string Name;
+            std::string Description;
+            std::map<std::string, size_t> SubCategoryMap;
+            std::map<std::string, size_t> OptionDescIdByNameMap;
+            std::unordered_map<char, size_t> OptionDescIdByShortNameMap;
+            std::unordered_map<size_t, OptionDesc> OptionDescsMap;
+            std::unordered_map<size_t, OptionDesc> ParameterDescsMap;
+            std::vector<size_t> ParameterIds;
+        };
+
+        CategoryDesc &CategoryDescThrow(size_t categoryId) // throw Exception
+        {
+            if (categoryId >= m_CategoryDescs.size())
+                throw Exception(Status::OutOfRange);
+
+            return m_CategoryDescs[categoryId];
+        }
+
+        size_t AddVariableOrSwitchOption(
+            OptionType type,
+            size_t categoryId,
+            const std::string &name,
+            const std::string &description,
+            const std::vector<std::string> &domain,
+            char shortName);
+
+    private:
+        size_t m_NextOptionId = 1;
+        std::vector<CategoryDesc> m_CategoryDescs;
 
     public:
-        CCommandReader(const char* appName, const char *defaultDescription);
+        CCommandReader(const std::string appName) :
+            m_CategoryDescs(1, CategoryDesc(size_t(0 - 1), appName, ""))
+        {
+        }
 
-        // Reads the command arguments from the argument list
-        // and returns the matching command matching the provided command arguments.
-        // Afterward, the argument iterator index points to
-        // the first option argument in the argument list.
-        // Allows the application to delay-declare command options.
-        CCommand* PreReadCommandArguments(int argc, const char* argv[]);
+        size_t DeclareCategory(size_t parentId, const std::string &name, const std::string &description)
+        {
+            if (parentId >= m_CategoryDescs.size())
+                throw Exception(Status::OutOfRange);
 
-        // Reads the option values from the argument list for the provided command,
-        // setting the bound values.
-        // Requires pre-reading the active command by using PreReadCommandArguments..
-        // Reads the active command if ReadCommand was not previously called.
-        Status ReadOptionArguments(const CCommand *pCommand);
+            size_t id = m_CategoryDescs.size();
+            m_CategoryDescs.emplace_back(parentId, name, description);
+            m_CategoryDescs[parentId].SubCategoryMap.emplace(name, id);
+            return id;
+        }
 
-        Status ReadArguments(int argc, const char* argv[]);
+        size_t DeclareParameter(size_t categoryId, const std::string &name, const std::string &description)
+        {
+            if (categoryId >= m_CategoryDescs.size())
+                throw Exception(Status::OutOfRange);
+            size_t index = m_NextOptionId;
+            ++m_NextOptionId;
+            m_CategoryDescs[categoryId].ParameterDescsMap.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(index),
+                std::forward_as_tuple(OptionType::Parameter, name, description));
+            m_CategoryDescs[categoryId].ParameterIds.push_back(index);
+            return index;
+        }
 
-        std::string LastErrorString() const;
-        Status LastStatus() const { return m_LastStatus; }
-        int ReadIndex() const { return m_ArgIt.Index(); }
+        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description)
+        {
+            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, description, {}, '-');
+        }
+
+        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description, const std::vector<std::string> &domain)
+        {
+            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, description, domain, '-');
+        }
+
+        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description, char shortName)
+        {
+            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, description, {}, shortName);
+        }
+
+        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description, const std::vector<std::string> &domain, char shortName)
+        {
+            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, description, domain, shortName);
+        }
+
+        size_t DeclareSwitch(size_t categoryId, const std::string &name, const std::string &description)
+        {
+            return AddVariableOrSwitchOption(OptionType::Switch, categoryId, name, description, {}, '-');
+        }
+
+        size_t DeclareSwitch(size_t categoryId, const std::string &name, const std::string &description, char shortName)
+        {
+            return AddVariableOrSwitchOption(OptionType::Switch, categoryId, name, description, {}, shortName);
+        }
+
+        Status ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression);
+        std::string SimpleUsageString(size_t categoryId) const;
+        std::string OptionDetailsString(size_t categoryId) const;
     };
 }

@@ -1,369 +1,319 @@
 #include <sstream>
 #include <iomanip>
+#include <stack>
 
 #include "InCommand.h"
 
 namespace InCommand
 {
-    static std::string OptionUsageString(const COption *pOption)
+    //------------------------------------------------------------------------------------------------
+    size_t CCommandReader::AddVariableOrSwitchOption(
+        OptionType type,
+        size_t categoryId,
+        const std::string &name,
+        const std::string &description,
+        const std::vector<std::string> &domain,
+        char shortName)
     {
-        //------------------------------------------------------------------------------------------------
-        std::ostringstream s;
-        if (pOption->Type() == OptionType::Input)
-        {
-            s << "<" << pOption->Name() << ">";
-        }
+        if (categoryId >= m_CategoryDescs.size())
+            throw Exception(Status::OutOfRange);
+
+        auto &categoryDesc = m_CategoryDescs[categoryId];
+
+        if (categoryDesc.OptionDescIdByNameMap.find(name) != categoryDesc.OptionDescIdByNameMap.end())
+            throw Exception(Status::DuplicateOption);
+
+        size_t optionId = m_NextOptionId;
+        ++m_NextOptionId;
+        if(type == OptionType::Variable && domain.size() > 0)
+            categoryDesc.OptionDescsMap.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(optionId),
+                std::forward_as_tuple(OptionType::Variable, name, description, domain));
         else
-        {
-            if (pOption->ShortKey())
-            {
-                s << '-' << pOption->ShortKey() << ", ";
-            }
-            s << "--" << pOption->Name();
-            if (pOption->Type() == OptionType::Switch)
-                s << " <value>";
-        }
+            categoryDesc.OptionDescsMap.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(optionId),
+                std::forward_as_tuple(type, name, description));
 
-        return s.str();
+        categoryDesc.OptionDescIdByNameMap.emplace(name, optionId);
+        if (shortName != '-')
+            categoryDesc.OptionDescIdByShortNameMap.emplace(shortName, optionId);
+
+        return optionId;
     }
 
     //------------------------------------------------------------------------------------------------
-    CCommand::CCommand(const char* name, const char* description, int scopeId) :
-        m_ScopeId(scopeId),
-        m_Description(description ? description : "")
+    Status CCommandReader::ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression)
     {
-        if (name)
-            m_Name = name;
-    }
-
-    //------------------------------------------------------------------------------------------------
-    CCommand* CCommand::DeclareCommand(const char* name, const char* description, int scopeId)
-    {
-        auto it = m_InnerCommands.find(name);
-        if (it != m_InnerCommands.end())
-            throw Exception(Status::DuplicateCommand);
-
-        auto result = m_InnerCommands.emplace(name, std::make_shared<CCommand>(name, description, scopeId));
-        result.first->second->m_pOuterCommand = this;
-        return result.first->second.get();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    std::string CCommand::CommandScopeString() const
-    {
-        std::ostringstream s;
-        if (m_pOuterCommand)
+        size_t categoryIndex = 0;
+        size_t levelIndex = commandExpression.AddCategoryLevel(categoryIndex);
+        // Assume the first argument is the app name so select the root category
+        for (int i = 1; i < argc; ++i)
         {
-            s << m_pOuterCommand->CommandScopeString();
-            s << " ";
-        }
+            auto &categoryLevel = commandExpression.m_CategoryLevels[levelIndex];
 
-        s << m_Name;
+            std::string arg(argv[i]);
+            CategoryDesc &categoryDesc = m_CategoryDescs[categoryIndex];
 
-        return s.str();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    std::string CCommand::UsageString() const
-    {
-        std::ostringstream s;
-        s << m_Description << std::endl;
-        s << std::endl;
-        s << "USAGE:" << std::endl;
-        s << std::endl;
-        static const int colwidth = 30;
-
-        std::string commandScopeString = CommandScopeString();
-
-        if (!m_Options.empty())
-        {
-            s << "  " + commandScopeString;
-
-            // Option arguments first
-            for (auto& nko : m_InputOptions)
+            // Is this a variable or switch?
+            if (arg[0] == '-')
             {
-                s << " <" << nko->Name() << ">";
-            }
+                size_t optionId;
 
-            s << " [<options>]" << std::endl;
-        }
-
-        if (!m_InnerCommands.empty())
-        {
-            s << "  " + commandScopeString;
-
-            s << " [<command> [<options>]]" << std::endl;
-        }
-
-        s << std::endl;
-
-        if (!m_InnerCommands.empty())
-        {
-            s << "COMMANDS" << std::endl;
-            s << std::endl;
-
-            for (auto subIt : m_InnerCommands)
-            {
-                s << std::setw(colwidth) << std::left << "  " + subIt.second->Name();
-                s << subIt.second->m_Description << std::endl;
-            };
-        }
-
-        if (!m_Options.empty())
-        {
-            // Input options first
-            for (auto& inputOption : m_InputOptions)
-            {
-                s << " <" << inputOption->Name() << ">";
-            }
-        }
-
-        s << std::endl;
-
-        s << std::endl;
-
-        if (!m_Options.empty())
-        {
-            // Option first
-            s << "OPTIONS" << std::endl;
-            s << std::endl;
-
-            // Option details
-            for (auto& inputOption : m_InputOptions)
-            {
-                s << std::setw(colwidth) << std::left << "  " + OptionUsageString(inputOption.get());
-                s << inputOption->Description() << std::endl;
-            }
-
-            // Keyed-options details
-            for (auto& ko : m_Options)
-            {
-                auto type = ko.second->Type();
-                if (type == OptionType::Input)
-                    continue; // Already dumped
-                s << std::setw(colwidth) << std::left << "  " + OptionUsageString(ko.second.get());
-                if (OptionUsageString(ko.second.get()).length() + 4 > colwidth)
+                // Is this a short or long name
+                if (arg[1] == '-')
                 {
-                    s << std::endl;
-                    s << std::setw(colwidth) << ' ';
-                }
-                s << ko.second->Description() << std::endl;
-            }
-
-            s << std::endl;
-        }
-
-        return s.str();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareBoolSwitchOption(Bool& boundValue, const char* name, const char *description, char shortKey)
-    {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw Exception(Status::DuplicateOption);
-
-        auto insert = m_Options.emplace(name, std::make_shared<CBoolOption>(boundValue, name, description, shortKey));
-        if (shortKey)
-            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
-        return insert.first->second.get();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareSwitchOption(Value& boundValue, const char* name, const char *description, char shortKey)
-    {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw Exception(Status::DuplicateOption);
-
-        auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, description, shortKey));
-        if (shortKey)
-            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
-        return insert.first->second.get();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareSwitchOption(Value& boundValue, const char* name, int domainSize, const char* domainValueStrings[], const char *description, char shortKey)
-    {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw Exception(Status::DuplicateOption);
-
-        Domain domain(domainSize, domainValueStrings);
-        auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, domain, description, shortKey));
-        if (shortKey)
-            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
-        return insert.first->second.get();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareSwitchOption(Value& boundValue, const char* name, const Domain &domain, const char* description, char shortKey)
-    {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw Exception(Status::DuplicateOption);
-
-        auto insert = m_Options.emplace(name, std::make_shared<CSwitchOption>(boundValue, name, domain, description, shortKey));
-        if (shortKey)
-            m_ShortOptions.insert(std::make_pair(shortKey, insert.first->second));
-        return insert.first->second.get();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    const COption* CCommand::DeclareInputOption(Value& boundValue, const char* name, const char* description)
-    {
-        auto it = m_Options.find(name);
-        if (it != m_Options.end())
-            throw Exception(Status::DuplicateOption);
-
-
-        std::shared_ptr<CInputOption> pOption = std::make_shared<CInputOption>(boundValue, name, description);
-
-        // Add the option to the declared options map
-        m_Options.insert(std::make_pair(name, pOption));
-
-        // Add to the array of input options
-        m_InputOptions.push_back(pOption);
-        return m_InputOptions.back().get();
-    }
-
-    //------------------------------------------------------------------------------------------------
-    CCommandReader::CCommandReader(const char* appName, const char *defaultDescription) :
-        CCommand(appName, defaultDescription)
-    {
-    }
-
-    //------------------------------------------------------------------------------------------------
-    CCommand *CCommandReader::PreReadCommandArguments(int argc, const char* argv[])
-    {
-        m_ArgList = CArgumentList(argc, argv);
-        m_ArgIt = m_ArgList.Begin();
-
-        CCommand *pCommand = this;
-
-        ++m_ArgIt;
-        while (m_ArgIt != m_ArgList.End())
-        {
-            auto subIt = pCommand->m_InnerCommands.find(m_ArgList.At(m_ArgIt));
-            if (subIt == pCommand->m_InnerCommands.end())
-                break;
-            pCommand = subIt->second.get();
-            ++m_ArgIt;
-        }
-
-        return pCommand;
-    }
-
-    //------------------------------------------------------------------------------------------------
-    Status CCommandReader::ReadOptionArguments(const CCommand *pCommand)
-    {
-        Status result = Status::Success;
-
-        if (m_ArgIt == m_ArgList.End())
-        {
-            return result;
-        }
-
-        // Parse the options
-        while(m_ArgIt != m_ArgList.End())
-        {
-            if (m_ArgList.At(m_ArgIt)[0] == '-')
-            {
-                const COption* pOption = nullptr;
-
-                if (m_ArgList.At(m_ArgIt)[1] == '-')
-                {
-                    // Long-form option
-                    auto optIt = pCommand->m_Options.find(m_ArgList.At(m_ArgIt).substr(2));
-                    if (optIt == pCommand->m_Options.end() || optIt->second->Type() == OptionType::Input)
-                    {
-                        result = Status::UnknownOption;
-                        return result;
-                    }
-                    pOption = optIt->second.get();
+                    // Long name
+                    std::string name(arg.substr(2));
+                    auto it = categoryDesc.OptionDescIdByNameMap.find(name);
+                    if (it == categoryDesc.OptionDescIdByNameMap.end())
+                        return Status::UnknownOption;
+                    
+                    optionId = it->second;
                 }
                 else
                 {
-                    auto optIt = pCommand->m_ShortOptions.find(m_ArgList.At(m_ArgIt)[1]);
-                    if (optIt == pCommand->m_ShortOptions.end())
-                    {
-                        result = Status::UnknownOption;
-                        return result;
-                    }
-                    pOption = optIt->second.get();
+                    // Short name
+                    if (arg[1] == '\0' || arg[2] != '\0')
+                        return Status::UnexpectedArgument;
+                    
+                    auto it = categoryDesc.OptionDescIdByShortNameMap.find(arg[1]);
+                    if (it == categoryDesc.OptionDescIdByShortNameMap.end())
+                        return Status::UnknownOption;
+
+                    optionId = it->second;
                 }
 
-                if (pOption)
+                const OptionDesc &variableDesc = categoryDesc.OptionDescsMap.at(optionId);
+
+                if (variableDesc.Type == OptionType::Variable)
                 {
-                    result = pOption->ParseArgs(m_ArgList, m_ArgIt);
-                    if (result != Status::Success)
-                        return result;
+                    // Read the value
+                    ++i;
+                    if (i >= argc)
+                        return Status::MissingVariableValue;
+                    
+                    std::string value(argv[i]);
+
+                    if(value[0] == '-')
+                        return Status::MissingVariableValue;
+
+                    if (variableDesc.Domain.size() > 0)
+                    {
+                        // Verify the value is in the declared domain
+                        auto dit = variableDesc.Domain.find(value);
+
+                        if (dit == variableDesc.Domain.end())
+                            return Status::InvalidValue;
+                    }
+                    
+                    commandExpression.m_VariableAndParameterMap.emplace(optionId, value);
+                }
+                else
+                {
+                    commandExpression.m_Switches.emplace(optionId);
                 }
             }
             else
             {
-                // Assume input option
-                if (m_InputOptionArgsRead == pCommand->m_InputOptions.size())
+                // Is this a sub-category?
+                auto it = categoryDesc.SubCategoryMap.find(argv[i]);
+                if (it != categoryDesc.SubCategoryMap.end())
                 {
-                    result = Status::UnexpectedArgument;
-                    return result;
+                    levelIndex = commandExpression.AddCategoryLevel(it->second);
+                    categoryIndex = it->second;
                 }
-
-                result = pCommand->m_InputOptions[m_InputOptionArgsRead]->ParseArgs(m_ArgList, m_ArgIt);
-                if (result != Status::Success)
-                    return result;
-                m_InputOptionArgsRead++;
+                else
+                {
+                    if (categoryLevel.ParameterCount == categoryDesc.ParameterIds.size())
+                    {
+                        return Status::UnexpectedArgument;
+                    }
+                    else
+                    {
+                        size_t parameterId = categoryDesc.ParameterIds[categoryLevel.ParameterCount];
+                        commandExpression.m_VariableAndParameterMap.emplace(parameterId, argv[i]);
+                        categoryLevel.ParameterCount++;
+                    }
+                }
             }
         }
 
-        return result;
+        return Status::Success;
     }
 
     //------------------------------------------------------------------------------------------------
-    Status CCommandReader::ReadArguments(int argc, const char* argv[])
-    {
-        CCommand *pCommand = PreReadCommandArguments(argc, argv);
-
-        m_InputOptionArgsRead = 0;
-        m_LastStatus = Status::Success;
-
-        return ReadOptionArguments(pCommand);
-    }
-
-    //------------------------------------------------------------------------------------------------
-    std::string CCommandReader::LastErrorString() const
+    std::string CCommandReader::SimpleUsageString(size_t categoryId) const
     {
         std::ostringstream s;
+        const CategoryDesc &catDesc = m_CategoryDescs[categoryId];
 
-        switch (m_LastStatus)
+        for (auto it = catDesc.SubCategoryMap.begin(); it != catDesc.SubCategoryMap.end(); ++it)
         {
-        case Status::Success:
-            s << "Success";
-            break;
-
-        case Status::UnexpectedArgument:
-            s << "Unexpected Argument: \"" << m_ArgList.At(m_ArgIt) << "\"";
-            break;
-
-        case Status::InvalidValue:
-            s << "Invalid Value: \"" << m_ArgList.At(m_ArgIt) << "\"";
-            break;
-
-        case Status::MissingOptionValue:
-            s << "Missing Option Value";
-            break;
-
-        case Status::UnknownOption:
-            s << "Unknown Option: \"" << m_ArgList.At(m_ArgIt) << "\"";
-            break;
-
-        default:
-            s << "Unknown Error";
-            break;
+            s << SimpleUsageString(it->second);
         }
 
-        return s.str();
+        std::stack<size_t> categoryStack;
+        for (size_t id = categoryId; id != size_t(0 - 1); id = m_CategoryDescs[id].ParentId)
+        {
+            categoryStack.push(id);
+        }
 
+        while (!categoryStack.empty())
+        {
+            s << m_CategoryDescs[categoryStack.top()].Name;
+            categoryStack.pop();
+            s << " ";
+        }
+
+        // Parameters
+        for (auto it = catDesc.ParameterDescsMap.begin(); it != catDesc.ParameterDescsMap.end(); ++it)
+        {
+            s << "[<" << it->second.Name << ">]";
+            s << " ";
+        }
+
+        // Switches and Variables
+        for (auto it = catDesc.OptionDescsMap.begin(); it != catDesc.OptionDescsMap.end(); ++it)
+        {
+            s << "[--" << it->second.Name;
+            if (it->second.Type == OptionType::Variable)
+                s << " <value>";
+            s << "] ";
+        }
+
+        s << std::endl;
+
+        return s.str();
     }
 
+    std::string CCommandReader::OptionDetailsString(size_t categoryId) const
+    {
+        std::ostringstream s;
+        const CategoryDesc &catDesc = m_CategoryDescs[categoryId];
+        static const int colwidth = 30;
+
+        // For the given category level, list out all options with
+        // a non-empty description.
+
+        // Parameters
+        for (auto it = catDesc.ParameterDescsMap.begin(); it != catDesc.ParameterDescsMap.end(); ++it)
+        {
+            if (!it->second.Description.empty())
+            {
+                s << std::setw(colwidth) << std::left << "  " + it->second.Name << it->second.Description << std::endl;
+            }
+        }
+
+        // Switches and Variables
+        for (auto it = catDesc.OptionDescsMap.begin(); it != catDesc.OptionDescsMap.end(); ++it)
+        {
+            if (!it->second.Description.empty())
+            {
+                s << std::setw(colwidth) << std::left << "  --" + it->second.Name;
+                if (it->second.Name.length() + 4 > colwidth)
+                {
+                    s << std::endl;
+                    s << std::setw(colwidth) << ' ';
+                }
+                s << it->second.Description << std::endl;
+            }
+        }
+
+        s << std::endl;
+
+        return s.str();
+    }
+
+    //------------------------------------------------------------------------------------------------
+    // std::string CCommandReader::UsageString(size_t) const
+    // {
+    //     return std::string();
+
+        // std::ostringstream s;
+        // s << "USAGE:" << std::endl;
+        // s << std::endl;
+        // static const int colwidth = 30;
+
+        // if (!m_Options.empty())
+        // {
+        //     s << "  " + commandScopeString;
+
+        //     // Option arguments first
+        //     for (auto& nko : m_InputOptions)
+        //     {
+        //         s << " <" << nko->Name() << ">";
+        //     }
+
+        //     s << " [<options>]" << std::endl;
+        // }
+
+        // if (!m_InnerCommands.empty())
+        // {
+        //     s << "  " + commandScopeString;
+
+        //     s << " [<command> [<options>]]" << std::endl;
+        // }
+
+        // s << std::endl;
+
+        // if (!m_InnerCommands.empty())
+        // {
+        //     s << "COMMANDS" << std::endl;
+        //     s << std::endl;
+
+        //     for (auto subIt : m_InnerCommands)
+        //     {
+        //         s << std::setw(colwidth) << std::left << "  " + subIt.second->Name();
+        //         s << subIt.second->m_Description << std::endl;
+        //     };
+        // }
+
+        // if (!m_Options.empty())
+        // {
+        //     // Input options first
+        //     for (auto& inputOption : m_InputOptions)
+        //     {
+        //         s << " <" << inputOption->Name() << ">";
+        //     }
+        // }
+
+        // s << std::endl;
+
+        // s << std::endl;
+
+        // if (!m_Options.empty())
+        // {
+        //     // Option first
+        //     s << "OPTIONS" << std::endl;
+        //     s << std::endl;
+
+        //     // Option details
+        //     for (auto& inputOption : m_InputOptions)
+        //     {
+        //         s << std::setw(colwidth) << std::left << "  " + OptionUsageString(inputOption.get());
+        //         s << inputOption->Description() << std::endl;
+        //     }
+
+        //     // Keyed-options details
+        //     for (auto& ko : m_Options)
+        //     {
+        //         auto type = ko.second->Type();
+        //         if (type == OptionType::Input)
+        //             continue; // Already dumped
+        //         s << std::setw(colwidth) << std::left << "  " + OptionUsageString(ko.second.get());
+        //         if (OptionUsageString(ko.second.get()).length() + 4 > colwidth)
+        //         {
+        //             s << std::endl;
+        //             s << std::setw(colwidth) << ' ';
+        //         }
+        //         s << ko.second->Description() << std::endl;
+        //     }
+
+        //     s << std::endl;
+        // }
+
+        // return s.str();
+    // }
 }
