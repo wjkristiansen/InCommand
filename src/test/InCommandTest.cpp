@@ -5,17 +5,17 @@
 TEST(InCommand, BasicOptions)
 {
     InCommand::CCommandReader reader("test");
-    size_t catId_foo = reader.DeclareCategory(0, "foo", "Something to do with foo");
-    size_t catId_bar = reader.DeclareCategory(0, "bar", "Something to do with bar");
-    size_t catId_bar_baz = reader.DeclareCategory(catId_bar, "baz", "Something to do with baz");
-    size_t catId_zap = reader.DeclareCategory(0, "zap", "Something to do with zap");
-    auto switchId_help = reader.DeclareSwitch(0, "help", "Ask for help", 'h');
-    auto varId_foo_number = reader.DeclareVariable(catId_foo, "number", "A number");
-    auto varId_bar_word = reader.DeclareVariable(catId_bar, "word", "A word");
-    auto varId_bar_name = reader.DeclareVariable(catId_bar, "name", "A name", 'n');
-    auto varId_bar_baz_color = reader.DeclareVariable(catId_bar_baz, "color", "A color", { "red", "green", "blue", "yellow", "purple" });
-    size_t paramId_zap_file1 = reader.DeclareParameter(catId_zap, "file1", "file 1");
-    size_t paramId_zap_file2 = reader.DeclareParameter(catId_zap, "file2", "file 2");
+    size_t catId_foo = reader.DeclareCategory(0, "foo");
+    size_t catId_bar = reader.DeclareCategory(0, "bar");
+    size_t catId_bar_baz = reader.DeclareCategory(catId_bar, "baz");
+    size_t catId_zap = reader.DeclareCategory(0, "zap");
+    auto switchId_help = reader.DeclareSwitch(0, "help", 'h');
+    auto varId_foo_number = reader.DeclareVariable(catId_foo, "number");
+    auto varId_bar_word = reader.DeclareVariable(catId_bar, "word");
+    auto varId_bar_name = reader.DeclareVariable(catId_bar, "name", 'n');
+    auto varId_bar_baz_color = reader.DeclareVariable(catId_bar_baz, "color", { "red", "green", "blue", "yellow", "purple" });
+    size_t paramId_zap_file1 = reader.DeclareParameter(catId_zap, "file1");
+    size_t paramId_zap_file2 = reader.DeclareParameter(catId_zap, "file2");
 
     {
         const char *argv[] =
@@ -339,9 +339,9 @@ TEST(InCommand, Errors)
 
         InCommand::CCommandReader CmdReader("app");
 
-        const size_t gotoId = CmdReader.DeclareCategory(0, "goto", "");
-        CmdReader.DeclareSwitch(gotoId, "fop", "");
-        CmdReader.DeclareVariable(gotoId, "bar", "");
+        const size_t gotoId = CmdReader.DeclareCategory(0, "goto");
+        CmdReader.DeclareSwitch(gotoId, "fop");
+        CmdReader.DeclareVariable(gotoId, "bar");
 
         InCommand::CCommandExpression cmdExp;
         EXPECT_EQ(InCommand::Status::UnknownOption, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
@@ -353,8 +353,8 @@ TEST(InCommand, Errors)
 
         InCommand::CCommandReader CmdReader("app");
 
-        size_t gotoId = CmdReader.DeclareCategory(0, "goto", "");
-        CmdReader.DeclareVariable(0, "foo", "", {"cat", "dog", "fish"});
+        size_t gotoId = CmdReader.DeclareCategory(0, "goto");
+        CmdReader.DeclareVariable(0, "foo", {"cat", "dog", "fish"});
 
         InCommand::CCommandExpression cmdExp;
         EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
@@ -365,7 +365,7 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CCommandReader CmdReader("app");
-        CmdReader.DeclareVariable(0, "foo", "", {"cat", "dog", "fish"});
+        CmdReader.DeclareVariable(0, "foo", {"cat", "dog", "fish"});
 
         InCommand::CCommandExpression cmdExp;
         EXPECT_EQ(InCommand::Status::MissingVariableValue, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
@@ -376,8 +376,8 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CCommandReader CmdReader("app");
-        CmdReader.DeclareVariable(0, "foo", "", { "cat", "dog", "fish" });
-        CmdReader.DeclareSwitch(0, "bar", "");
+        CmdReader.DeclareVariable(0, "foo", { "cat", "dog", "fish" });
+        CmdReader.DeclareSwitch(0, "bar");
 
         InCommand::CCommandExpression cmdExp;
         EXPECT_EQ(InCommand::Status::MissingVariableValue, CmdReader.ReadCommandExpression(argc, argv, cmdExp));
@@ -389,7 +389,7 @@ TEST(InCommand, Errors)
 
         InCommand::CCommandReader CmdReader("app");
 
-        CmdReader.DeclareVariable(0, "foo", "", { "1", "3", "5" });
+        CmdReader.DeclareVariable(0, "foo", { "1", "3", "5" });
 
         InCommand::CCommandExpression cmdExp;
         EXPECT_EQ(InCommand::Status::InvalidValue, CmdReader.ReadCommandExpression(argc, argv, cmdExp));

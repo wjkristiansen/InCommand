@@ -14,17 +14,17 @@ int main(int argc, const char *argv[])
     assert(cat_Add == 1);
     assert(cat_Mul == 2);
 
-    auto switch_Help = cmdReader.DeclareSwitch(0, "help", "", 'h');
+    auto switch_Help = cmdReader.DeclareSwitch(0, "help", 'h');
 
-    auto switch_Add_Help = cmdReader.DeclareSwitch(cat_Add, "help", "", 'h');
+    auto switch_Add_Help = cmdReader.DeclareSwitch(cat_Add, "help", 'h');
     auto param_Add_Val1 = cmdReader.DeclareParameter(cat_Add, "value1", "First add value");
     auto param_Add_Val2 = cmdReader.DeclareParameter(cat_Add, "value2", "Second add value");
-    auto var_Add_Message = cmdReader.DeclareVariable(cat_Add, "message", "Print <message> N-times where N = value1 + value2", 'm');
+    auto var_Add_Message = cmdReader.DeclareVariable(cat_Add, "message", 'm', "Print <message> N-times where N = value1 + value2");
 
-    auto switch_Mul_Help = cmdReader.DeclareSwitch(cat_Mul, "help", "", 'h');
+    auto switch_Mul_Help = cmdReader.DeclareSwitch(cat_Mul, "help", 'h');
     auto param_Mul_Val1 = cmdReader.DeclareParameter(cat_Mul, "value1", "First multiply value");
     auto param_Mul_Val2 = cmdReader.DeclareParameter(cat_Mul, "value2", "Second multiply value");
-    auto var_Mul_Message = cmdReader.DeclareVariable(cat_Mul, "message", "Print <message> N-times where N = value1 * value2", 'm');
+    auto var_Mul_Message = cmdReader.DeclareVariable(cat_Mul, "message", 'm', "Print <message> N-times where N = value1 * value2");
 
     InCommand::CCommandExpression cmdExp;
     if (InCommand::Status::Success != cmdReader.ReadCommandExpression(argc, argv, cmdExp))

@@ -182,9 +182,9 @@ namespace InCommand
             OptionType type,
             size_t categoryId,
             const std::string &name,
-            const std::string &description,
+            char shortName,
             const std::vector<std::string> &domain,
-            char shortName);
+            const std::string &description);
 
     private:
         size_t m_NextOptionId = 1;
@@ -196,7 +196,7 @@ namespace InCommand
         {
         }
 
-        size_t DeclareCategory(size_t parentId, const std::string &name, const std::string &description)
+        size_t DeclareCategory(size_t parentId, const std::string &name, const std::string &description = std::string())
         {
             if (parentId >= m_CategoryDescs.size())
                 throw Exception(Status::OutOfRange);
@@ -207,7 +207,7 @@ namespace InCommand
             return id;
         }
 
-        size_t DeclareParameter(size_t categoryId, const std::string &name, const std::string &description)
+        size_t DeclareParameter(size_t categoryId, const std::string &name, const std::string &description = std::string())
         {
             if (categoryId >= m_CategoryDescs.size())
                 throw Exception(Status::OutOfRange);
@@ -221,34 +221,34 @@ namespace InCommand
             return index;
         }
 
-        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description)
+        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, description, {}, '-');
+            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, '-', {}, description);
         }
 
-        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description, const std::vector<std::string> &domain)
+        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::vector<std::string> &domain, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, description, domain, '-');
+            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, '-', domain, description);
         }
 
-        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description, char shortName)
+        size_t DeclareVariable(size_t categoryId, const std::string &name, char shortName, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, description, {}, shortName);
+            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, shortName, {}, description);
         }
 
-        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description, const std::vector<std::string> &domain, char shortName)
+        size_t DeclareVariable(size_t categoryId, const std::string &name, char shortName, const std::vector<std::string> &domain, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, description, domain, shortName);
+            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, shortName, domain, description);
         }
 
-        size_t DeclareSwitch(size_t categoryId, const std::string &name, const std::string &description)
+        size_t DeclareSwitch(size_t categoryId, const std::string &name, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Switch, categoryId, name, description, {}, '-');
+            return AddVariableOrSwitchOption(OptionType::Switch, categoryId, name, '-', {}, description);
         }
 
-        size_t DeclareSwitch(size_t categoryId, const std::string &name, const std::string &description, char shortName)
+        size_t DeclareSwitch(size_t categoryId, const std::string &name, char shortName, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Switch, categoryId, name, description, {}, shortName);
+            return AddVariableOrSwitchOption(OptionType::Switch, categoryId, name, shortName, {}, description);
         }
 
         Status ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression);

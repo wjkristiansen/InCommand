@@ -11,9 +11,9 @@ namespace InCommand
         OptionType type,
         size_t categoryId,
         const std::string &name,
-        const std::string &description,
+        char shortName,
         const std::vector<std::string> &domain,
-        char shortName)
+        const std::string &description)
     {
         if (categoryId >= m_CategoryDescs.size())
             throw Exception(Status::OutOfRange);
