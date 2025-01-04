@@ -104,6 +104,12 @@ namespace InCommand
             return it->second;
         }
 
+        bool GetParameterIsSet(size_t parameterId) const
+        {
+            auto it = m_VariableAndParameterMap.find(parameterId);
+            return it != m_VariableAndParameterMap.end();
+        }
+
         bool GetVariableIsSet(size_t variableId) const
         {
             auto it = m_VariableAndParameterMap.find(variableId);

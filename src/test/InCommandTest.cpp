@@ -168,29 +168,56 @@ TEST(InCommand, BasicOptions)
 
 TEST(InCommand, Parameters)
 {
-    const char* argv[] =
-    {
-        "foo",
-        "myfile1.txt",
-        "--some-switch",
-        "myfile2.txt",
-        "myfile3.txt",
-    };
-    const int argc = sizeof(argv) / sizeof(argv[0]);
-
     InCommand::CCommandReader CmdReader("app");
     size_t fileId1 = CmdReader.DeclareParameter(0, "file1", "file 1");
     size_t fileId2 = CmdReader.DeclareParameter(0, "file2", "file 2");
     size_t fileId3 = CmdReader.DeclareParameter(0, "file3", "file 3");
     size_t someSwitchId = CmdReader.DeclareSwitch(0, "some-switch", "Some switch");
 
-    InCommand::CCommandExpression cmdExpression;
-    EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, cmdExpression));
+    {
+        const char *argv[] =
+        {
+            "foo",
+            "myfile1.txt",
+            "--some-switch",
+            "myfile2.txt",
+            "myfile3.txt",
+        };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
 
-    EXPECT_TRUE(cmdExpression.GetSwitchIsSet(someSwitchId));
-    EXPECT_EQ(cmdExpression.GetParameterValue(fileId1, ""), std::string(argv[1]));
-    EXPECT_EQ(cmdExpression.GetParameterValue(fileId2, ""), std::string(argv[3]));
-    EXPECT_EQ(cmdExpression.GetParameterValue(fileId3, ""), std::string(argv[4]));
+        InCommand::CCommandExpression cmdExpression;
+        EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, cmdExpression));
+
+        EXPECT_TRUE(cmdExpression.GetSwitchIsSet(someSwitchId));
+        EXPECT_EQ(cmdExpression.GetParameterValue(fileId1, ""), std::string(argv[1]));
+        EXPECT_EQ(cmdExpression.GetParameterValue(fileId2, ""), std::string(argv[3]));
+        EXPECT_EQ(cmdExpression.GetParameterValue(fileId3, ""), std::string(argv[4]));
+        EXPECT_TRUE(cmdExpression.GetParameterIsSet(fileId1));
+        EXPECT_TRUE(cmdExpression.GetParameterIsSet(fileId2));
+        EXPECT_TRUE(cmdExpression.GetParameterIsSet(fileId3));
+    }
+
+    {
+        const char *argv[] =
+        {
+            "foo",
+            "myfile1.txt",
+            "--some-switch",
+            "myfile2.txt",
+        };
+        const int argc = sizeof(argv) / sizeof(argv[0]);
+
+        InCommand::CCommandExpression cmdExpression;
+        EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, cmdExpression));
+
+        EXPECT_TRUE(cmdExpression.GetSwitchIsSet(someSwitchId));
+        EXPECT_EQ(cmdExpression.GetParameterValue(fileId1, ""), std::string(argv[1]));
+        EXPECT_EQ(cmdExpression.GetParameterValue(fileId2, ""), std::string(argv[3]));
+        EXPECT_EQ(cmdExpression.GetParameterValue(fileId3, "nope"), "nope");
+        EXPECT_TRUE(cmdExpression.GetParameterIsSet(fileId1));
+        EXPECT_TRUE(cmdExpression.GetParameterIsSet(fileId2));
+        EXPECT_FALSE(cmdExpression.GetParameterIsSet(fileId3));
+    }
 }
 
 template<typename E>
