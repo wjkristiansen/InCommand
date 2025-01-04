@@ -8,13 +8,10 @@ int main(int argc, const char *argv[])
 {
     InCommand::CCommandReader cmdReader("sample");
 
-    auto cat_Add = cmdReader.DeclareCategory(0, "add", "Adds two integers");
-    auto cat_Mul = cmdReader.DeclareCategory(0, "mul", "Multiplies two integers");
+    auto cat_Add = cmdReader.DeclareCategory("add", "Adds two integers");
+    auto cat_Mul = cmdReader.DeclareCategory("mul", "Multiplies two integers");
 
-    assert(cat_Add == 1);
-    assert(cat_Mul == 2);
-
-    auto switch_Help = cmdReader.DeclareSwitch(0, "help", 'h');
+    auto switch_Help = cmdReader.DeclareSwitch("help", 'h');
 
     auto switch_Add_Help = cmdReader.DeclareSwitch(cat_Add, "help", 'h');
     auto param_Add_Val1 = cmdReader.DeclareParameter(cat_Add, "value1", "First add value");
@@ -31,7 +28,7 @@ int main(int argc, const char *argv[])
     {
         //     std::cout << "Command Line Error: " << cmdReader.LastErrorString() << std::endl;
         std::cout << std::endl;
-        std::string helpString = cmdReader.SimpleUsageString(0);
+        std::string helpString = cmdReader.SimpleUsageString(InCommand::RootCategory);
         std::cout << helpString << std::endl;
         return -1;
     }
@@ -39,7 +36,7 @@ int main(int argc, const char *argv[])
     if (cmdExp.GetSwitchIsSet(switch_Help) || cmdExp.GetCategoryDepth() == 1)
     {
         std::cout << std::endl;
-        std::string helpString = cmdReader.SimpleUsageString(0);
+        std::string helpString = cmdReader.SimpleUsageString(InCommand::RootCategory);
         std::cout << helpString << std::endl;
         return 0;
     }
@@ -64,9 +61,9 @@ int main(int argc, const char *argv[])
     int val1;
     int val2;
     std::string message;
-    switch (cmdExp.GetCategoryId(1))
-    {
-    case 1: { // Add
+
+    if(cat_Add == cmdExp.GetCategory(1))
+    { // Add
         auto val1string = cmdExp.GetParameterValue(param_Add_Val1, std::string());
         auto val2string = cmdExp.GetParameterValue(param_Add_Val2, std::string());
 
@@ -83,9 +80,9 @@ int main(int argc, const char *argv[])
         message = cmdExp.GetVariableValue(var_Add_Message, std::string());
         result = val1 + val2;
         std::cout << val1 << " + " << val2 << " = " << result << std::endl;
-        break; }
-
-    case 2: {// Multiply
+    }
+    else if(cat_Mul == cmdExp.GetCategory(1))
+    { // Multiply
         auto val1string = cmdExp.GetParameterValue(param_Mul_Val1, std::string());
         auto val2string = cmdExp.GetParameterValue(param_Mul_Val2, std::string());
 
@@ -102,8 +99,9 @@ int main(int argc, const char *argv[])
         message = cmdExp.GetVariableValue(var_Mul_Message, std::string());
         result = val1 * val2;
         std::cout << val1 << " * " << val2 << " = " << result << std::endl;
-        break; }
-    default:
+    }
+    else
+    {
         return -1;
     }
 

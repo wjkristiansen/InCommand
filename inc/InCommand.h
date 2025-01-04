@@ -15,6 +15,15 @@
 namespace InCommand
 {
     //------------------------------------------------------------------------------------------------
+    enum class ArgumentType
+    {
+        Category,
+        Variable,
+        Switch,
+        Parameter,
+    };
+    
+    //------------------------------------------------------------------------------------------------
     enum class Status : int
     {
         Success,
@@ -26,8 +35,38 @@ namespace InCommand
         TooManyParameters,
         InvalidValue,
         OutOfRange,
-        NotFound
+        NotFound,
+        InvalidHandle,
     };
+
+    template<ArgumentType Type>
+    class HandleHasher;
+
+    template<ArgumentType Type>
+    class Handle
+    {
+        friend class CCommandReader;
+        friend class HandleHasher<Type>;
+        size_t m_Value;
+
+    public:
+        explicit Handle(size_t value) : m_Value(value) {}
+        bool operator<(const Handle &o) const { return m_Value < o.m_Value; }
+        bool operator==(const Handle &o) const { return m_Value == o.m_Value; }
+        bool operator!=(const Handle &o) const { return m_Value != o.m_Value; }
+    };
+
+    template<ArgumentType Type>
+    class HandleHasher
+    {
+    public:
+        size_t operator()(const Handle<Type> &h) const { return h.m_Value; }
+    };
+
+    using CategoryHandle = Handle<ArgumentType::Category>;
+    using ParameterHandle = Handle<ArgumentType::Parameter>;
+    using VariableHandle = Handle<ArgumentType::Variable>;
+    using SwitchHandle = Handle<ArgumentType::Switch>;
 
     //------------------------------------------------------------------------------------------------
     class Exception
@@ -53,23 +92,24 @@ namespace InCommand
 
         struct CategoryLevel
         {
-            CategoryLevel(size_t categoryId) :
-                CategoryId(categoryId)
+            CategoryLevel(CategoryHandle category) :
+                Category(category)
             {
             }
             
-            size_t CategoryId;
+            CategoryHandle Category;
             size_t ParameterCount = 0;
         };
 
         std::vector<CategoryLevel> m_CategoryLevels;
-        std::unordered_map<size_t, std::string> m_VariableAndParameterMap;
-        std::unordered_set<size_t> m_Switches;
+        std::unordered_map<VariableHandle, std::string, HandleHasher<ArgumentType::Variable>> m_VariableMap;
+        std::unordered_map<ParameterHandle, std::string, HandleHasher<ArgumentType::Parameter>> m_ParameterMap;
+        std::unordered_set<SwitchHandle, HandleHasher<ArgumentType::Switch>> m_Switches;
 
-        size_t AddCategoryLevel(size_t categoryId)
+        size_t AddCategoryLevel(CategoryHandle category)
         {
             size_t levelIndex = m_CategoryLevels.size();
-            m_CategoryLevels.push_back(categoryId);
+            m_CategoryLevels.push_back(category);
             return levelIndex;
         }
 
@@ -78,76 +118,72 @@ namespace InCommand
 
         size_t GetCategoryDepth() const { return m_CategoryLevels.size(); }
 
-        size_t GetCategoryId(size_t levelIndex) const
+        CategoryHandle GetCategory(size_t levelIndex) const
         {
             if (levelIndex > m_CategoryLevels.size())
                 throw Exception(Status::OutOfRange);
             
-            return m_CategoryLevels[levelIndex].CategoryId;
+            return m_CategoryLevels[levelIndex].Category;
         }
 
-        const std::string &GetParameterValue(size_t parameterId, const std::string &defaultValue) const
+        const std::string &GetParameterValue(ParameterHandle parameter, const std::string &defaultValue) const
         {
-            auto it = m_VariableAndParameterMap.find(parameterId);
-            if (it == m_VariableAndParameterMap.end())
+            auto it = m_ParameterMap.find(parameter);
+            if (it == m_ParameterMap.end())
                 return defaultValue;
             
             return it->second;
         }
 
-        const std::string &GetVariableValue(size_t variableId, const std::string &defaultValue) const
+        const std::string &GetVariableValue(VariableHandle variable, const std::string &defaultValue) const
         {
-            auto it = m_VariableAndParameterMap.find(variableId);
-            if (it == m_VariableAndParameterMap.end())
+            auto it = m_VariableMap.find(variable);
+            if (it == m_VariableMap.end())
                 return defaultValue;
 
             return it->second;
         }
 
-        bool GetParameterIsSet(size_t parameterId) const
+        bool GetParameterIsSet(ParameterHandle parameter) const
         {
-            auto it = m_VariableAndParameterMap.find(parameterId);
-            return it != m_VariableAndParameterMap.end();
+            auto it = m_ParameterMap.find(parameter);
+            return it != m_ParameterMap.end();
         }
 
-        bool GetVariableIsSet(size_t variableId) const
+        bool GetVariableIsSet(VariableHandle variable) const
         {
-            auto it = m_VariableAndParameterMap.find(variableId);
-            return it != m_VariableAndParameterMap.end();
+            auto it = m_VariableMap.find(variable);
+            return it != m_VariableMap.end();
         }
 
-        bool GetSwitchIsSet(size_t switchId) const
+        bool GetSwitchIsSet(SwitchHandle sh) const
         {
-            auto it = m_Switches.find(switchId);
+            auto it = m_Switches.find(sh);
             return it != m_Switches.end();
         }
     };
 
+    inline const CategoryHandle RootCategory = CategoryHandle(0);
+    inline const CategoryHandle NullCategory = CategoryHandle(size_t(0) - 1);
+
     //------------------------------------------------------------------------------------------------
     class CCommandReader
     {
-        enum class OptionType
-        {
-            Variable,
-            Switch,
-            Parameter,
-        };
-        
         struct OptionDesc
         {
-            OptionType Type;
+            ArgumentType Type;
             std::string Name;
             std::string Description;
             std::set<std::string> Domain;
 
-            OptionDesc(OptionType type, const std::string &name, const std::string &description) :
+            OptionDesc(ArgumentType type, const std::string &name, const std::string &description) :
                 Type(type),
                 Name(name),
                 Description(description)
             {
             }
 
-            OptionDesc(OptionType type, const std::string &name, const std::string &description, const std::vector<std::string> domain) :
+            OptionDesc(ArgumentType type, const std::string &name, const std::string &description, const std::vector<std::string> domain) :
                 Type(type),
                 Name(name),
                 Description(description),
@@ -158,107 +194,136 @@ namespace InCommand
 
         struct CategoryDesc
         {
-            CategoryDesc(size_t parentId, const std::string &name, const std::string &description) :
-                ParentId(parentId),
+            CategoryDesc(CategoryHandle parent, const std::string &name, const std::string &description) :
+                Parent(parent),
                 Name(name),
                 Description(description)
             {
             }
             
-            size_t ParentId;
+            CategoryHandle Parent;
             std::string Name;
             std::string Description;
-            std::map<std::string, size_t> SubCategoryMap;
-            std::map<std::string, size_t> OptionDescIdByNameMap;
-            std::unordered_map<char, size_t> OptionDescIdByShortNameMap;
-            std::unordered_map<size_t, OptionDesc> OptionDescsMap;
-            std::unordered_map<size_t, OptionDesc> ParameterDescsMap;
+            std::map<std::string, CategoryHandle> SubCategoryMap;
+            std::map<std::string, size_t> OptionDescIndexByNameMap;
+            std::unordered_map<char, size_t> OptionDescIndexByShortNameMap;
             std::vector<size_t> ParameterIds;
         };
 
-        CategoryDesc &CategoryDescThrow(size_t categoryId) // throw Exception
+        CategoryDesc &CategoryDescThrow(size_t categoryIndex) // throw Exception
         {
-            if (categoryId >= m_CategoryDescs.size())
+            if (categoryIndex >= m_CategoryDescs.size())
                 throw Exception(Status::OutOfRange);
 
-            return m_CategoryDescs[categoryId];
+            return m_CategoryDescs[categoryIndex];
         }
 
         size_t AddVariableOrSwitchOption(
-            OptionType type,
-            size_t categoryId,
+            ArgumentType type,
+            CategoryHandle category,
             const std::string &name,
             char shortName,
             const std::vector<std::string> &domain,
             const std::string &description);
 
     private:
-        size_t m_NextOptionId = 1;
         std::vector<CategoryDesc> m_CategoryDescs;
+        std::vector<OptionDesc> m_OptionsDescs;
 
     public:
         CCommandReader(const std::string appName) :
-            m_CategoryDescs(1, CategoryDesc(size_t(0 - 1), appName, ""))
+            m_CategoryDescs(1, CategoryDesc(NullCategory, appName, ""))
         {
         }
 
-        size_t DeclareCategory(size_t parentId, const std::string &name, const std::string &description = std::string())
+        CategoryHandle DeclareCategory(CategoryHandle parent, const std::string &name, const std::string &description = std::string())
         {
-            if (parentId >= m_CategoryDescs.size())
+            if (parent.m_Value >= m_CategoryDescs.size())
+                throw Exception(Status::InvalidHandle);
+
+            CategoryHandle category = CategoryHandle(m_CategoryDescs.size());
+            m_CategoryDescs.emplace_back(parent, name, description);
+            m_CategoryDescs[parent.m_Value].SubCategoryMap.emplace(name, category);
+            return category;
+        }
+
+        CategoryHandle DeclareCategory(const std::string &name, const std::string &description = std::string())
+        {
+            return DeclareCategory(RootCategory, name, description);
+        }
+
+        ParameterHandle DeclareParameter(CategoryHandle category, const std::string &name, const std::string &description = std::string())
+        {
+            if (category.m_Value >= m_CategoryDescs.size())
                 throw Exception(Status::OutOfRange);
-
-            size_t id = m_CategoryDescs.size();
-            m_CategoryDescs.emplace_back(parentId, name, description);
-            m_CategoryDescs[parentId].SubCategoryMap.emplace(name, id);
-            return id;
+            size_t index = m_OptionsDescs.size();
+            m_OptionsDescs.emplace_back(ArgumentType::Parameter, name, description);
+            m_CategoryDescs[category.m_Value].ParameterIds.push_back(index);
+            return ParameterHandle(index);
         }
 
-        size_t DeclareParameter(size_t categoryId, const std::string &name, const std::string &description = std::string())
+        ParameterHandle DeclareParameter(const std::string &name, const std::string &description = std::string())
         {
-            if (categoryId >= m_CategoryDescs.size())
-                throw Exception(Status::OutOfRange);
-            size_t index = m_NextOptionId;
-            ++m_NextOptionId;
-            m_CategoryDescs[categoryId].ParameterDescsMap.emplace(
-                std::piecewise_construct,
-                std::forward_as_tuple(index),
-                std::forward_as_tuple(OptionType::Parameter, name, description));
-            m_CategoryDescs[categoryId].ParameterIds.push_back(index);
-            return index;
+            return DeclareParameter(RootCategory, name, description);
         }
 
-        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::string &description = std::string())
+        VariableHandle DeclareVariable(CategoryHandle category, const std::string &name, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, '-', {}, description);
+            return VariableHandle(AddVariableOrSwitchOption(ArgumentType::Variable, category, name, '-', {}, description));
         }
 
-        size_t DeclareVariable(size_t categoryId, const std::string &name, const std::vector<std::string> &domain, const std::string &description = std::string())
+        VariableHandle DeclareVariable(CategoryHandle category, const std::string &name, const std::vector<std::string> &domain, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, '-', domain, description);
+            return VariableHandle(AddVariableOrSwitchOption(ArgumentType::Variable, category, name, '-', domain, description));
         }
 
-        size_t DeclareVariable(size_t categoryId, const std::string &name, char shortName, const std::string &description = std::string())
+        VariableHandle DeclareVariable(const std::string &name, const std::vector<std::string> &domain, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, shortName, {}, description);
+            return DeclareVariable(RootCategory, name, domain, description);
         }
 
-        size_t DeclareVariable(size_t categoryId, const std::string &name, char shortName, const std::vector<std::string> &domain, const std::string &description = std::string())
+        VariableHandle DeclareVariable(CategoryHandle category, const std::string &name, char shortName, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Variable, categoryId, name, shortName, domain, description);
+            return VariableHandle(AddVariableOrSwitchOption(ArgumentType::Variable, category, name, shortName, {}, description));
         }
 
-        size_t DeclareSwitch(size_t categoryId, const std::string &name, const std::string &description = std::string())
+        VariableHandle DeclareVariable(const std::string &name, char shortName, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Switch, categoryId, name, '-', {}, description);
+            return DeclareVariable(RootCategory, name, shortName, description);
         }
 
-        size_t DeclareSwitch(size_t categoryId, const std::string &name, char shortName, const std::string &description = std::string())
+        VariableHandle DeclareVariable(CategoryHandle category, const std::string &name, char shortName, const std::vector<std::string> &domain, const std::string &description = std::string())
         {
-            return AddVariableOrSwitchOption(OptionType::Switch, categoryId, name, shortName, {}, description);
+            return VariableHandle(AddVariableOrSwitchOption(ArgumentType::Variable, category, name, shortName, domain, description));
+        }
+        
+        VariableHandle DeclareVariable(const std::string &name, char shortName, const std::vector<std::string> &domain, const std::string &description = std::string())
+        {
+            return DeclareVariable(RootCategory, name, shortName, domain, description);
+        }
+
+        SwitchHandle DeclareSwitch(CategoryHandle category, const std::string &name, const std::string &description = std::string())
+        {
+            return SwitchHandle(AddVariableOrSwitchOption(ArgumentType::Switch, category, name, '-', {}, description));
+        }
+
+        SwitchHandle DeclareSwitch(const std::string &name, const std::string &description = std::string())
+        {
+            return DeclareSwitch(RootCategory, name, description);
+        }
+
+        SwitchHandle DeclareSwitch(CategoryHandle category, const std::string &name, char shortName, const std::string &description = std::string())
+        {
+            return SwitchHandle(AddVariableOrSwitchOption(ArgumentType::Switch, category, name, shortName, {}, description));
+        }
+        
+        SwitchHandle DeclareSwitch(const std::string &name, char shortName, const std::string &description = std::string())
+        {
+            return DeclareSwitch(RootCategory, name, shortName, description);
         }
 
         Status ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression);
-        std::string SimpleUsageString(size_t categoryId) const;
-        std::string OptionDetailsString(size_t categoryId) const;
+        std::string SimpleUsageString(CategoryHandle category) const;
+        std::string OptionDetailsString(CategoryHandle category) const;
     };
 }

@@ -8,46 +8,39 @@ namespace InCommand
 {
     //------------------------------------------------------------------------------------------------
     size_t CCommandReader::AddVariableOrSwitchOption(
-        OptionType type,
-        size_t categoryId,
+        ArgumentType type,
+        CategoryHandle category,
         const std::string &name,
         char shortName,
         const std::vector<std::string> &domain,
         const std::string &description)
     {
-        if (categoryId >= m_CategoryDescs.size())
-            throw Exception(Status::OutOfRange);
+        if (category.m_Value >= m_CategoryDescs.size())
+            throw Exception(Status::InvalidHandle);
 
-        auto &categoryDesc = m_CategoryDescs[categoryId];
+        auto &categoryDesc = m_CategoryDescs[category.m_Value];
 
-        if (categoryDesc.OptionDescIdByNameMap.find(name) != categoryDesc.OptionDescIdByNameMap.end())
+        if (categoryDesc.OptionDescIndexByNameMap.find(name) != categoryDesc.OptionDescIndexByNameMap.end())
             throw Exception(Status::DuplicateOption);
 
-        size_t optionId = m_NextOptionId;
-        ++m_NextOptionId;
-        if(type == OptionType::Variable && domain.size() > 0)
-            categoryDesc.OptionDescsMap.emplace(
-                std::piecewise_construct,
-                std::forward_as_tuple(optionId),
-                std::forward_as_tuple(OptionType::Variable, name, description, domain));
+        size_t optionIndex = m_OptionsDescs.size();
+        if(type == ArgumentType::Variable && domain.size() > 0)
+            m_OptionsDescs.emplace_back(ArgumentType::Variable, name, description, domain);
         else
-            categoryDesc.OptionDescsMap.emplace(
-                std::piecewise_construct,
-                std::forward_as_tuple(optionId),
-                std::forward_as_tuple(type, name, description));
+            m_OptionsDescs.emplace_back(type, name, description);
 
-        categoryDesc.OptionDescIdByNameMap.emplace(name, optionId);
+        categoryDesc.OptionDescIndexByNameMap.emplace(name, optionIndex);
         if (shortName != '-')
-            categoryDesc.OptionDescIdByShortNameMap.emplace(shortName, optionId);
+            categoryDesc.OptionDescIndexByShortNameMap.emplace(shortName, optionIndex);
 
-        return optionId;
+        return optionIndex;
     }
 
     //------------------------------------------------------------------------------------------------
     Status CCommandReader::ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression)
     {
         size_t categoryIndex = 0;
-        size_t levelIndex = commandExpression.AddCategoryLevel(categoryIndex);
+        size_t levelIndex = commandExpression.AddCategoryLevel(RootCategory);
         // Assume the first argument is the app name so select the root category
         for (int i = 1; i < argc; ++i)
         {
@@ -59,18 +52,18 @@ namespace InCommand
             // Is this a variable or switch?
             if (arg[0] == '-')
             {
-                size_t optionId;
+                size_t optionIndex;
 
                 // Is this a short or long name
                 if (arg[1] == '-')
                 {
                     // Long name
                     std::string name(arg.substr(2));
-                    auto it = categoryDesc.OptionDescIdByNameMap.find(name);
-                    if (it == categoryDesc.OptionDescIdByNameMap.end())
+                    auto it = categoryDesc.OptionDescIndexByNameMap.find(name);
+                    if (it == categoryDesc.OptionDescIndexByNameMap.end())
                         return Status::UnknownOption;
                     
-                    optionId = it->second;
+                    optionIndex = it->second;
                 }
                 else
                 {
@@ -78,16 +71,16 @@ namespace InCommand
                     if (arg[1] == '\0' || arg[2] != '\0')
                         return Status::UnexpectedArgument;
                     
-                    auto it = categoryDesc.OptionDescIdByShortNameMap.find(arg[1]);
-                    if (it == categoryDesc.OptionDescIdByShortNameMap.end())
+                    auto it = categoryDesc.OptionDescIndexByShortNameMap.find(arg[1]);
+                    if (it == categoryDesc.OptionDescIndexByShortNameMap.end())
                         return Status::UnknownOption;
 
-                    optionId = it->second;
+                    optionIndex = it->second;
                 }
 
-                const OptionDesc &variableDesc = categoryDesc.OptionDescsMap.at(optionId);
+                const OptionDesc &optionDesc = m_OptionsDescs.at(optionIndex);
 
-                if (variableDesc.Type == OptionType::Variable)
+                if (optionDesc.Type == ArgumentType::Variable)
                 {
                     // Read the value
                     ++i;
@@ -99,20 +92,20 @@ namespace InCommand
                     if(value[0] == '-')
                         return Status::MissingVariableValue;
 
-                    if (variableDesc.Domain.size() > 0)
+                    if (optionDesc.Domain.size() > 0)
                     {
                         // Verify the value is in the declared domain
-                        auto dit = variableDesc.Domain.find(value);
+                        auto dit = optionDesc.Domain.find(value);
 
-                        if (dit == variableDesc.Domain.end())
+                        if (dit == optionDesc.Domain.end())
                             return Status::InvalidValue;
                     }
                     
-                    commandExpression.m_VariableAndParameterMap.emplace(optionId, value);
+                    commandExpression.m_VariableMap.emplace(VariableHandle(optionIndex), value);
                 }
                 else
                 {
-                    commandExpression.m_Switches.emplace(optionId);
+                    commandExpression.m_Switches.emplace(SwitchHandle(optionIndex));
                 }
             }
             else
@@ -122,7 +115,7 @@ namespace InCommand
                 if (it != categoryDesc.SubCategoryMap.end())
                 {
                     levelIndex = commandExpression.AddCategoryLevel(it->second);
-                    categoryIndex = it->second;
+                    categoryIndex = it->second.m_Value;
                 }
                 else
                 {
@@ -132,8 +125,8 @@ namespace InCommand
                     }
                     else
                     {
-                        size_t parameterId = categoryDesc.ParameterIds[categoryLevel.ParameterCount];
-                        commandExpression.m_VariableAndParameterMap.emplace(parameterId, argv[i]);
+                        ParameterHandle parameter = ParameterHandle(categoryDesc.ParameterIds[categoryLevel.ParameterCount]);
+                        commandExpression.m_ParameterMap.emplace(parameter, argv[i]);
                         categoryLevel.ParameterCount++;
                     }
                 }
@@ -144,41 +137,43 @@ namespace InCommand
     }
 
     //------------------------------------------------------------------------------------------------
-    std::string CCommandReader::SimpleUsageString(size_t categoryId) const
+    std::string CCommandReader::SimpleUsageString(CategoryHandle category) const
     {
         std::ostringstream s;
-        const CategoryDesc &catDesc = m_CategoryDescs[categoryId];
+        const CategoryDesc &catDesc = m_CategoryDescs[category.m_Value];
 
         for (auto it = catDesc.SubCategoryMap.begin(); it != catDesc.SubCategoryMap.end(); ++it)
         {
             s << SimpleUsageString(it->second);
         }
 
-        std::stack<size_t> categoryStack;
-        for (size_t id = categoryId; id != size_t(0 - 1); id = m_CategoryDescs[id].ParentId)
+        std::stack<CategoryHandle> categoryStack;
+        for (CategoryHandle ch = category; ch != NullCategory; ch = m_CategoryDescs[ch.m_Value].Parent)
         {
-            categoryStack.push(id);
+            categoryStack.push(ch);
         }
 
         while (!categoryStack.empty())
         {
-            s << m_CategoryDescs[categoryStack.top()].Name;
+            s << m_CategoryDescs[categoryStack.top().m_Value].Name;
             categoryStack.pop();
             s << " ";
         }
 
         // Parameters
-        for (auto it = catDesc.ParameterDescsMap.begin(); it != catDesc.ParameterDescsMap.end(); ++it)
+        for (auto it = catDesc.ParameterIds.begin(); it != catDesc.ParameterIds.end(); ++it)
         {
-            s << "[<" << it->second.Name << ">]";
+            const OptionDesc &parameterDesc = m_OptionsDescs[*it];
+            s << "[<" << parameterDesc.Name << ">]";
             s << " ";
         }
 
         // Switches and Variables
-        for (auto it = catDesc.OptionDescsMap.begin(); it != catDesc.OptionDescsMap.end(); ++it)
+        for (auto it = catDesc.OptionDescIndexByNameMap.begin(); it != catDesc.OptionDescIndexByNameMap.end(); ++it)
         {
-            s << "[--" << it->second.Name;
-            if (it->second.Type == OptionType::Variable)
+            const OptionDesc &desc = m_OptionsDescs[it->second];
+            s << "[--" << desc.Name;
+            if (desc.Type == ArgumentType::Variable)
                 s << " <value>";
             s << "] ";
         }
@@ -188,36 +183,38 @@ namespace InCommand
         return s.str();
     }
 
-    std::string CCommandReader::OptionDetailsString(size_t categoryId) const
+    std::string CCommandReader::OptionDetailsString(CategoryHandle category) const
     {
         std::ostringstream s;
-        const CategoryDesc &catDesc = m_CategoryDescs[categoryId];
+        const CategoryDesc &catDesc = m_CategoryDescs[category.m_Value];
         static const int colwidth = 30;
 
         // For the given category level, list out all options with
         // a non-empty description.
 
         // Parameters
-        for (auto it = catDesc.ParameterDescsMap.begin(); it != catDesc.ParameterDescsMap.end(); ++it)
+        for (auto it = catDesc.ParameterIds.begin(); it != catDesc.ParameterIds.end(); ++it)
         {
-            if (!it->second.Description.empty())
+            const OptionDesc &parameterDesc = m_OptionsDescs[*it];
+            if (!parameterDesc.Description.empty())
             {
-                s << std::setw(colwidth) << std::left << "  " + it->second.Name << it->second.Description << std::endl;
+                s << std::setw(colwidth) << std::left << "  " + parameterDesc.Name << parameterDesc.Description << std::endl;
             }
         }
 
         // Switches and Variables
-        for (auto it = catDesc.OptionDescsMap.begin(); it != catDesc.OptionDescsMap.end(); ++it)
+        for (auto it = catDesc.OptionDescIndexByNameMap.begin(); it != catDesc.OptionDescIndexByNameMap.end(); ++it)
         {
-            if (!it->second.Description.empty())
+            const OptionDesc &desc = m_OptionsDescs[it->second];
+            if (!desc.Description.empty())
             {
-                s << std::setw(colwidth) << std::left << "  --" + it->second.Name;
-                if (it->second.Name.length() + 4 > colwidth)
+                s << std::setw(colwidth) << std::left << "  --" + desc.Name;
+                if (desc.Name.length() + 4 > colwidth)
                 {
                     s << std::endl;
                     s << std::setw(colwidth) << ' ';
                 }
-                s << it->second.Description << std::endl;
+                s << desc.Description << std::endl;
             }
         }
 
@@ -300,7 +297,7 @@ namespace InCommand
         //     for (auto& ko : m_Options)
         //     {
         //         auto type = ko.second->Type();
-        //         if (type == OptionType::Input)
+        //         if (type == ArgumentType::Input)
         //             continue; // Already dumped
         //         s << std::setw(colwidth) << std::left << "  " + OptionUsageString(ko.second.get());
         //         if (OptionUsageString(ko.second.get()).length() + 4 > colwidth)
