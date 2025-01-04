@@ -81,8 +81,8 @@ namespace InCommand
         {
         }
 
-        Status Status() const { return m_Status; }
-        const std::string &Message() const { return m_Message; }
+        Status GetStatus() const { return m_Status; }
+        const std::string &GetMessage() const { return m_Message; }
     };
 
     //------------------------------------------------------------------------------------------------

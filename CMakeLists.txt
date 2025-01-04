@@ -17,8 +17,6 @@ include_directories(
 add_subdirectory(src)
 
 if( IN_COMMAND_TEST )
-    cmake_policy(SET CMP0135 NEW)
-    
     include(FetchContent)
     FetchContent_Declare(
       googletest
