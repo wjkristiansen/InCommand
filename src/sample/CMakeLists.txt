@@ -4,7 +4,6 @@ Sample.cpp
 
 target_link_libraries(sample
     InCommandLib
-    gtest_main
 )
 
 if(MSVC)
