@@ -318,7 +318,7 @@ TEST(InCommand, Errors)
         }
         catch(const InCommand::Exception& e)
         {
-            EXPECT_EQ(e.Status(), InCommand::Status::DuplicateCategory);
+            EXPECT_EQ(e.GetStatus(), InCommand::Status::DuplicateCategory);
         }
     }
     
@@ -331,7 +331,7 @@ TEST(InCommand, Errors)
         }
         catch (const InCommand::Exception& e)
         {
-            EXPECT_EQ(e.Status(), InCommand::Status::DuplicateOption);
+            EXPECT_EQ(e.GetStatus(), InCommand::Status::DuplicateOption);
         }
     }
 
