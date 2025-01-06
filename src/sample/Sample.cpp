@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <random>
 #include <assert.h>
 
 #include "InCommand.h"
@@ -10,6 +11,7 @@ int main(int argc, const char *argv[])
 
     auto cat_Add = cmdReader.DeclareCategory("add", "Adds two integers");
     auto cat_Mul = cmdReader.DeclareCategory("mul", "Multiplies two integers");
+    auto cat_Roshambo = cmdReader.DeclareCategory("roshambo", "Play Roshambo");
 
     auto switch_Help = cmdReader.DeclareSwitch("help", 'h');
 
@@ -23,37 +25,28 @@ int main(int argc, const char *argv[])
     auto param_Mul_Val2 = cmdReader.DeclareParameter(cat_Mul, "value2", "Second multiply value");
     auto var_Mul_Message = cmdReader.DeclareVariable(cat_Mul, "message", 'm', "Print <message> N-times where N = value1 * value2");
 
+    auto var_Roshambo_Move = cmdReader.DeclareVariable(cat_Roshambo, "move", { "rock", "paper", "scissors" }, "1-2-3 Shoot!");
+
     InCommand::CCommandExpression cmdExp;
     if (InCommand::Status::Success != cmdReader.ReadCommandExpression(argc, argv, cmdExp))
     {
-        //     std::cout << "Command Line Error: " << cmdReader.LastErrorString() << std::endl;
+        std::string errorString;
+        cmdReader.GetLastReadError(errorString);
         std::cout << std::endl;
-        std::string helpString = cmdReader.SimpleUsageString(InCommand::RootCategory);
+        std::cout << errorString << std::endl;
+        std::cout << std::endl;
+        std::string helpString = cmdReader.SimpleUsageString(cmdExp.GetCategory());
         std::cout << helpString << std::endl;
         return -1;
     }
 
-    if (cmdExp.GetSwitchIsSet(switch_Help) || cmdExp.GetCategoryDepth() == 1)
+    if (cmdExp.GetSwitchIsSet(switch_Help) ||
+        cmdExp.GetSwitchIsSet(switch_Add_Help) ||
+        cmdExp.GetSwitchIsSet(switch_Mul_Help))
     {
         std::cout << std::endl;
-        std::string helpString = cmdReader.SimpleUsageString(InCommand::RootCategory);
+        std::string helpString = cmdReader.SimpleUsageString(cmdExp.GetCategory());
         std::cout << helpString << std::endl;
-        return 0;
-    }
-
-    if (cmdExp.GetSwitchIsSet(switch_Add_Help))
-    {
-        std::cout << std::endl;
-        std::cout << cmdReader.SimpleUsageString(cat_Add) << std::endl;
-        std::cout << cmdReader.OptionDetailsString(cat_Add);
-        return 0;
-    }
-
-    if (cmdExp.GetSwitchIsSet(switch_Mul_Help))
-    {
-        std::cout << std::endl;
-        std::cout << cmdReader.SimpleUsageString(cat_Mul) << std::endl;
-        std::cout << cmdReader.OptionDetailsString(cat_Mul);
         return 0;
     }
 
@@ -62,7 +55,7 @@ int main(int argc, const char *argv[])
     int val2;
     std::string message;
 
-    if(cat_Add == cmdExp.GetCategory(1))
+    if (cat_Add == cmdExp.GetCategory())
     { // Add
         auto val1string = cmdExp.GetParameterValue(param_Add_Val1, std::string());
         auto val2string = cmdExp.GetParameterValue(param_Add_Val2, std::string());
@@ -81,7 +74,7 @@ int main(int argc, const char *argv[])
         result = val1 + val2;
         std::cout << val1 << " + " << val2 << " = " << result << std::endl;
     }
-    else if(cat_Mul == cmdExp.GetCategory(1))
+    else if (cat_Mul == cmdExp.GetCategory())
     { // Multiply
         auto val1string = cmdExp.GetParameterValue(param_Mul_Val1, std::string());
         auto val2string = cmdExp.GetParameterValue(param_Mul_Val2, std::string());
@@ -99,6 +92,52 @@ int main(int argc, const char *argv[])
         message = cmdExp.GetVariableValue(var_Mul_Message, std::string());
         result = val1 * val2;
         std::cout << val1 << " * " << val2 << " = " << result << std::endl;
+    }
+    else if (cat_Roshambo == cmdExp.GetCategory())
+    {
+        // Seed the random number generator
+        std::random_device rd;
+        std::mt19937 gen(rd()); // Mersenne Twister engine seeded with rd()
+
+        // Define the distribution range for integers
+        std::uniform_int_distribution<> distrib(1, 3);
+        int randomInt = distrib(gen); // Generate random integer
+
+        std::string playerMove = cmdExp.GetVariableValue(var_Roshambo_Move, "");
+
+        std::string computerMove;
+        switch (randomInt)
+        {
+        case 1:
+            computerMove = "rock";
+            break;
+        case 2:
+            computerMove = "paper";
+            break;
+        case 3:
+            computerMove = "scissors";
+            break;
+        default:
+            return -1;
+        }
+
+        std::cout << "Your move: " << playerMove << std::endl;
+        std::cout << "My Move: " << computerMove << std::endl;
+
+        if (playerMove == computerMove)
+        {
+            std::cout << "Tie :|" << std::endl;
+        }
+        else if (playerMove == "rock" && computerMove == "scissors" ||
+                 playerMove == "paper" && computerMove == "rock" ||
+                 playerMove == "scissors" && computerMove == "paper")
+        {
+            std::cout << "You Win :(" << std::endl;
+        }
+        else
+        {
+            std::cout << "I Win! :)" << std::endl;
+        }
     }
     else
     {

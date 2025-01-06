@@ -39,9 +39,20 @@ namespace InCommand
         InvalidHandle,
     };
 
+    //------------------------------------------------------------------------------------------------
+    struct ReadErrorDesc
+    {
+        Status ErrorStatus;
+        int ArgIndex;
+        std::string ArgString;
+        const void *ContextPtr;
+    };
+
+    //------------------------------------------------------------------------------------------------
     template<ArgumentType Type>
     class HandleHasher;
 
+    //------------------------------------------------------------------------------------------------
     template<ArgumentType Type>
     class Handle
     {
@@ -56,6 +67,7 @@ namespace InCommand
         bool operator!=(const Handle &o) const { return m_Value != o.m_Value; }
     };
 
+    //------------------------------------------------------------------------------------------------
     template<ArgumentType Type>
     class HandleHasher
     {
@@ -63,6 +75,7 @@ namespace InCommand
         size_t operator()(const Handle<Type> &h) const { return h.m_Value; }
     };
 
+    //------------------------------------------------------------------------------------------------
     using CategoryHandle = Handle<ArgumentType::Category>;
     using ParameterHandle = Handle<ArgumentType::Parameter>;
     using VariableHandle = Handle<ArgumentType::Variable>;
@@ -116,14 +129,9 @@ namespace InCommand
     public:
         CCommandExpression() = default;
 
-        size_t GetCategoryDepth() const { return m_CategoryLevels.size(); }
-
-        CategoryHandle GetCategory(size_t levelIndex) const
+        CategoryHandle GetCategory() const
         {
-            if (levelIndex > m_CategoryLevels.size())
-                throw Exception(Status::OutOfRange);
-            
-            return m_CategoryLevels[levelIndex].Category;
+            return m_CategoryLevels.back().Category;
         }
 
         const std::string &GetParameterValue(ParameterHandle parameter, const std::string &defaultValue) const
@@ -229,6 +237,7 @@ namespace InCommand
     private:
         std::vector<CategoryDesc> m_CategoryDescs;
         std::vector<OptionDesc> m_OptionsDescs;
+        ReadErrorDesc m_LastReadError;
 
     public:
         CCommandReader(const std::string appName) :
@@ -325,5 +334,15 @@ namespace InCommand
         Status ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression);
         std::string SimpleUsageString(CategoryHandle category) const;
         std::string OptionDetailsString(CategoryHandle category) const;
+        Status SetLastReadError(Status status, int argIndex, const char *argv[], const void *contextPtr)
+        {
+            m_LastReadError.ErrorStatus = status;
+            m_LastReadError.ArgIndex = argIndex;
+            m_LastReadError.ArgString = argv[argIndex];
+            m_LastReadError.ContextPtr = contextPtr;
+            return status;
+        }
+
+        Status GetLastReadError(std::string &errorString) const;
     };
 }

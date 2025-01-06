@@ -7,6 +7,38 @@
 namespace InCommand
 {
     //------------------------------------------------------------------------------------------------
+    static std::string StatusString(Status status)
+    {
+        switch (status)
+        {
+        case Status::Success:
+            return "Success";
+        case Status::DuplicateCategory:
+            return "Duplicate category";
+        case Status::DuplicateOption:
+            return "Duplicate option";
+        case Status::UnexpectedArgument:
+            return "Unexpected argument";
+        case Status::UnknownOption:
+            return "Unknown option";
+        case Status::MissingVariableValue:
+            return "Missing variable value";
+        case Status::TooManyParameters:
+            return "Too many parameters";
+        case Status::InvalidValue:
+            return "Invalid value";
+        case Status::OutOfRange:
+            return "Out of range";
+        case Status::NotFound:
+            return "Not found";
+        case Status::InvalidHandle:
+            return "Invalid handle";
+        }
+
+        return "Unknown error";
+    }
+    
+    //------------------------------------------------------------------------------------------------
     size_t CCommandReader::AddVariableOrSwitchOption(
         ArgumentType type,
         CategoryHandle category,
@@ -39,6 +71,7 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     Status CCommandReader::ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression)
     {
+        m_LastReadError = { Status::Success, 0, "", "" };
         bool ignoreSwitchesAndVariables = false;
         size_t categoryIndex = 0;
         size_t levelIndex = commandExpression.AddCategoryLevel(RootCategory);
@@ -68,7 +101,7 @@ namespace InCommand
                     
                     auto it = categoryDesc.OptionDescIndexByNameMap.find(name);
                     if (it == categoryDesc.OptionDescIndexByNameMap.end())
-                        return Status::UnknownOption;
+                        return SetLastReadError(Status::UnknownOption, i, argv, nullptr);
                     
                     optionIndex = it->second;
                 }
@@ -76,11 +109,11 @@ namespace InCommand
                 {
                     // Short name
                     if (arg[1] == '\0' || arg[2] != '\0')
-                        return Status::UnexpectedArgument;
+                        return SetLastReadError(Status::UnexpectedArgument, i, argv, nullptr);
                     
                     auto it = categoryDesc.OptionDescIndexByShortNameMap.find(arg[1]);
                     if (it == categoryDesc.OptionDescIndexByShortNameMap.end())
-                        return Status::UnknownOption;
+                        return SetLastReadError(Status::UnknownOption, i, argv, nullptr);
 
                     optionIndex = it->second;
                 }
@@ -91,13 +124,13 @@ namespace InCommand
                 {
                     // Read the value
                     ++i;
-                    if (i >= argc)
-                        return Status::MissingVariableValue;
+                    if (i == argc)
+                        return SetLastReadError(Status::MissingVariableValue, i - 1, argv, &optionDesc);
                     
                     std::string value(argv[i]);
 
                     if(value[0] == '-')
-                        return Status::MissingVariableValue;
+                        return SetLastReadError(Status::MissingVariableValue, i - 1, argv, &optionDesc);
 
                     if (optionDesc.Domain.size() > 0)
                     {
@@ -105,7 +138,7 @@ namespace InCommand
                         auto dit = optionDesc.Domain.find(value);
 
                         if (dit == optionDesc.Domain.end())
-                            return Status::InvalidValue;
+                            return SetLastReadError(Status::InvalidValue, i, argv, &optionDesc);
                     }
                     
                     commandExpression.m_VariableMap.emplace(VariableHandle(optionIndex), value);
@@ -128,7 +161,7 @@ namespace InCommand
                 {
                     if (categoryLevel.ParameterCount == categoryDesc.ParameterIds.size())
                     {
-                        return Status::UnexpectedArgument;
+                        return SetLastReadError(Status::UnexpectedArgument, i, argv, argv[i]);
                     }
                     else
                     {
@@ -230,94 +263,38 @@ namespace InCommand
         return s.str();
     }
 
-    //------------------------------------------------------------------------------------------------
-    // std::string CCommandReader::UsageString(size_t) const
-    // {
-    //     return std::string();
+    Status CCommandReader::GetLastReadError(std::string &errorString) const
+    {
+        switch (m_LastReadError.ErrorStatus)
+        {
+        case Status::Success:
+            return Status::Success;
 
-        // std::ostringstream s;
-        // s << "USAGE:" << std::endl;
-        // s << std::endl;
-        // static const int colwidth = 30;
+        case Status::InvalidValue: {
+            std::ostringstream oss;
+            const OptionDesc *optionDescPtr = reinterpret_cast<const OptionDesc *>(m_LastReadError.ContextPtr);
+            oss << "Invalid value '" << m_LastReadError.ArgString << "' for variable '--" << optionDescPtr->Name << "'" << std::endl;
+            oss << "Expected one of the following:" << std::endl;
+            for (auto it = optionDescPtr->Domain.begin(); it != optionDescPtr->Domain.end();)
+            {
+                oss << "  " << *it;
+                ++it;
+                if (it != optionDescPtr->Domain.end())
+                    oss << std::endl;
+            }
+            errorString = oss.str();
+            break;
+        }
 
-        // if (!m_Options.empty())
-        // {
-        //     s << "  " + commandScopeString;
+        case Status::MissingVariableValue:
+            errorString = "Missing value after '" + m_LastReadError.ArgString + "'";
+            break;
 
-        //     // Option arguments first
-        //     for (auto& nko : m_InputOptions)
-        //     {
-        //         s << " <" << nko->Name() << ">";
-        //     }
+        default:
+            errorString = StatusString(m_LastReadError.ErrorStatus) + " '" + m_LastReadError.ArgString + "'";
+            break;
+        }
 
-        //     s << " [<options>]" << std::endl;
-        // }
-
-        // if (!m_InnerCommands.empty())
-        // {
-        //     s << "  " + commandScopeString;
-
-        //     s << " [<command> [<options>]]" << std::endl;
-        // }
-
-        // s << std::endl;
-
-        // if (!m_InnerCommands.empty())
-        // {
-        //     s << "COMMANDS" << std::endl;
-        //     s << std::endl;
-
-        //     for (auto subIt : m_InnerCommands)
-        //     {
-        //         s << std::setw(colwidth) << std::left << "  " + subIt.second->Name();
-        //         s << subIt.second->m_Description << std::endl;
-        //     };
-        // }
-
-        // if (!m_Options.empty())
-        // {
-        //     // Input options first
-        //     for (auto& inputOption : m_InputOptions)
-        //     {
-        //         s << " <" << inputOption->Name() << ">";
-        //     }
-        // }
-
-        // s << std::endl;
-
-        // s << std::endl;
-
-        // if (!m_Options.empty())
-        // {
-        //     // Option first
-        //     s << "OPTIONS" << std::endl;
-        //     s << std::endl;
-
-        //     // Option details
-        //     for (auto& inputOption : m_InputOptions)
-        //     {
-        //         s << std::setw(colwidth) << std::left << "  " + OptionUsageString(inputOption.get());
-        //         s << inputOption->Description() << std::endl;
-        //     }
-
-        //     // Keyed-options details
-        //     for (auto& ko : m_Options)
-        //     {
-        //         auto type = ko.second->Type();
-        //         if (type == ArgumentType::Input)
-        //             continue; // Already dumped
-        //         s << std::setw(colwidth) << std::left << "  " + OptionUsageString(ko.second.get());
-        //         if (OptionUsageString(ko.second.get()).length() + 4 > colwidth)
-        //         {
-        //             s << std::endl;
-        //             s << std::setw(colwidth) << ' ';
-        //         }
-        //         s << ko.second->Description() << std::endl;
-        //     }
-
-        //     s << std::endl;
-        // }
-
-        // return s.str();
-    // }
+        return m_LastReadError.ErrorStatus;
+    }
 }

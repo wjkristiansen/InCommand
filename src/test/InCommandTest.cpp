@@ -31,7 +31,6 @@ TEST(InCommand, BasicOptions)
 
         InCommand::CCommandExpression commandExpression;
         EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
-        EXPECT_EQ(commandExpression.GetCategoryDepth(), 2);
         EXPECT_TRUE(commandExpression.GetSwitchIsSet(switchId_help));
     }
 
@@ -51,7 +50,6 @@ TEST(InCommand, BasicOptions)
 
         InCommand::CCommandExpression commandExpression;
         EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
-        EXPECT_EQ(commandExpression.GetCategoryDepth(), 3);
         EXPECT_FALSE(commandExpression.GetSwitchIsSet(switchId_help));
         EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_word, "goodbye"), std::string("hello"));
         EXPECT_FALSE(commandExpression.GetVariableIsSet(varId_bar_name));
@@ -71,7 +69,6 @@ TEST(InCommand, BasicOptions)
 
         InCommand::CCommandExpression commandExpression;
         EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
-        EXPECT_EQ(commandExpression.GetCategoryDepth(), 1);
         EXPECT_TRUE(commandExpression.GetSwitchIsSet(switchId_help));
     }
 
@@ -86,7 +83,6 @@ TEST(InCommand, BasicOptions)
 
         InCommand::CCommandExpression commandExpression;
         EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
-        EXPECT_EQ(commandExpression.GetCategoryDepth(), 1);
         EXPECT_TRUE(commandExpression.GetSwitchIsSet(switchId_help));
     }
 
@@ -103,7 +99,6 @@ TEST(InCommand, BasicOptions)
 
         InCommand::CCommandExpression commandExpression;
         EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
-        EXPECT_EQ(commandExpression.GetCategoryDepth(), 2);
         EXPECT_FALSE(commandExpression.GetSwitchIsSet(switchId_help));
         EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_name, "Bill"), std::string("Anna"));
     }
@@ -124,7 +119,6 @@ TEST(InCommand, BasicOptions)
 
         InCommand::CCommandExpression commandExpression;
         EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
-        EXPECT_EQ(commandExpression.GetCategoryDepth(), 3);
         EXPECT_FALSE(commandExpression.GetSwitchIsSet(switchId_help));
         EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_word, "goodbye"), std::string("goodbye"));
         EXPECT_EQ(commandExpression.GetVariableValue(varId_bar_name, "Bill"), std::string("Elaine"));
@@ -144,7 +138,6 @@ TEST(InCommand, BasicOptions)
 
         InCommand::CCommandExpression commandExpression;
         EXPECT_EQ(InCommand::Status::Success, reader.ReadCommandExpression(argc, argv, commandExpression));
-        EXPECT_EQ(commandExpression.GetCategoryDepth(), 2);
         EXPECT_EQ(commandExpression.GetParameterValue(paramId_zap_file1, ""), std::string("file1"));
         EXPECT_EQ(commandExpression.GetParameterValue(paramId_zap_file2, ""), std::string("file2"));
     }
@@ -259,10 +252,7 @@ TEST(InCommand, SubCategories)
 
             InCommand::CCommandExpression CmdExpression;
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, CmdExpression));
-            EXPECT_EQ(CmdExpression.GetCategoryDepth(), 3);
-            EXPECT_EQ(CmdExpression.GetCategory(0), InCommand::RootCategory);
-            EXPECT_EQ(CmdExpression.GetCategory(1), plantHandle);
-            EXPECT_EQ(CmdExpression.GetCategory(2), shrubHandle);
+            EXPECT_EQ(CmdExpression.GetCategory(), shrubHandle);
             EXPECT_TRUE(CmdExpression.GetSwitchIsSet(burnHandle));
             EXPECT_FALSE(CmdExpression.GetSwitchIsSet(pruneHandle));
 
@@ -280,10 +270,7 @@ TEST(InCommand, SubCategories)
 
             InCommand::CCommandExpression CmdExpression;
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, CmdExpression));
-            EXPECT_EQ(CmdExpression.GetCategoryDepth(), 3);
-            EXPECT_EQ(CmdExpression.GetCategory(0), InCommand::RootCategory);
-            EXPECT_EQ(CmdExpression.GetCategory(1), animalHandle);
-            EXPECT_EQ(CmdExpression.GetCategory(2), catHandle);
+            EXPECT_EQ(CmdExpression.GetCategory(), catHandle);
             EXPECT_TRUE(CmdExpression.GetVariableIsSet(livesHandle));
             EXPECT_EQ(CmdExpression.GetVariableValue(livesHandle, "9"), "8");
 
@@ -298,8 +285,7 @@ TEST(InCommand, SubCategories)
 
             InCommand::CCommandExpression CmdExpression;
             EXPECT_EQ(InCommand::Status::Success, CmdReader.ReadCommandExpression(argc, argv, CmdExpression));
-            EXPECT_EQ(CmdExpression.GetCategoryDepth(), 1);
-            EXPECT_EQ(CmdExpression.GetCategory(0), InCommand::RootCategory);
+            EXPECT_EQ(CmdExpression.GetCategory(), InCommand::RootCategory);
             EXPECT_TRUE(CmdExpression.GetSwitchIsSet(switchId_help));
 
             break; }
