@@ -39,6 +39,7 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     Status CCommandReader::ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression)
     {
+        bool ignoreSwitchesAndVariables = false;
         size_t categoryIndex = 0;
         size_t levelIndex = commandExpression.AddCategoryLevel(RootCategory);
         // Assume the first argument is the app name so select the root category
@@ -50,7 +51,7 @@ namespace InCommand
             CategoryDesc &categoryDesc = m_CategoryDescs[categoryIndex];
 
             // Is this a variable or switch?
-            if (arg[0] == '-')
+            if (!ignoreSwitchesAndVariables && arg[0] == '-')
             {
                 size_t optionIndex;
 
@@ -59,6 +60,12 @@ namespace InCommand
                 {
                     // Long name
                     std::string name(arg.substr(2));
+                    if (name.empty())
+                    {
+                        ignoreSwitchesAndVariables = true;
+                        continue;
+                    }
+                    
                     auto it = categoryDesc.OptionDescIndexByNameMap.find(name);
                     if (it == categoryDesc.OptionDescIndexByNameMap.end())
                         return Status::UnknownOption;
