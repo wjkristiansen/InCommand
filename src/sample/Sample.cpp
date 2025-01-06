@@ -128,9 +128,9 @@ int main(int argc, const char *argv[])
         {
             std::cout << "Tie :|" << std::endl;
         }
-        else if (playerMove == "rock" && computerMove == "scissors" ||
-                 playerMove == "paper" && computerMove == "rock" ||
-                 playerMove == "scissors" && computerMove == "paper")
+        else if ((playerMove == "rock" && computerMove == "scissors") ||
+                 (playerMove == "paper" && computerMove == "rock") ||
+                 (playerMove == "scissors" && computerMove == "paper"))
         {
             std::cout << "You Win :(" << std::endl;
         }
