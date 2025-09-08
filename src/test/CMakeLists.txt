@@ -4,10 +4,15 @@ add_executable(InCommandTest
     InCommandTest.cpp
 )
 
-target_link_libraries(InCommandTest
+
+include(GoogleTest)
+gtest_discover_tests(InCommandTest)
+
+# Link header interface target
+target_link_libraries(InCommandTest PRIVATE
     InCommandLib
-    gtest_main
-)
+    InCommandHeaders
+    gtest_main)
 
 include(GoogleTest)
 gtest_discover_tests(InCommandTest)
