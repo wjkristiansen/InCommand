@@ -10,9 +10,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(IN_COMMAND_TEST "Enable gtest-based tests" OFF)
 option(IN_COMMAND_SAMPLE "Enable sample app" OFF)
 
-include_directories(
-    inc
-)
+
+# Define INTERFACE target for headers in inc/
+add_library(InCommandHeaders INTERFACE)
+target_include_directories(InCommandHeaders INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/inc)
 
 add_subdirectory(src)
 
