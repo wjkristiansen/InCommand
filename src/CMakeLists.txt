@@ -1,6 +1,7 @@
 add_subdirectory(lib)
 
 if( IN_COMMAND_TEST)
+    enable_testing()
     add_subdirectory(test)
 endif()
 
