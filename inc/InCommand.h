@@ -11,338 +11,474 @@
 #include <ostream>
 #include <sstream>
 #include <optional>
+#include <any>
+#include <functional>
+#include <charconv>
+#include <type_traits>
 
 namespace InCommand
 {
     //------------------------------------------------------------------------------------------------
-    enum class ArgumentType
+    // API Misuse Errors - thrown when developers use the InCommand API incorrectly
+    enum class ApiError
     {
-        Category,
-        Variable,
-        Switch,
-        Parameter,
-    };
-    
-    //------------------------------------------------------------------------------------------------
-    enum class Status : int
-    {
-        Success,
-        DuplicateCategory,
+        None,
+        OutOfMemory,
+        DuplicateCommandBlock,
         DuplicateOption,
-        UnexpectedArgument,
+        UniqueIdNotAssigned,
+        OptionNotFound,
+        ParameterNotFound,
+        InvalidOptionType,
+        OutOfRange,
+    };
+
+    //------------------------------------------------------------------------------------------------
+    // Command Line Syntax Errors - thrown when end users provide invalid command line syntax
+    enum class SyntaxError
+    {
+        None,
         UnknownOption,
         MissingVariableValue,
+        UnexpectedArgument,
         TooManyParameters,
         InvalidValue,
-        OutOfRange,
-        NotFound,
-        InvalidHandle,
+        OptionNotSet,
+        InvalidAlias
     };
 
     //------------------------------------------------------------------------------------------------
-    struct ReadErrorDesc
+    // Variable assignment delimiters for packed option=value syntax
+    enum class VariableDelimiter
     {
-        Status ErrorStatus;
-        int ArgIndex;
-        std::string ArgString;
-        const void *ContextPtr;
+        Whitespace,  // Traditional whitespace-separated format only (--name value)
+        Equals,      // Enable --name=value and -n=value formats
+        Colon        // Enable --name:value and -n:value formats
     };
 
     //------------------------------------------------------------------------------------------------
-    template<ArgumentType Type>
-    class HandleHasher;
-
-    //------------------------------------------------------------------------------------------------
-    template<ArgumentType Type>
-    class Handle
+    // Exception for API misuse by developers
+    class ApiException
     {
-        friend class CCommandReader;
-        friend class HandleHasher<Type>;
-        size_t m_Value;
+        ApiError m_error;
+        std::string m_message;
 
     public:
-        explicit Handle(size_t value) : m_Value(value) {}
-        bool operator<(const Handle &o) const { return m_Value < o.m_Value; }
-        bool operator==(const Handle &o) const { return m_Value == o.m_Value; }
-        bool operator!=(const Handle &o) const { return m_Value != o.m_Value; }
+        ApiException(ApiError error, const std::string& message = "") : 
+            m_error(error), m_message(message) {}
+
+        ApiError GetError() const { return m_error; }
+        const std::string& GetMessage() const { return m_message; }
     };
 
     //------------------------------------------------------------------------------------------------
-    template<ArgumentType Type>
-    class HandleHasher
+    // Exception for command line syntax errors by end users
+    class SyntaxException
     {
+        SyntaxError m_error;
+        std::string m_message;
+        std::string m_token; // The problematic token from command line
+
     public:
-        size_t operator()(const Handle<Type> &h) const { return h.m_Value; }
+        SyntaxException(SyntaxError error, const std::string& message = "", const std::string& token = "") : 
+            m_error(error), m_message(message), m_token(token) {}
+
+        SyntaxError GetError() const { return m_error; }
+        const std::string& GetMessage() const { return m_message; }
+        const std::string& GetToken() const { return m_token; }
     };
 
     //------------------------------------------------------------------------------------------------
-    using CategoryHandle = Handle<ArgumentType::Category>;
-    using ParameterHandle = Handle<ArgumentType::Parameter>;
-    using VariableHandle = Handle<ArgumentType::Variable>;
-    using SwitchHandle = Handle<ArgumentType::Switch>;
+    enum class OptionType
+    {
+        Undefined,
+        Switch,
+        Variable,
+        Parameter,
+    };
 
     //------------------------------------------------------------------------------------------------
-    class Exception
+    // Default conversion functor for fundamental types using std::from_chars
+    template<typename T>
+    struct DefaultConverter
     {
-        Status m_Status;
-        std::string m_Message;
+        T operator()(const std::string& str) const
+        {
+            if constexpr (std::is_same_v<T, std::string>)
+            {
+                return str;
+            }
+            else if constexpr (std::is_same_v<T, char>)
+            {
+                if (str.empty())
+                    throw SyntaxException(SyntaxError::InvalidValue, "Empty string cannot be converted to char", str);
+                return str[0];
+            }
+            else if constexpr (std::is_same_v<T, bool>)
+            {
+                // Handle boolean conversions
+                if (str == "true" || str == "1" || str == "yes" || str == "on")
+                    return true;
+                else if (str == "false" || str == "0" || str == "no" || str == "off")
+                    return false;
+                else
+                    throw SyntaxException(SyntaxError::InvalidValue, "Invalid boolean value (expected true/false, 1/0, yes/no, on/off)", str);
+            }
+            else if constexpr (std::is_arithmetic_v<T>)
+            {
+                T result;
+                auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), result);
+                if (ec != std::errc{} || ptr != str.data() + str.size())
+                {
+                    throw SyntaxException(SyntaxError::InvalidValue, "Invalid value for numeric type", str);
+                }
+                return result;
+            }
+            else
+            {
+                static_assert(!sizeof(T), "Type not supported by DefaultConverter. Please provide a custom converter.");
+            }
+        }
+    };
+
+    //------------------------------------------------------------------------------------------------
+    // OptionDesc
+    // Describes an option used in a command block.
+    class OptionDesc
+    {
+        OptionType m_type;
+        std::string m_name;
+        std::string m_description;
+        std::vector<std::string> m_domain;
+        char m_alias = 0;
+        std::any m_id;
+        std::function<void(const std::string&)> m_valueBinding; // Callback for type-safe value binding
+
+        friend class CommandBlockDesc;
+        friend class CommandParser;
+        friend class Option;
+
+        // Private setter - only CommandBlockDesc should set aliases
+        OptionDesc &SetAlias(char alias)
+        {
+            m_alias = alias;
+            return *this;
+        }
+
+        // Check if this option has a value binding
+        bool HasValueBinding() const { return static_cast<bool>(m_valueBinding); }
+
+        // Apply the value binding (called internally by the parser)
+        void ApplyValueBinding(const std::string& value) const
+        {
+            if (m_valueBinding)
+            {
+                m_valueBinding(value);
+            }
+        }
 
     public:
-        Exception(Status status, const std::string &message = std::string()) :
-            m_Status(status),
-            m_Message(message)
+        // Constructors
+        OptionDesc(OptionType type, const std::string &name) :
+            m_type(type),
+            m_name(name)
         {
         }
 
-        Status GetStatus() const { return m_Status; }
-        const std::string &GetMessage() const { return m_Message; }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    class CCommandExpression
-    {
-        friend class CCommandReader;
-
-        struct CategoryLevel
+        // --- Unique ID ---
+        template<typename T>
+        void SetUniqueId(T id)
         {
-            CategoryLevel(CategoryHandle category) :
-                Category(category)
+            m_id = id;
+        }
+
+        template<typename T>
+        T GetUniqueId() const
+        {
+            if (!HasUniqueId())
+                throw(ApiException(ApiError::UniqueIdNotAssigned, "OptionDesc unique ID not assigned"));
+            return std::any_cast<T>(m_id);
+        }
+
+        bool HasUniqueId() const
+        {
+            return m_id.has_value();
+        }
+
+        // --- Set Accessors ---
+        OptionDesc &SetDescription(const std::string &description)
+        {
+            m_description = description;
+            return *this;
+        }
+
+        OptionDesc &SetDomain(const std::vector<std::string> &domain)
+        {
+            m_domain = domain;
+            return *this;
+        }
+
+        // --- Value Binding ---
+        template<typename T, typename Converter = DefaultConverter<T>>
+        OptionDesc& BindTo(T& variable, Converter converter = Converter{})
+        {
+            // Only Variable and Parameter types can have bound values
+            if (m_type != OptionType::Variable && m_type != OptionType::Parameter)
             {
+                throw ApiException(ApiError::InvalidOptionType, 
+                    "Only Variable and Parameter options can bind values. Switch options are boolean flags.");
             }
+
+            m_valueBinding = [&variable, converter](const std::string &str)
+                {
+                    try
+                    {
+                        variable = converter(str);
+                    }
+                    catch (const SyntaxException &)
+                    {
+                        throw; // Re-throw syntax exceptions as-is
+                    }
+                    catch (const std::exception &e)
+                    {
+                        throw SyntaxException(SyntaxError::InvalidValue, 
+                            std::string("Conversion failed: ") + e.what(), str);
+                    }
+                };
             
-            CategoryHandle Category;
-            size_t ParameterCount = 0;
-        };
-
-        std::vector<CategoryLevel> m_CategoryLevels;
-        std::unordered_map<VariableHandle, std::string, HandleHasher<ArgumentType::Variable>> m_VariableMap;
-        std::unordered_map<ParameterHandle, std::string, HandleHasher<ArgumentType::Parameter>> m_ParameterMap;
-        std::unordered_set<SwitchHandle, HandleHasher<ArgumentType::Switch>> m_Switches;
-
-        size_t AddCategoryLevel(CategoryHandle category)
-        {
-            size_t levelIndex = m_CategoryLevels.size();
-            m_CategoryLevels.push_back(category);
-            return levelIndex;
+            return *this;
         }
 
-    public:
-        CCommandExpression() = default;
+        // --- Get Accessors ---
+        OptionType GetType() const { return m_type; }
+        const std::string &GetName() const { return m_name; }
+        const std::string &GetDescription() const { return m_description; }
+        const std::vector<std::string> &GetDomain() const { return m_domain; }
+        char GetAlias() const { return m_alias; }
 
-        CategoryHandle GetCategory() const
+        // Hash method
+        size_t Hash() const
         {
-            return m_CategoryLevels.back().Category;
-        }
-
-        const std::string &GetParameterValue(ParameterHandle parameter, const std::string &defaultValue) const
-        {
-            auto it = m_ParameterMap.find(parameter);
-            if (it == m_ParameterMap.end())
-                return defaultValue;
-            
-            return it->second;
-        }
-
-        const std::string &GetVariableValue(VariableHandle variable, const std::string &defaultValue) const
-        {
-            auto it = m_VariableMap.find(variable);
-            if (it == m_VariableMap.end())
-                return defaultValue;
-
-            return it->second;
-        }
-
-        bool GetParameterIsSet(ParameterHandle parameter) const
-        {
-            auto it = m_ParameterMap.find(parameter);
-            return it != m_ParameterMap.end();
-        }
-
-        bool GetVariableIsSet(VariableHandle variable) const
-        {
-            auto it = m_VariableMap.find(variable);
-            return it != m_VariableMap.end();
-        }
-
-        bool GetSwitchIsSet(SwitchHandle sh) const
-        {
-            auto it = m_Switches.find(sh);
-            return it != m_Switches.end();
+            return std::hash<std::string>{}(m_name);
         }
     };
 
-    inline const CategoryHandle RootCategory = CategoryHandle(0);
-    inline const CategoryHandle NullCategory = CategoryHandle(size_t(0) - 1);
+    //------------------------------------------------------------------------------------------------
+    // Forward declaration
+    class CommandParser;
 
     //------------------------------------------------------------------------------------------------
-    class CCommandReader
+    // CommandBlockDesc
+    // Describes a command block, including command block name and available options.
+    class CommandBlockDesc
     {
-        struct OptionDesc
+        std::string m_name;
+        std::string m_description;
+        std::unordered_map<std::string, std::shared_ptr<OptionDesc>> m_optionDescs;
+        std::vector<std::reference_wrapper<const OptionDesc>> m_parameterDescs;
+        std::unordered_map<char, std::shared_ptr<OptionDesc>> m_aliasMap;
+        std::unordered_map<std::string, std::shared_ptr<CommandBlockDesc>> m_innerCommandBlockDescs;
+        std::any m_id;
+        CommandParser* m_parser; // Back-reference to owning parser
+
+        std::string SimpleUsageStringWithPath(const std::string& pathPrefix) const;
+        std::string SimpleUsageStringWithPath(const std::string& pathPrefix, bool parentHasOptions) const;
+
+        const OptionDesc *FindOption(const std::string &name) const
         {
-            ArgumentType Type;
-            std::string Name;
-            std::string Description;
-            std::set<std::string> Domain;
-
-            OptionDesc(ArgumentType type, const std::string &name, const std::string &description) :
-                Type(type),
-                Name(name),
-                Description(description)
-            {
-            }
-
-            OptionDesc(ArgumentType type, const std::string &name, const std::string &description, const std::vector<std::string> domain) :
-                Type(type),
-                Name(name),
-                Description(description),
-                Domain(std::set<std::string>(domain.begin(), domain.end()))
-            {
-            }
-        };
-
-        struct CategoryDesc
+            auto it = m_optionDescs.find(name);
+            return it == m_optionDescs.end() ? nullptr : it->second.get();
+        }
+        const OptionDesc *FindOptionByAlias(const char alias) const
         {
-            CategoryDesc(CategoryHandle parent, const std::string &name, const std::string &description) :
-                Parent(parent),
-                Name(name),
-                Description(description)
-            {
-            }
-            
-            CategoryHandle Parent;
-            std::string Name;
-            std::string Description;
-            std::map<std::string, CategoryHandle> SubCategoryMap;
-            std::map<std::string, size_t> OptionDescIndexByNameMap;
-            std::unordered_map<char, size_t> OptionDescIndexByShortNameMap;
-            std::vector<size_t> ParameterIds;
-        };
-
-        CategoryDesc &CategoryDescThrow(size_t categoryIndex) // throw Exception
-        {
-            if (categoryIndex >= m_CategoryDescs.size())
-                throw Exception(Status::OutOfRange);
-
-            return m_CategoryDescs[categoryIndex];
+            auto it = m_aliasMap.find(alias);
+            return it == m_aliasMap.end() ? nullptr : it->second.get();
         }
 
-        size_t AddVariableOrSwitchOption(
-            ArgumentType type,
-            CategoryHandle category,
-            const std::string &name,
-            char shortName,
-            const std::vector<std::string> &domain,
-            const std::string &description);
-
-    private:
-        std::vector<CategoryDesc> m_CategoryDescs;
-        std::vector<OptionDesc> m_OptionsDescs;
-        ReadErrorDesc m_LastReadError;
+        friend class CommandParser;
 
     public:
-        CCommandReader(const std::string appName) :
-            m_CategoryDescs(1, CategoryDesc(NullCategory, appName, ""))
+        CommandBlockDesc(const std::string &name, CommandParser *parser) :
+            m_name(name), m_parser(parser) {}
+        
+        OptionDesc &DeclareOption(OptionType type, const std::string &name, char alias = 0);
+
+        CommandBlockDesc &DeclareSubCommandBlock(const std::string &name);
+
+        // --- Unique ID ---
+        template<typename T>
+        void SetUniqueId(T id)
         {
+            m_id = id;
         }
 
-        CategoryHandle DeclareCategory(CategoryHandle parent, const std::string &name, const std::string &description = std::string())
+        template<typename T>
+        T GetUniqueId() const
         {
-            if (parent.m_Value >= m_CategoryDescs.size())
-                throw Exception(Status::InvalidHandle);
-
-            CategoryHandle category = CategoryHandle(m_CategoryDescs.size());
-            m_CategoryDescs.emplace_back(parent, name, description);
-            m_CategoryDescs[parent.m_Value].SubCategoryMap.emplace(name, category);
-            return category;
+            if (!HasUniqueId())
+                throw(ApiException(ApiError::UniqueIdNotAssigned, "CommandBlockDesc unique ID not assigned"));
+            return std::any_cast<T>(m_id);
         }
 
-        CategoryHandle DeclareCategory(const std::string &name, const std::string &description = std::string())
+        bool HasUniqueId() const
         {
-            return DeclareCategory(RootCategory, name, description);
-        }
-
-        ParameterHandle DeclareParameter(CategoryHandle category, const std::string &name, const std::string &description = std::string())
-        {
-            if (category.m_Value >= m_CategoryDescs.size())
-                throw Exception(Status::OutOfRange);
-            size_t index = m_OptionsDescs.size();
-            m_OptionsDescs.emplace_back(ArgumentType::Parameter, name, description);
-            m_CategoryDescs[category.m_Value].ParameterIds.push_back(index);
-            return ParameterHandle(index);
-        }
-
-        ParameterHandle DeclareParameter(const std::string &name, const std::string &description = std::string())
-        {
-            return DeclareParameter(RootCategory, name, description);
-        }
-
-        VariableHandle DeclareVariable(CategoryHandle category, const std::string &name, const std::string &description = std::string())
-        {
-            return VariableHandle(AddVariableOrSwitchOption(ArgumentType::Variable, category, name, '-', {}, description));
-        }
-
-        VariableHandle DeclareVariable(CategoryHandle category, const std::string &name, const std::vector<std::string> &domain, const std::string &description = std::string())
-        {
-            return VariableHandle(AddVariableOrSwitchOption(ArgumentType::Variable, category, name, '-', domain, description));
-        }
-
-        VariableHandle DeclareVariable(const std::string &name, const std::vector<std::string> &domain, const std::string &description = std::string())
-        {
-            return DeclareVariable(RootCategory, name, domain, description);
-        }
-
-        VariableHandle DeclareVariable(CategoryHandle category, const std::string &name, char shortName, const std::string &description = std::string())
-        {
-            return VariableHandle(AddVariableOrSwitchOption(ArgumentType::Variable, category, name, shortName, {}, description));
-        }
-
-        VariableHandle DeclareVariable(const std::string &name, char shortName, const std::string &description = std::string())
-        {
-            return DeclareVariable(RootCategory, name, shortName, description);
-        }
-
-        VariableHandle DeclareVariable(CategoryHandle category, const std::string &name, char shortName, const std::vector<std::string> &domain, const std::string &description = std::string())
-        {
-            return VariableHandle(AddVariableOrSwitchOption(ArgumentType::Variable, category, name, shortName, domain, description));
+            return m_id.has_value();
         }
         
-        VariableHandle DeclareVariable(const std::string &name, char shortName, const std::vector<std::string> &domain, const std::string &description = std::string())
+        // --- Set Accessors ---
+        CommandBlockDesc &SetDescription(const std::string &description)
         {
-            return DeclareVariable(RootCategory, name, shortName, domain, description);
+            m_description = description;
+            return *this;
         }
 
-        SwitchHandle DeclareSwitch(CategoryHandle category, const std::string &name, const std::string &description = std::string())
-        {
-            return SwitchHandle(AddVariableOrSwitchOption(ArgumentType::Switch, category, name, '-', {}, description));
-        }
-
-        SwitchHandle DeclareSwitch(const std::string &name, const std::string &description = std::string())
-        {
-            return DeclareSwitch(RootCategory, name, description);
-        }
-
-        SwitchHandle DeclareSwitch(CategoryHandle category, const std::string &name, char shortName, const std::string &description = std::string())
-        {
-            return SwitchHandle(AddVariableOrSwitchOption(ArgumentType::Switch, category, name, shortName, {}, description));
-        }
+        // --- Get Accessors ---
+        const std::string &GetName() const { return m_name; }
+        const std::string &GetDescription() const { return m_description; }
         
-        SwitchHandle DeclareSwitch(const std::string &name, char shortName, const std::string &description = std::string())
+        // --- Usage String Helpers ---
+        std::string SimpleUsageString() const;
+        std::string OptionDetailsString() const;
+        std::string GetHelpString() const;
+        std::string GetHelpStringWithPath(const std::string& commandPath) const;
+    };
+
+    //------------------------------------------------------------------------------------------------
+    class Option
+    {
+        const OptionDesc &m_desc;
+        std::string m_value; // Used when OptionDesc type is Variable or Parameter
+
+    public:
+        // --- Constructors ---
+        Option(const OptionDesc &desc) :
+            m_desc(desc)
         {
-            return DeclareSwitch(RootCategory, name, shortName, description);
+            // Apply value binding if one exists
+            if (desc.HasValueBinding())
+            {
+                desc.ApplyValueBinding("");
+            }
         }
 
-        Status ReadCommandExpression(int argc, const char *argv[], CCommandExpression &commandExpression);
-        std::string SimpleUsageString(CategoryHandle category) const;
-        std::string OptionDetailsString(CategoryHandle category) const;
-        Status SetLastReadError(Status status, int argIndex, const char *argv[], const void *contextPtr)
+        Option(const OptionDesc &desc, const std::string &value) :
+            m_desc(desc),
+            m_value(value)
         {
-            m_LastReadError.ErrorStatus = status;
-            m_LastReadError.ArgIndex = argIndex;
-            m_LastReadError.ArgString = argv[argIndex];
-            m_LastReadError.ContextPtr = contextPtr;
-            return status;
+            // Apply value binding if one exists
+            if (desc.HasValueBinding())
+            {
+                desc.ApplyValueBinding(value);
+            }
         }
 
-        Status GetLastReadError(std::string &errorString) const;
+        // --- Get Accessors ---
+        const OptionDesc &GetDesc() const { return m_desc; }
+        const std::string &GetValue() const { return m_value; }
+    };
+
+    //------------------------------------------------------------------------------------------------
+    struct OptionHasher
+    {
+        size_t operator()(const Option &option) const
+        {
+            return option.GetDesc().Hash();
+        }
+    };
+    //------------------------------------------------------------------------------------------------
+    struct OptionEqual
+    {
+        bool operator()(const Option &a, const Option &b) const
+        {
+            return a.GetDesc().GetName() == b.GetDesc().GetName();
+        }
+    };
+
+    //------------------------------------------------------------------------------------------------
+    // Stores a command block parsed from a range of command arguments
+    class CommandBlock
+    {
+        const CommandBlockDesc &m_desc;
+        std::unordered_set<Option, OptionHasher, OptionEqual> m_optionSet;
+
+        CommandBlock &SetOption(const Option &option);
+
+        friend class CommandParser;
+
+    public:
+        CommandBlock(const class CommandBlockDesc &desc) : m_desc(desc) {}
+
+        bool IsOptionSet(const std::string &name) const;
+        const std::string &GetOptionValue(const std::string &name) const;
+        const std::string &GetOptionValue(const std::string &name, const std::string &defaultValue) const;
+        bool IsParameterSet(const std::string &name) const;
+        const std::string &GetParameterValue(const std::string &name) const;
+        const std::string &GetParameterValue(const std::string &name, const std::string &defaultValue) const;
+        const CommandBlockDesc &GetDesc() const { return m_desc; }
+    };
+
+    //------------------------------------------------------------------------------------------------
+    class CommandParser
+    {
+        CommandBlockDesc m_rootCommandBlockDesc;
+        VariableDelimiter m_variableDelimiter;
+        std::vector<CommandBlock> m_commandBlocks;
+        std::unordered_map<std::string, std::shared_ptr<OptionDesc>> m_globalOptionDescs;
+        std::unordered_map<char, std::shared_ptr<OptionDesc>> m_globalAliasMap;
+
+        // Parsed global options: option -> CommandBlock where set
+        std::unordered_map<Option, size_t, OptionHasher, OptionEqual> m_parsedGlobalOptions;
+           
+        // Global/Local option registry
+        enum class OptionScope { Global, Local };
+        std::unordered_map<std::string, OptionScope> m_optionRegistry;
+        std::unordered_map<char, OptionScope> m_aliasRegistry;
+     
+        char GetDelimiterChar() const;
+
+        // Private registry methods
+        void RegisterLocalOption(const std::string& name, char alias = 0);
+        void RegisterGlobalOption(const std::string& name, char alias = 0);
+
+        const OptionDesc *FindGlobalOption(const std::string &name) const
+        {
+            auto it = m_globalOptionDescs.find(name);
+            return it == m_globalOptionDescs.end() ? nullptr : it->second.get();
+        }
+        const OptionDesc *FindGlobalOptionByAlias(const char alias) const
+        {
+            auto it = m_globalAliasMap.find(alias);
+            return it == m_globalAliasMap.end() ? nullptr : it->second.get();
+        }
+
+    public:
+        CommandParser(const std::string &appName, VariableDelimiter delimiter = VariableDelimiter::Whitespace) :
+            m_rootCommandBlockDesc(appName, this),
+            m_variableDelimiter(delimiter)
+        {
+        }
+
+        OptionDesc& DeclareGlobalOption(OptionType type, const std::string& name, char alias = 0);
+
+        CommandBlockDesc& GetRootCommandBlockDesc() { return m_rootCommandBlockDesc; }
+
+        const CommandBlock &ParseArgs(int argc, const char *argv[]);
+
+        size_t GetNumCommandBlocks() const { return m_commandBlocks.size(); }
+        const CommandBlock& GetCommandBlock(size_t index) const
+        {
+            if (index >= m_commandBlocks.size())
+                throw ApiException(ApiError::OutOfRange, "Parsed command block index out of range");
+            return m_commandBlocks[index];
+        }
+
+        // Global option accessors
+        bool IsGlobalOptionSet(const std::string& name) const;
+        const std::string& GetGlobalOptionValue(const std::string& name) const;
+        size_t GetGlobalOptionContext(const std::string& name) const;
+        
+        std::string SimpleUsageString() const { return m_rootCommandBlockDesc.SimpleUsageString(); }
+        std::string OptionDetailsString() const { return m_rootCommandBlockDesc.OptionDetailsString(); }
+        std::string GetHelpString() const { return m_rootCommandBlockDesc.GetHelpString(); }
     };
 }

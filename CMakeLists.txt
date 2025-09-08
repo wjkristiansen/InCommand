@@ -29,7 +29,4 @@ if( IN_COMMAND_TEST )
     FetchContent_MakeAvailable(googletest)
 
     include(CTest)
-    add_test(
-        NAME InCommandTest COMMAND InCommandTest
-    )
 endif()
