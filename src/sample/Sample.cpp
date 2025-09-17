@@ -19,6 +19,12 @@ int main(int argc, const char *argv[])
     // Create InCommand parser
     InCommand::CommandParser parser("sample");
     
+    // Enable auto-help with default option names, outputting to cout by default
+    parser.EnableAutoHelp("help", 'h');
+    
+    // Customize the auto-help description
+    parser.SetAutoHelpDescription("Display comprehensive usage information and examples");
+    
     // Variables for template binding
     int value1 = 0;
     int value2 = 0;
@@ -33,9 +39,8 @@ int main(int argc, const char *argv[])
     parser.DeclareGlobalOption(InCommand::OptionType::Switch, "verbose", 'v')
         .SetDescription("Enable verbose output globally");
 
-    // Declare a global help option available for all commands
-    parser.DeclareGlobalOption(InCommand::OptionType::Switch, "help", 'h')
-        .SetDescription("Provide command context aware help.");
+    // Note: Auto-help is explicitly enabled with --help/-h option
+    // This will automatically handle help requests for all command contexts!
 
     // Add inner command blocks for each operation
     InCommand::CommandBlockDesc& addCmdDesc = rootCmdDesc.DeclareSubCommandBlock("add");
@@ -90,17 +95,30 @@ int main(int argc, const char *argv[])
     
     try 
     {
-        // ParseArgs returns the right-most parsed CommandBlock
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        // ParseArgs returns the number of parsed command blocks
+        // Auto-help (--help/-h) is automatically handled and will output to the configured stream
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        
+        // Check if help was requested - if so, just exit since help was already output
+        if (parser.WasAutoHelpRequested())
+        {
+            return 0;
+        }
+        
+        // Get the rightmost (most specific) command block
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Check if the global verbose option is set
-        const size_t verboseBlockIndex = parser.GetGlobalOptionContext("verbose");
-
-        if (verboseBlockIndex == 0)
+        if (parser.IsGlobalOptionSet("verbose"))
         {
-            std::cout << "InCommand Sample Application" << std::endl;
-            std::cout << "This sample demonstrates how to build structured command-line interfaces" << std::endl;
-            std::cout << "with hierarchical commands, global options, and type-safe argument parsing." << std::endl;
+            const size_t verboseBlockIndex = parser.GetGlobalOptionContext("verbose");
+
+            if (verboseBlockIndex == 0)
+            {
+                std::cout << "InCommand Sample Application" << std::endl;
+                std::cout << "This sample demonstrates how to build structured command-line interfaces" << std::endl;
+                std::cout << "with hierarchical commands, global options, and type-safe argument parsing." << std::endl;
+            }
         }
         
         // Now we can determine which command was actually parsed by checking the unique ID
@@ -109,29 +127,12 @@ int main(int argc, const char *argv[])
         switch (commandId)
         {
         case CommandId::Root:
-            // Check for global help (if we're still at root level)
-            if (cmdBlock.IsOptionSet("help"))
-            {
-                std::cout << std::endl;
-                std::cout << parser.GetHelpString();
-                return 0;
-            }
-            else
-            {
-                std::cout << "Error: No command specified" << std::endl;
-                std::cout << "Use --help for usage information" << std::endl;
-                return -1;
-            }
+            std::cout << "Error: No command specified" << std::endl;
+            std::cout << "Use --help for usage information" << std::endl;
+            return -1;
             break;
             
         case CommandId::Add:
-            if (cmdBlock.IsOptionSet("help"))
-            {
-                std::cout << std::endl;
-                std::cout << addCmdDesc.GetHelpStringWithPath("sample add");
-                return 0;
-            }
-
             {
                 // Check if required parameters were provided
                 if (!cmdBlock.IsParameterSet("value1") || !cmdBlock.IsParameterSet("value2"))
@@ -178,13 +179,6 @@ int main(int argc, const char *argv[])
             break;
             
         case CommandId::Mul:
-            if (cmdBlock.IsOptionSet("help"))
-            {
-                std::cout << std::endl;
-                std::cout << mulCmdDesc.GetHelpStringWithPath("sample mul");
-                return 0;
-            }
-
             {
                 // Check if required parameters were provided
                 if (!cmdBlock.IsParameterSet("value1") || !cmdBlock.IsParameterSet("value2"))

@@ -281,9 +281,6 @@ namespace InCommand
         std::any m_id;
         CommandParser* m_parser; // Back-reference to owning parser
 
-        std::string SimpleUsageStringWithPath(const std::string& pathPrefix) const;
-        std::string SimpleUsageStringWithPath(const std::string& pathPrefix, bool parentHasOptions) const;
-
         const OptionDesc *FindOption(const std::string &name) const
         {
             auto it = m_optionDescs.find(name);
@@ -335,12 +332,6 @@ namespace InCommand
         // --- Get Accessors ---
         const std::string &GetName() const { return m_name; }
         const std::string &GetDescription() const { return m_description; }
-        
-        // --- Usage String Helpers ---
-        std::string SimpleUsageString() const;
-        std::string OptionDetailsString() const;
-        std::string GetHelpString() const;
-        std::string GetHelpStringWithPath(const std::string& commandPath) const;
     };
 
     //------------------------------------------------------------------------------------------------
@@ -433,8 +424,21 @@ namespace InCommand
         enum class OptionScope { Global, Local };
         std::unordered_map<std::string, OptionScope> m_optionRegistry;
         std::unordered_map<char, OptionScope> m_aliasRegistry;
+
+        // Auto-help configuration
+        bool m_autoHelpEnabled = false;
+        std::string m_autoHelpOptionName;
+        char m_autoHelpAlias = 0;
+        std::string m_autoHelpDescription;
+        std::ostream* m_autoHelpOutputStream;
+        
+        // Auto-help state
+        bool m_autoHelpRequested = false;
      
         char GetDelimiterChar() const;
+
+        // Private help generation methods
+        std::string GenerateHelpWithGlobalOptions(const CommandBlockDesc& cmdDesc, const std::string& commandPath) const;
 
         // Private registry methods
         void RegisterLocalOption(const std::string& name, char alias = 0);
@@ -451,10 +455,15 @@ namespace InCommand
             return it == m_globalAliasMap.end() ? nullptr : it->second.get();
         }
 
+        friend class CommandBlockDesc;
+        
     public:
         CommandParser(const std::string &appName, VariableDelimiter delimiter = VariableDelimiter::Whitespace) :
             m_rootCommandBlockDesc(appName, this),
-            m_variableDelimiter(delimiter)
+            m_variableDelimiter(delimiter),
+            m_autoHelpOptionName(""),
+            m_autoHelpDescription("Show context-sensitive help information"),
+            m_autoHelpOutputStream(nullptr)
         {
         }
 
@@ -462,7 +471,18 @@ namespace InCommand
 
         CommandBlockDesc& GetRootCommandBlockDesc() { return m_rootCommandBlockDesc; }
 
-        const CommandBlock &ParseArgs(int argc, const char *argv[]);
+        // Auto-help configuration methods
+        void EnableAutoHelp(const std::string& optionName, char alias, std::ostream& outputStream = std::cout);
+        void SetAutoHelpDescription(const std::string& description);
+        void DisableAutoHelp();
+        bool IsAutoHelpEnabled() const { return m_autoHelpEnabled; }
+        const std::string& GetAutoHelpOptionName() const { return m_autoHelpOptionName; }
+        char GetAutoHelpAlias() const { return m_autoHelpAlias; }
+        
+        // Auto-help status methods
+        bool WasAutoHelpRequested() const { return m_autoHelpRequested; }
+
+        size_t ParseArgs(int argc, const char *argv[]);
 
         size_t GetNumCommandBlocks() const { return m_commandBlocks.size(); }
         const CommandBlock& GetCommandBlock(size_t index) const
@@ -477,8 +497,8 @@ namespace InCommand
         const std::string& GetGlobalOptionValue(const std::string& name) const;
         size_t GetGlobalOptionContext(const std::string& name) const;
         
-        std::string SimpleUsageString() const { return m_rootCommandBlockDesc.SimpleUsageString(); }
-        std::string OptionDetailsString() const { return m_rootCommandBlockDesc.OptionDetailsString(); }
-        std::string GetHelpString() const { return m_rootCommandBlockDesc.GetHelpString(); }
+        // Help string generation - targets rightmost parsed command block
+        std::string GetHelpString() const;
+        std::string GetHelpString(size_t commandBlockIndex) const;
     };
 }

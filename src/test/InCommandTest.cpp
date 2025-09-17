@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <iostream>
+#include <sstream>
 
 #include "InCommand.h"
 
-TEST(InCommand, UsageStringMethods)
+TEST(InCommand, HelpStringGeneration)
 {
     // Create parser
     InCommand::CommandParser parser("myapp");
@@ -24,30 +26,30 @@ TEST(InCommand, UsageStringMethods)
     testCmdDesc.SetDescription("Run tests");
     testCmdDesc.DeclareOption(InCommand::OptionType::Switch, "coverage").SetDescription("Generate coverage report");
 
-    // Test SimpleUsageString
-    std::string usageString = parser.SimpleUsageString();
-    EXPECT_FALSE(usageString.empty());
-    EXPECT_TRUE(usageString.find("myapp") != std::string::npos);
-    EXPECT_TRUE(usageString.find("--verbose") != std::string::npos);
-    EXPECT_TRUE(usageString.find("--config") != std::string::npos);
+    // Test GetHelpString(0) for root command help after parsing
+    const char* rootArgs[] = {"myapp"};
+    auto result = parser.ParseArgs(1, rootArgs);
+    EXPECT_EQ(1, result);
+    std::string helpString = parser.GetHelpString(0);
+    EXPECT_FALSE(helpString.empty());
+    EXPECT_TRUE(helpString.find("myapp") != std::string::npos);
+    EXPECT_TRUE(helpString.find("--verbose") != std::string::npos);
+    EXPECT_TRUE(helpString.find("--config") != std::string::npos);
+    EXPECT_TRUE(helpString.find("Show help information") != std::string::npos);
+    EXPECT_TRUE(helpString.find("Configuration file path") != std::string::npos);
+    EXPECT_TRUE(helpString.find("Build the project") != std::string::npos);
+    EXPECT_TRUE(helpString.find("Run tests") != std::string::npos);
 
-    // Test OptionDetailsString
-    std::string detailsString = parser.OptionDetailsString();
-    EXPECT_FALSE(detailsString.empty());
-    EXPECT_TRUE(detailsString.find("Show help information") != std::string::npos);
-    EXPECT_TRUE(detailsString.find("Configuration file path") != std::string::npos);
-    EXPECT_TRUE(detailsString.find("Build the project") != std::string::npos);
-    EXPECT_TRUE(detailsString.find("Run tests") != std::string::npos);
-
-    // Test with specific command block
-    std::string buildUsage = buildCmdDesc.SimpleUsageString();
-    EXPECT_TRUE(buildUsage.find("build") != std::string::npos);
-    EXPECT_TRUE(buildUsage.find("--verbose") != std::string::npos);
-    EXPECT_TRUE(buildUsage.find("--target") != std::string::npos);
-
-    std::string buildDetails = buildCmdDesc.OptionDetailsString();
-    EXPECT_TRUE(buildDetails.find("Enable verbose output") != std::string::npos);
-    EXPECT_TRUE(buildDetails.find("Build target") != std::string::npos);
+    // Test GetHelpString() for rightmost command block (build subcommand)
+    const char* buildArgs[] = {"myapp", "build"};
+    auto buildResult = parser.ParseArgs(2, buildArgs);
+    EXPECT_EQ(2, buildResult);
+    std::string buildHelp = parser.GetHelpString(); // Should target rightmost (build command)
+    EXPECT_TRUE(buildHelp.find("build") != std::string::npos);
+    EXPECT_TRUE(buildHelp.find("--verbose") != std::string::npos); // Global option
+    EXPECT_TRUE(buildHelp.find("--target") != std::string::npos);  // Local option
+    EXPECT_TRUE(buildHelp.find("Enable verbose output") != std::string::npos);
+    EXPECT_TRUE(buildHelp.find("Build target") != std::string::npos);
 }
 
 TEST(InCommand, BasicOptions)
@@ -83,7 +85,8 @@ TEST(InCommand, BasicOptions)
         InCommand::CommandParser parser("test");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Should be at foo level, but help is at root level
         EXPECT_TRUE(parser.GetCommandBlock(0).IsOptionSet("verbose"));
@@ -98,10 +101,11 @@ TEST(InCommand, BasicOptions)
         InCommand::CommandParser parser("test");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Should be at baz level
-        EXPECT_EQ(parser.GetNumCommandBlocks(), 3); // root -> bar -> baz
+        EXPECT_EQ(numBlocks, 3); // root -> bar -> baz
         EXPECT_FALSE(parser.GetCommandBlock(0).IsOptionSet("verbose"));
         EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("word", "goodbye"), "hello");
         EXPECT_FALSE(parser.GetCommandBlock(1).IsOptionSet("name"));
@@ -118,7 +122,8 @@ TEST(InCommand, BasicOptions)
         InCommand::CommandParser parser("test");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(cmdBlock.IsOptionSet("verbose"));
     }
@@ -131,7 +136,8 @@ TEST(InCommand, BasicOptions)
         InCommand::CommandParser parser("testapp");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(cmdBlock.IsOptionSet("verbose"));
     }
@@ -142,7 +148,8 @@ TEST(InCommand, BasicOptions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_EQ(cmdBlock.GetOptionValue("name"), "Anna");
     }
@@ -153,7 +160,8 @@ TEST(InCommand, BasicOptions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_EQ(cmdBlock.GetOptionValue("name"), "Anna");
     }
@@ -175,7 +183,8 @@ TEST(InCommand, Parameters)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         EXPECT_TRUE(cmdBlock.IsOptionSet("some-switch"));
         EXPECT_EQ(cmdBlock.GetParameterValue("file1", ""), std::string("myfile1.txt"));
@@ -192,7 +201,8 @@ TEST(InCommand, Parameters)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         EXPECT_TRUE(cmdBlock.IsOptionSet("some-switch"));
         EXPECT_EQ(cmdBlock.GetParameterValue("file1", ""), std::string("myfile1.txt"));
@@ -235,7 +245,8 @@ TEST(InCommand, SubCategories)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Should be at the shrub command level
         EXPECT_EQ(&cmdBlock.GetDesc(), &shrubCmd);
@@ -249,7 +260,8 @@ TEST(InCommand, SubCategories)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Should be at the cat command level
         EXPECT_EQ(&cmdBlock.GetDesc(), &catCmd);
@@ -263,7 +275,8 @@ TEST(InCommand, SubCategories)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Should be at the root command level
         EXPECT_EQ(&cmdBlock.GetDesc(), &parser.GetRootCommandBlockDesc());
@@ -388,7 +401,8 @@ TEST(InCommand, Errors)
         rootCmd.DeclareOption(InCommand::OptionType::Switch, "verbose", 'v');
         rootCmd.DeclareOption(InCommand::OptionType::Switch, "quiet", 'q');
 
-        const InCommand::CommandBlock &cmdBlock = parser8.ParseArgs(argc, argv);
+        auto numBlocks = parser8.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser8.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(cmdBlock.IsOptionSet("verbose"));
         EXPECT_TRUE(cmdBlock.IsOptionSet("quiet"));
@@ -429,8 +443,9 @@ TEST(InCommand, VariableDelimiters)
     // Test --name=value format
     {
         const char* args[] = {"myapp", "--name=John", "--output=file.txt", "-v"};
-        const InCommand::CommandBlock &result = parser.ParseArgs(4, args);
-        
+        auto numBlocks = parser.ParseArgs(4, args);
+        const InCommand::CommandBlock &result = parser.GetCommandBlock(numBlocks - 1);
+
         EXPECT_TRUE(result.IsOptionSet("name"));
         EXPECT_EQ(result.GetOptionValue("name"), "John");
         
@@ -443,7 +458,8 @@ TEST(InCommand, VariableDelimiters)
     // Test -n=value format (short option with delimiter)
     {
         const char* args[] = {"myapp", "-n=Jane", "-v"};
-        const InCommand::CommandBlock &result = parser.ParseArgs(3, args);
+        size_t numBlocks = parser.ParseArgs(3, args);
+        const InCommand::CommandBlock &result = parser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(result.IsOptionSet("name"));
         EXPECT_EQ(result.GetOptionValue("name"), "Jane");
@@ -454,7 +470,8 @@ TEST(InCommand, VariableDelimiters)
     // Test mixed formats (traditional space-separated and delimiter-based)
     {
         const char* args[] = {"myapp", "--name=Bob", "--output", "result.txt", "-v"};
-        const InCommand::CommandBlock &result = parser.ParseArgs(5, args);
+        size_t numBlocks = parser.ParseArgs(5, args);
+        const InCommand::CommandBlock &result = parser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(result.IsOptionSet("name"));
         EXPECT_EQ(result.GetOptionValue("name"), "Bob");
@@ -484,7 +501,8 @@ TEST(InCommand, VariableDelimiters)
 
     {
         const char* args[] = {"myapp", "--name:Alice"};
-        const InCommand::CommandBlock &result = colonParser.ParseArgs(2, args);
+        size_t numBlocks = colonParser.ParseArgs(2, args);
+        const InCommand::CommandBlock &result = colonParser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(result.IsOptionSet("name"));
         EXPECT_EQ(result.GetOptionValue("name"), "Alice");
@@ -499,7 +517,8 @@ TEST(InCommand, VariableDelimiters)
     // Traditional whitespace-separated format should work
     {
         const char* args[] = {"myapp", "--name", "Alice", "--verbose"};
-        const InCommand::CommandBlock &result = whitespaceParser.ParseArgs(4, args);
+        size_t numBlocks = whitespaceParser.ParseArgs(4, args);
+        const InCommand::CommandBlock &result = whitespaceParser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(result.IsOptionSet("name"));
         EXPECT_EQ(result.GetOptionValue("name"), "Alice");
@@ -520,7 +539,8 @@ TEST(InCommand, VariableDelimiters)
     // Traditional format should work with default constructor
     {
         const char* args[] = {"myapp", "--name", "Bob"};
-        const InCommand::CommandBlock &result = traditionalParser.ParseArgs(3, args);
+        size_t numBlocks = traditionalParser.ParseArgs(3, args);
+        const InCommand::CommandBlock &result = traditionalParser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(result.IsOptionSet("name"));
         EXPECT_EQ(result.GetOptionValue("name"), "Bob");
@@ -550,8 +570,9 @@ TEST(InCommand, MidChainCommandBlocksWithParameters)
         InCommand::CommandParser parser("testapp");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
-        
+        auto numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
+
         // Should be at 'run' command level
         EXPECT_EQ(cmdBlock.GetParameterValue("image"), "ubuntu");
         EXPECT_EQ(cmdBlock.GetOptionValue("port"), "8080");
@@ -570,8 +591,9 @@ TEST(InCommand, MidChainCommandBlocksWithParameters)
         InCommand::CommandParser parser("testapp");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
-        
+        auto numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
+
         // Should be at 'run' command level
         EXPECT_EQ(cmdBlock.GetParameterValue("image"), "ubuntu");
         
@@ -605,8 +627,9 @@ TEST(InCommand, ParametersWithSubCommandNameCollisions)
         InCommand::CommandParser parser("testapp");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
-        
+        auto numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
+
         // Should stay at root level and treat as parameters
         EXPECT_EQ(&cmdBlock.GetDesc(), &parser.GetRootCommandBlockDesc());
         EXPECT_TRUE(cmdBlock.IsParameterSet("build"));
@@ -623,8 +646,9 @@ TEST(InCommand, ParametersWithSubCommandNameCollisions)
         InCommand::CommandParser parser("testapp");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
-        
+        auto numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
+
         // Should be at build command level
         EXPECT_EQ(&cmdBlock.GetDesc(), &buildCmd);
         EXPECT_TRUE(cmdBlock.IsOptionSet("verbose"));
@@ -638,8 +662,9 @@ TEST(InCommand, ParametersWithSubCommandNameCollisions)
         InCommand::CommandParser parser("testapp");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
-        
+        auto numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
+
         // Should be at test command level
         EXPECT_EQ(&cmdBlock.GetDesc(), &testCmd);
         EXPECT_FALSE(cmdBlock.IsOptionSet("coverage"));
@@ -682,8 +707,9 @@ TEST(InCommand, DuplicateAliasCharacters)
         InCommand::CommandParser parser("testapp");
         auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
         testRootCmdDesc = rootCmd;
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
-        
+        auto numBlocks = parser.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
+
         // Should be at sub command level
         EXPECT_EQ(&cmdBlock.GetDesc(), &subCmd);
         EXPECT_TRUE(cmdBlock.IsOptionSet("verify"));
@@ -989,8 +1015,8 @@ TEST(InCommand, GlobalOptionsBasic)
         const char* argv[] = {"testapp", "--verbose"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
         
-        const InCommand::CommandBlock &cmdBlock = parser.ParseArgs(argc, argv);
-        
+        parser.ParseArgs(argc, argv);
+
         // Global option should be accessible via parser methods
         EXPECT_TRUE(parser.IsGlobalOptionSet("verbose"));
         
@@ -1011,8 +1037,9 @@ TEST(InCommand, GlobalOptionsBasic)
         const char* argv[] = {"testapp", "build", "--verbose", "debug"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
         
-        const InCommand::CommandBlock &cmdBlock = parser2.ParseArgs(argc, argv);
-        
+        auto numBlocks = parser2.ParseArgs(argc, argv);
+        const InCommand::CommandBlock &cmdBlock = parser2.GetCommandBlock(numBlocks - 1);
+
         // Global option should be accessible via parser methods
         EXPECT_TRUE(parser2.IsGlobalOptionSet("verbose"));
         
@@ -1050,7 +1077,8 @@ TEST(InCommand, GlobalOptionLocality)
     // Test 1: Global option specified at left-most command block
     {
         const char* args[] = { "testapp", "--verbose", "subcmd1", "subcmd2" };
-        const InCommand::CommandBlock &result = parser.ParseArgs(4, args);
+        size_t numBlocks = parser.ParseArgs(4, args);
+        const InCommand::CommandBlock &result = parser.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(parser.IsGlobalOptionSet("verbose"));
         EXPECT_FALSE(parser.IsGlobalOptionSet("config"));
@@ -1081,7 +1109,8 @@ TEST(InCommand, GlobalOptionLocality)
         subCmd2_2.SetUniqueId(30);
         
         const char* args[] = { "testapp", "subcmd1", "--debug", "--output", "file.txt", "subcmd2" };
-        const InCommand::CommandBlock &result = parser2.ParseArgs(6, args);
+        size_t numBlocks = parser2.ParseArgs(6, args);
+        const InCommand::CommandBlock &result = parser2.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(parser2.IsGlobalOptionSet("debug"));
         EXPECT_TRUE(parser2.IsGlobalOptionSet("output"));
@@ -1110,7 +1139,8 @@ TEST(InCommand, GlobalOptionLocality)
         subCmd2_3.SetUniqueId(300);
         
         const char* args[] = { "testapp", "subcmd1", "subcmd2", "--trace" };
-        const InCommand::CommandBlock &result = parser3.ParseArgs(4, args);
+        size_t numBlocks = parser3.ParseArgs(4, args);
+        const InCommand::CommandBlock &result = parser3.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(parser3.IsGlobalOptionSet("trace"));
         
@@ -1135,7 +1165,8 @@ TEST(InCommand, GlobalOptionLocality)
         subCmd1_4.SetUniqueId(2000);
         
         const char* args[] = { "testapp", "--verbose", "subcmd1", "--debug", "--config", "test.conf" };
-        const InCommand::CommandBlock &result = parser4.ParseArgs(6, args);
+        size_t numBlocks = parser4.ParseArgs(6, args);
+        const InCommand::CommandBlock &result = parser4.GetCommandBlock(numBlocks - 1);
         
         EXPECT_TRUE(parser4.IsGlobalOptionSet("verbose"));
         EXPECT_TRUE(parser4.IsGlobalOptionSet("debug"));
@@ -1150,4 +1181,211 @@ TEST(InCommand, GlobalOptionLocality)
         
         EXPECT_EQ(result.GetDesc().GetUniqueId<int>(), 2000);
     }
+}
+
+TEST(InCommand, AutoHelpBasic)
+{
+    // Test 1: Auto-help is disabled by default
+    {
+        InCommand::CommandParser parser("testapp");
+        EXPECT_FALSE(parser.IsAutoHelpEnabled());
+    }
+    
+    // Test 2: Enable auto-help with default options
+    {
+        std::ostringstream output;
+        InCommand::CommandParser parser("testapp");
+        parser.EnableAutoHelp("help", 'h', output);
+        EXPECT_TRUE(parser.IsAutoHelpEnabled());
+        EXPECT_EQ(parser.GetAutoHelpOptionName(), "help");
+        EXPECT_EQ(parser.GetAutoHelpAlias(), 'h');
+    }
+    
+    // Test 3: Disable auto-help
+    {
+        std::ostringstream output;
+        InCommand::CommandParser parser("testapp");
+        parser.EnableAutoHelp("help", 'h', output);
+        parser.DisableAutoHelp();
+        EXPECT_FALSE(parser.IsAutoHelpEnabled());
+    }
+    
+    // Test 4: Customize auto-help option
+    {
+        std::ostringstream output;
+        InCommand::CommandParser parser("testapp");
+        parser.EnableAutoHelp("usage", 'u', output);
+        EXPECT_EQ(parser.GetAutoHelpOptionName(), "usage");
+        EXPECT_EQ(parser.GetAutoHelpAlias(), 'u');
+    }
+}
+
+TEST(InCommand, AutoHelpDescriptionCustomization)
+{
+    // Test customizing auto-help description
+    std::ostringstream output;
+    InCommand::CommandParser parser("testapp");
+    parser.EnableAutoHelp("help", 'h', output);
+    parser.SetAutoHelpDescription("Display usage and command information");
+    
+    auto& rootDesc = parser.GetRootCommandBlockDesc();
+    rootDesc.SetDescription("Test application");
+    
+    const char* args[] = { "testapp", "--help" };
+    parser.ParseArgs(2, args);
+    
+    // Verify help was requested and output contains our custom description
+    EXPECT_TRUE(parser.WasAutoHelpRequested());
+    std::string helpOutput = output.str();
+    EXPECT_TRUE(helpOutput.find("testapp") != std::string::npos);
+}
+
+TEST(InCommand, AutoHelpDisabled)
+{
+    // Test that when auto-help is disabled, help options don't automatically exist
+    InCommand::CommandParser parser("testapp");
+    parser.DisableAutoHelp();
+    
+    auto& rootDesc = parser.GetRootCommandBlockDesc();
+    rootDesc.SetDescription("Test application");
+    
+    // Should parse without issues since no help option is automatically declared
+    const char* args[] = { "testapp" };
+    parser.ParseArgs(1, args);
+    
+    // Help option should not be available unless manually declared
+    EXPECT_FALSE(parser.IsGlobalOptionSet("help"));
+}
+
+TEST(InCommand, AutoHelpCustomization)
+{
+    // Test customizing auto-help option name and alias
+    std::ostringstream output;
+    InCommand::CommandParser parser("testapp");
+    parser.EnableAutoHelp("usage", 'u', output);
+    
+    auto& rootDesc = parser.GetRootCommandBlockDesc();
+    rootDesc.SetDescription("Test application");
+    
+    // The custom help option should be auto-declared during parsing
+    const char* args[] = { "testapp" };
+    parser.ParseArgs(1, args);
+    
+    // The custom help option should now be available
+    EXPECT_TRUE(parser.GetAutoHelpOptionName() == "usage");
+    EXPECT_TRUE(parser.GetAutoHelpAlias() == 'u');
+}
+
+TEST(InCommand, AutoHelpConflictHandling)
+{
+    // Test that auto-help throws an exception when there's a conflict
+    std::ostringstream output;
+    InCommand::CommandParser parser("testapp");
+    
+    // Manually declare a conflicting help option first
+    parser.DeclareGlobalOption(InCommand::OptionType::Variable, "help", 'h')
+        .SetDescription("Manual help option");
+    
+    // Now try to enable auto-help with the same option name - should throw
+    EXPECT_THROW(parser.EnableAutoHelp("help", 'h', output), InCommand::ApiException);
+    
+    // Auto-help should remain disabled after the exception
+    EXPECT_FALSE(parser.IsAutoHelpEnabled());
+}
+
+// Note: Testing actual help output with exit() is complex in unit tests
+// since exit() terminates the process. In a real application, you might
+// want to refactor the help handling to use a callback or return a value
+// instead of calling exit() directly.
+
+TEST(InCommand, AutoHelpOutput)
+{
+    // Test that auto-help generates appropriate help output
+    std::ostringstream output;
+    InCommand::CommandParser parser("testapp");
+    parser.EnableAutoHelp("help", 'h', output);
+    
+    auto& rootDesc = parser.GetRootCommandBlockDesc();
+    rootDesc.SetDescription("Test application for auto-help");
+    
+    // Test 1: Help at root level
+    {
+        const char* args[] = { "testapp", "--help" };
+        
+        parser.ParseArgs(2, args);
+        
+        EXPECT_TRUE(parser.WasAutoHelpRequested());
+        std::string helpText = output.str();
+        EXPECT_TRUE(helpText.find("testapp") != std::string::npos);
+        EXPECT_TRUE(helpText.find("Test application for auto-help") != std::string::npos);
+        
+        // When help is requested, no command blocks should be available (except empty root)
+        EXPECT_EQ(parser.GetNumCommandBlocks(), 1);
+    }
+}
+
+TEST(InCommand, AutoHelpCustomOption)
+{
+    // Test custom auto-help option name and alias
+    std::ostringstream output;
+    InCommand::CommandParser parser("testapp");
+    parser.EnableAutoHelp("usage", 'u', output);
+    
+    auto& rootDesc = parser.GetRootCommandBlockDesc();
+    rootDesc.SetDescription("Test application");
+    
+    const char* args[] = { "testapp", "--usage" };
+    
+    parser.ParseArgs(2, args);
+    
+    EXPECT_TRUE(parser.WasAutoHelpRequested());
+    std::string helpText = output.str();
+    EXPECT_TRUE(helpText.find("testapp") != std::string::npos);
+    EXPECT_TRUE(helpText.find("Test application") != std::string::npos);
+}
+
+TEST(InCommand, AutoHelpDisabledNoException)
+{
+    // Test that when auto-help is disabled, help options don't cause exceptions
+    InCommand::CommandParser parser("testapp");
+    parser.DisableAutoHelp();
+    
+    auto& rootDesc = parser.GetRootCommandBlockDesc();
+    rootDesc.SetDescription("Test application");
+    
+    // Should parse without requesting help
+    const char* args[] = { "testapp" };
+    size_t numBlocks = parser.ParseArgs(1, args);
+    const InCommand::CommandBlock& result = parser.GetCommandBlock(numBlocks - 1);
+    
+    // Should complete normally without help being requested
+    EXPECT_FALSE(parser.WasAutoHelpRequested());
+    EXPECT_EQ(result.GetDesc().GetName(), "testapp");
+}
+
+TEST(InCommand, NormalParsingStillWorks)
+{
+    // Test that normal parsing without help requests works correctly
+    InCommand::CommandParser parser("testapp");
+    
+    auto& rootDesc = parser.GetRootCommandBlockDesc();
+    rootDesc.SetDescription("Test application");
+    
+    // Declare global verbose option
+    parser.DeclareGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
+    
+    auto& subCmd = rootDesc.DeclareSubCommandBlock("build");
+    subCmd.DeclareOption(InCommand::OptionType::Variable, "target", 't');
+    
+    const char* args[] = { "testapp", "--verbose", "build", "--target", "release" };
+    size_t numBlocks = parser.ParseArgs(5, args);
+    const InCommand::CommandBlock& result = parser.GetCommandBlock(numBlocks - 1);
+    
+    // Should not request help
+    EXPECT_FALSE(parser.WasAutoHelpRequested());
+    
+    // Should have normal parsing results
+    EXPECT_EQ(result.GetDesc().GetName(), "build");
+    EXPECT_TRUE(parser.IsGlobalOptionSet("verbose"));
+    EXPECT_EQ(result.GetOptionValue("target"), "release");
 }
