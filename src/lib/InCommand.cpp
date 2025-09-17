@@ -2,6 +2,8 @@
 #include <iomanip>
 #include <stack>
 #include <assert.h>
+#include <iostream>
+#include <cstdlib>
 
 #include "InCommand.h"
 
@@ -85,6 +87,47 @@ void CommandParser::RegisterGlobalOption(const std::string& name, char alias)
 }
 
 //------------------------------------------------------------------------------------------------
+void CommandParser::EnableAutoHelp(const std::string& optionName, char alias, std::ostream& outputStream)
+{
+    // Check for conflicts with existing global options
+    auto it = m_globalOptionDescs.find(optionName);
+    if (it != m_globalOptionDescs.end())
+    {
+        throw ApiException(ApiError::DuplicateOption, "Auto-help option '" + optionName + "' conflicts with existing global option");
+    }
+    
+    // Check for conflicts with existing alias
+    if (alias)
+    {
+        for (const auto& pair : m_globalOptionDescs)
+        {
+            if (pair.second->GetAlias() == alias)
+            {
+                throw ApiException(ApiError::DuplicateOption, "Auto-help alias '" + std::string(1, alias) + "' conflicts with existing global option");
+            }
+        }
+    }
+    
+    m_autoHelpOptionName = optionName;
+    m_autoHelpAlias = alias;
+    m_autoHelpOutputStream = &outputStream;
+    m_autoHelpEnabled = true;
+}
+
+//------------------------------------------------------------------------------------------------
+void CommandParser::SetAutoHelpDescription(const std::string& description)
+{
+    m_autoHelpDescription = description;
+}
+
+//------------------------------------------------------------------------------------------------
+void CommandParser::DisableAutoHelp()
+{
+    m_autoHelpEnabled = false;
+    m_autoHelpOutputStream = nullptr;
+}
+
+//------------------------------------------------------------------------------------------------
 OptionDesc& CommandParser::DeclareGlobalOption(OptionType type, const std::string& name, char alias)
 {
     // Parameters cannot be global
@@ -95,6 +138,16 @@ OptionDesc& CommandParser::DeclareGlobalOption(OptionType type, const std::strin
 
     try
     {
+        // Register the global option first to check for conflicts
+        RegisterGlobalOption(name, alias);
+        
+        // If this conflicts with auto-help, disable auto-help
+        if (m_autoHelpEnabled && 
+            (name == m_autoHelpOptionName || (alias != 0 && alias == m_autoHelpAlias)))
+        {
+            m_autoHelpEnabled = false;
+        }
+        
         // Store global option in root command block
         auto [it, inserted] = m_globalOptionDescs.emplace(name, std::make_shared<OptionDesc>(type, name));
         if (!inserted)
@@ -137,6 +190,9 @@ OptionDesc& CommandBlockDesc::DeclareOption(OptionType type, const std::string& 
 
     try
     {
+        // Register the local option to check for conflicts with global options
+        m_parser->RegisterLocalOption(name, alias);
+        
         // All option types go into m_optionDescs for unified storage
         auto [it, inserted] = m_optionDescs.emplace(name, std::make_shared<OptionDesc>(type, name));
         if (!inserted)
@@ -165,183 +221,57 @@ OptionDesc& CommandBlockDesc::DeclareOption(OptionType type, const std::string& 
 }
 
 //------------------------------------------------------------------------------------------------
-std::string CommandBlockDesc::SimpleUsageString() const
+std::string CommandParser::GetHelpString() const
 {
-    return SimpleUsageStringWithPath(GetName(), false);
-}
-
-//------------------------------------------------------------------------------------------------
-std::string CommandBlockDesc::SimpleUsageStringWithPath(const std::string& pathPrefix) const
-{
-    return SimpleUsageStringWithPath(pathPrefix, false);
-}
-
-//------------------------------------------------------------------------------------------------
-std::string CommandBlockDesc::SimpleUsageStringWithPath(const std::string& pathPrefix, bool parentHasOptions) const
-{
-    std::ostringstream s;
-
-    // Check if this command block has non-parameter options (switches or variables)
-    bool thisHasOptions = !m_optionDescs.empty();
-
-    // Recursively generate usage for all inner command blocks with full path
-    for (const auto &innerPair : m_innerCommandBlockDescs)
+    if (m_commandBlocks.empty())
     {
-        // Build the new path with [options] inserted after each command that has options
-        std::string newPath = pathPrefix;
-        if (thisHasOptions)
-        {
-            newPath += " [options]";
-        }
-        newPath += " " + innerPair.first;
+        throw ApiException(ApiError::OutOfRange, "No command blocks have been parsed yet. Call ParseArgs() first or use GetHelpString(size_t) with a specific index.");
+    }
+    // Target the rightmost (last) parsed command block
+    return GetHelpString(m_commandBlocks.size() - 1);
+}
+
+//------------------------------------------------------------------------------------------------
+std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
+{
+    // Require that parsing has occurred first
+    if (m_commandBlocks.empty())
+    {
+        throw ApiException(ApiError::OutOfRange, "No command blocks have been parsed yet. Call ParseArgs() first.");
+    }
+    
+    // Determine which command block to show help for
+    const CommandBlockDesc* cmdDesc = nullptr;
+    std::string commandPath;
+    
+    if (commandBlockIndex < m_commandBlocks.size())
+    {
+        cmdDesc = &m_commandBlocks[commandBlockIndex].GetDesc();
         
-        s << innerPair.second->SimpleUsageStringWithPath(newPath, false);
+        // Build command path up to the specified index
+        commandPath = m_rootCommandBlockDesc.GetName();
+        for (size_t i = 1; i <= commandBlockIndex; ++i)
+        {
+            if (i < m_commandBlocks.size())
+            {
+                commandPath += " " + m_commandBlocks[i].GetDesc().GetName();
+            }
+        }
     }
-
-    // Build usage line for this command block
-    s << pathPrefix;
+    else
+    {
+        throw ApiException(ApiError::OutOfRange, "Command block index out of range");
+    }
     
-    // Add [options] if parent has options (this is for when we're showing this command's own usage)
-    if (parentHasOptions)
-    {
-        s << " [options]";
-    }
+    std::ostringstream s;
     
-    s << " ";
-
-    // Show specific options for this command block
-    // Options (switches and variables only - parameters are positional, not named)
-    for (const auto &optionPair : m_optionDescs)
+    // Add description if available
+    if (!cmdDesc->GetDescription().empty())
     {
-        const OptionDesc &desc = *optionPair.second;
-        s << "[--" << desc.GetName();
-        if (desc.GetType() == OptionType::Variable)
-            s << " <value>";
-        s << "] ";
+        s << cmdDesc->GetDescription() << std::endl << std::endl;
     }
 
-    // Parameters (positional arguments) in declaration order
-    for (const auto &paramDesc : m_parameterDescs)
-    {
-        s << "<" << paramDesc.get().GetName() << "> ";
-    }
-
-    // Inner command blocks (only show if this is a leaf node with subcommands)
-    if (!m_innerCommandBlockDescs.empty())
-    {
-        for (const auto &innerPair : m_innerCommandBlockDescs)
-        {
-            s << "[" << innerPair.first << "] ";
-        }
-    }
-
-    s << std::endl;
-
-    return s.str();
-}
-
-//------------------------------------------------------------------------------------------------
-std::string CommandBlockDesc::OptionDetailsString() const
-{
-    std::ostringstream s;
-    static const int colwidth = 30;
-
-    // List all non-parameter options with descriptions
-    for (const auto &optionPair : m_optionDescs)
-    {
-        const OptionDesc &desc = *optionPair.second;
-        if (!desc.GetDescription().empty())
-        {
-            std::string optionName = "  --" + desc.GetName();
-            if (desc.GetAlias() != 0)
-            {
-                optionName += ", -" + std::string(1, desc.GetAlias());
-            }
-            s << std::setw(colwidth) << std::left << optionName;
-            if (optionName.length() > colwidth)
-            {
-                s << std::endl;
-                s << std::setw(colwidth) << ' ';
-            }
-            s << desc.GetDescription() << std::endl;
-        }
-    }
-
-    // List all parameters in order
-    for (const auto &paramDesc : m_parameterDescs)
-    {
-        if (!paramDesc.get().GetDescription().empty())
-        {
-            std::string paramName = "  <" + paramDesc.get().GetName() + ">";
-            s << std::setw(colwidth) << std::left << paramName;
-            if (paramName.length() > colwidth)
-            {
-                s << std::endl;
-                s << std::setw(colwidth) << ' ';
-            }
-            s << paramDesc.get().GetDescription() << std::endl;
-        }
-    }
-
-    // List inner command blocks
-    for (const auto &innerPair : m_innerCommandBlockDescs)
-    {
-        const CommandBlockDesc &innerDesc = *innerPair.second;
-        if (!innerDesc.GetDescription().empty())
-        {
-            std::string commandName = "  " + innerDesc.GetName();
-            s << std::setw(colwidth) << std::left << commandName;
-            if (commandName.length() > colwidth)
-            {
-                s << std::endl;
-                s << std::setw(colwidth) << ' ';
-            }
-            s << innerDesc.GetDescription() << std::endl;
-        }
-    }
-
-    s << std::endl;
-
-    return s.str();
-}
-
-//------------------------------------------------------------------------------------------------
-std::string CommandBlockDesc::GetHelpString() const
-{
-    std::ostringstream s;
-
-    // Start with description if available
-    if (!m_description.empty())
-    {
-        s << m_description << std::endl << std::endl;
-    }
-
-    // Add usage information
-    s << "Usage:" << std::endl << SimpleUsageString();
-
-    // Add option details
-    std::string details = OptionDetailsString();
-    if (!details.empty())
-    {
-        s << details;
-    }
-
-    return s.str();
-}
-
-//------------------------------------------------------------------------------------------------
-std::string CommandBlockDesc::GetHelpStringWithPath(const std::string& commandPath) const
-{
-    std::ostringstream s;
-
-    // Start with description if available
-    if (!m_description.empty())
-    {
-        s << m_description << std::endl << std::endl;
-    }
-
-    // Parse the command path and rebuild it with proper [options] placement
-    // For now, we'll assume the parent commands have options and insert [options] after the first command
+    // For the usage line, parse command path and insert [options] after the first command
     std::istringstream pathStream(commandPath);
     std::string firstCommand, remainingPath;
     pathStream >> firstCommand;
@@ -350,11 +280,20 @@ std::string CommandBlockDesc::GetHelpStringWithPath(const std::string& commandPa
     // Add usage information with the command path, inserting [options] after the first command
     s << "Usage:" << std::endl << firstCommand << " [options]" << remainingPath << " ";
 
-    // Show specific options for this command block
-    // Options (switches and variables only - parameters are positional, not named)
-    for (const auto &optionPair : m_optionDescs)
+    // Show global options first (they're available for all commands)
+    for (const auto& optionPair : m_globalOptionDescs)
     {
-        const OptionDesc &desc = *optionPair.second;
+        const OptionDesc& desc = *optionPair.second;
+        s << "[--" << desc.GetName();
+        if (desc.GetType() == OptionType::Variable)
+            s << " <value>";
+        s << "] ";
+    }
+
+    // Show specific options for this command block
+    for (const auto& optionPair : cmdDesc->m_optionDescs)
+    {
+        const OptionDesc& desc = *optionPair.second;
         s << "[--" << desc.GetName();
         if (desc.GetType() == OptionType::Variable)
             s << " <value>";
@@ -362,18 +301,97 @@ std::string CommandBlockDesc::GetHelpStringWithPath(const std::string& commandPa
     }
 
     // Parameters (positional arguments) in declaration order
-    for (const auto &paramDesc : m_parameterDescs)
+    for (const auto& paramDesc : cmdDesc->m_parameterDescs)
     {
         s << "<" << paramDesc.get().GetName() << "> ";
     }
 
     s << std::endl;
 
-    // Add option details
-    std::string details = OptionDetailsString();
-    if (!details.empty())
+    // Add option details (both global and local options together)
+    std::ostringstream optionDetails;
+    static const int colwidth = 30;
+
+    // Add global options first
+    for (const auto& optionPair : m_globalOptionDescs)
     {
-        s << details;
+        const OptionDesc& desc = *optionPair.second;
+        if (!desc.GetDescription().empty())
+        {
+            std::string optionName = "  --" + desc.GetName();
+            if (desc.GetAlias() != 0)
+            {
+                optionName += ", -" + std::string(1, desc.GetAlias());
+            }
+            optionDetails << std::setw(colwidth) << std::left << optionName;
+            if (optionName.length() > colwidth)
+            {
+                optionDetails << std::endl;
+                optionDetails << std::setw(colwidth) << ' ';
+            }
+            optionDetails << desc.GetDescription() << std::endl;
+        }
+    }
+
+    // Add local option details
+    for (const auto& optionPair : cmdDesc->m_optionDescs)
+    {
+        const OptionDesc& desc = *optionPair.second;
+        if (!desc.GetDescription().empty())
+        {
+            std::string optionName = "  --" + desc.GetName();
+            if (desc.GetAlias() != 0)
+            {
+                optionName += ", -" + std::string(1, desc.GetAlias());
+            }
+            optionDetails << std::setw(colwidth) << std::left << optionName;
+            if (optionName.length() > colwidth)
+            {
+                optionDetails << std::endl;
+                optionDetails << std::setw(colwidth) << ' ';
+            }
+            optionDetails << desc.GetDescription() << std::endl;
+        }
+    }
+
+    // Add parameter details
+    for (const auto& paramDesc : cmdDesc->m_parameterDescs)
+    {
+        if (!paramDesc.get().GetDescription().empty())
+        {
+            std::string paramName = "  <" + paramDesc.get().GetName() + ">";
+            optionDetails << std::setw(colwidth) << std::left << paramName;
+            if (paramName.length() > colwidth)
+            {
+                optionDetails << std::endl;
+                optionDetails << std::setw(colwidth) << ' ';
+            }
+            optionDetails << paramDesc.get().GetDescription() << std::endl;
+        }
+    }
+
+    // Add inner command blocks (subcommands)
+    for (const auto& innerPair : cmdDesc->m_innerCommandBlockDescs)
+    {
+        const CommandBlockDesc& innerDesc = *innerPair.second;
+        if (!innerDesc.GetDescription().empty())
+        {
+            std::string commandName = "  " + innerDesc.GetName();
+            optionDetails << std::setw(colwidth) << std::left << commandName;
+            if (commandName.length() > colwidth)
+            {
+                optionDetails << std::endl;
+                optionDetails << std::setw(colwidth) << ' ';
+            }
+            optionDetails << innerDesc.GetDescription() << std::endl;
+        }
+    }
+
+    // Add the combined option details to the output
+    std::string combinedDetails = optionDetails.str();
+    if (!combinedDetails.empty())
+    {
+        s << combinedDetails;
     }
 
     return s.str();
@@ -458,9 +476,26 @@ char CommandParser::GetDelimiterChar() const
 }
 
 //------------------------------------------------------------------------------------------------
-// Parses command arguments and returns the innermost command block
-const CommandBlock &CommandParser::ParseArgs(int argc, const char *argv[])
+// Parses command arguments and returns the number of parsed command blocks
+size_t CommandParser::ParseArgs(int argc, const char *argv[])
 {
+    // Clear any previous parse results
+    m_commandBlocks.clear();
+    m_parsedGlobalOptions.clear();
+    m_autoHelpRequested = false;
+    
+    // Auto-declare help option if enabled and not already declared
+    if (m_autoHelpEnabled && !m_autoHelpOptionName.empty())
+    {
+        auto it = m_globalOptionDescs.find(m_autoHelpOptionName);
+        if (it == m_globalOptionDescs.end())
+        {
+            // Help option not declared yet, auto-declare it
+            DeclareGlobalOption(OptionType::Switch, m_autoHelpOptionName, m_autoHelpAlias)
+                .SetDescription(m_autoHelpDescription);
+        }
+    }
+    
     m_commandBlocks.emplace_back(m_rootCommandBlockDesc);
     size_t currentParameterIndex = 0; // Track which parameter we're expecting next
 
@@ -727,8 +762,38 @@ const CommandBlock &CommandParser::ParseArgs(int argc, const char *argv[])
         throw SyntaxException(SyntaxError::UnexpectedArgument, "Unexpected argument: " + token, token);
     }
 
-    // Return the last command block that was actually parsed
-    return m_commandBlocks.back();
+    // Check for help after parsing is complete - do this before clearing anything
+    // Check if the help option (auto or manually declared) was used
+    bool helpWasRequested = IsGlobalOptionSet(m_autoHelpOptionName);
+    size_t helpContextIndex = 0;
+    
+    if (helpWasRequested)
+    {
+        // Get the context where help was requested
+        helpContextIndex = GetGlobalOptionContext(m_autoHelpOptionName);
+        
+        // Generate help text for the appropriate command block using new simplified method
+        std::ostringstream helpStream;
+        helpStream << std::endl;
+        helpStream << GetHelpString(helpContextIndex);
+        
+        // Set help state and output help to the configured stream
+        m_autoHelpRequested = true;
+        if (m_autoHelpOutputStream != nullptr)
+        {
+            *m_autoHelpOutputStream << helpStream.str();
+        }
+        
+        // Clear command blocks and global options since help was requested
+        m_commandBlocks.clear();
+        m_parsedGlobalOptions.clear();
+        
+        // Add an empty command block so we have something to return
+        m_commandBlocks.emplace_back(m_rootCommandBlockDesc);
+    }
+
+    // Return the number of command blocks that were parsed
+    return m_commandBlocks.size();
 }
 
 //------------------------------------------------------------------------------------------------

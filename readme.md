@@ -9,6 +9,8 @@
 **Hierarchical Command Structure**: Support for nested command blocks (e.g., `git remote add origin url`)  
 **Multiple Option Types**: Switches, variables, and positional parameters  
 **Type-Safe Value Binding**: Template method for automatic type conversion and variable binding  
+**Global Options**: Options available across all command contexts  
+**Auto-Help System**: Configurable automatic help generation with context-sensitive output  
 **Variable Delimiters**: Support for packed syntax (`--name=value`) alongside traditional whitespace format  
 **Alias Support**: Single-character aliases with switch grouping (`-vqh`)  
 **API Validation**: Prevents logical errors (e.g., parameters with aliases) at setup time  
@@ -16,20 +18,385 @@
 
 ---
 
-### Basic Usage
+---
+
+## Help Generation and Error Reporting
+
+#### Complete Help with Description, Usage, and Options
+
+The recommended way to generate help output is to use the `GetHelpString()` method on `CommandParser`:
+
+```cpp
+std::cout << rootCmdDesc.GetHelpString();
+```
+
+This prints the command description (if set), usage string, and option details in a single, formatted output. For subcommands, use the corresponding descriptor:
+
+```cpp
+std::cout << buildCmdDesc.GetHelpString();
+```
+
+**Sample Output:**
+
+```shell
+Sample application demonstrating InCommand
+Usage: sample [--help] [add] [mul]
+  --help, -h                  Show help information
+  add                         Adds two numbers together
+  mul                         Multiplies two numbers together
+```
+
+For subcommands:
+
+```shell
+Multiplies two numbers together
+Usage: sample mul [--help] <x> <y>
+  --help, -h                  Show help information
+  <x>                         First number
+  <y>                         Second number
+```
+
+#### Context-Sensitive Help Generation
+
+```shell
+Build the project
+
+Usage:
+mybuildtool [options] build [--verbose] [--help] [--target <value>] <project>
+  --verbose, -v               Enable verbose output globally
+  --help, -h                  Show detailed help information and usage examples
+  --target                    Build target
+  <project>                   Project file
+```
+
+### Error Reporting for End Users
+
+InCommand provides detailed, actionable error messages when users make command-line mistakes:
+
+#### Unknown Option Errors
+
+```shell
+$ mybuildtool --invalid-option
+Error: Unknown option: --invalid-option
+```
+
+#### Missing Required Values
+
+```shell
+$ mybuildtool build --target
+Error: Option '--target' requires a value
+```
+
+#### Invalid Command Structure 
+
+```shell
+$ mybuildtool build invalid-subcommand
+Error: Unknown parameter or subcommand: invalid-subcommand
+```
+
+#### Helpful Token Identification
+
+```cpp
+try
+{
+    parser.ParseArgs(argc, argv);
+} catch (const SyntaxException& e)
+{
+    std::cout << "Error: " << e.GetMessage() << std::endl;
+    if (!e.GetToken().empty())
+    {
+        std::cout << "Problem with token: '" << e.GetToken() << "'" << std::endl;
+    }
+}
+```
+
+**User sees:**
+
+```shell
+$ mybuildtool --target=value  # Not supported yet
+Error: Unexpected character in option
+Problem with token: '--target=value'
+```
+
+### Context-Aware Help
+
+Help output adapts to the current command context:
+
+```shell
+# Root level help
+$ mybuildtool --help
+Usage: mybuildtool [--help] [build]
+
+# Subcommand help  
+$ mybuildtool build --help
+Usage: mybuildtool build [--verbose] [--target <value>] [<project>]
+
+Options:
+  --verbose, -v               Enable verbose output
+  --target                    Build target
+  <project>                   Project file (required)
+```
+
+---
+
+## Auto-Help System
+
+InCommand provides a sophisticated automatic help system that generates context-sensitive help output. The help system integrates global and local options seamlessly and provides detailed usage information.
+
+### Output Stream Configuration
+
+The auto-help system uses C++ streams for flexible output handling. By default, help text is written to `std::cout`, but you can specify any `std::ostream` when enabling auto-help for custom handling such as logging, testing, or specialized formatting.
+
+**Default: Help output goes to std::cout**
+```cpp
+InCommand::CommandParser parser("myapp");
+parser.EnableAutoHelp("help", 'h');
+```
+
+**Capture help text for processing**
+```cpp
+InCommand::CommandParser parser("myapp");
+std::ostringstream helpBuffer;
+parser.EnableAutoHelp("help", 'h', helpBuffer);
+```
+
+**Write help to a file**
+```cpp
+InCommand::CommandParser parser("myapp");
+std::ofstream helpFile("help.txt");
+parser.EnableAutoHelp("help", 'h', helpFile);
+```
+
+**Send help to stderr instead of stdout**
+```cpp
+InCommand::CommandParser parser("myapp");
+parser.EnableAutoHelp("help", 'h', std::cerr);
+```
+
+This flexibility enables scenarios like:
+
+- **Testing**: Capture help output for validation in unit tests
+- **Logging**: Direct help requests to application logs
+- **File Output**: Save help documentation to files
+- **Error Streams**: Send help to stderr for debugging workflows
+- **UI integration**: Send help text to a UI element
+
+### Enabling Auto-Help
 
 ```cpp
 InCommand::CommandParser parser("myapp");
-auto& rootCmd = parser.GetRootCommandBlockDesc();
-rootCmd.SetDescription("My application");
 
-// Declare subcommands
-auto& buildCmd = rootCmd.DeclareSubCommandBlock("build");
-buildCmd.SetDescription("Build the project");
+// Enable auto-help with default settings (--help, -h)
+parser.EnableAutoHelp("help", 'h');
 
-auto& testCmd = rootCmd.DeclareSubCommandBlock("test");
-testCmd.SetDescription("Run tests");
+// Customize the help description
+parser.SetAutoHelpDescription("Display comprehensive usage information and examples");
 ```
+
+### Context-Sensitive Help
+
+The auto-help system automatically shows the appropriate help based on where the help option appears:
+
+**Main application help**
+```shell
+$ myapp --help
+
+My application
+
+Usage: myapp [--help] [build] [test]
+  --help, -h                  Display comprehensive usage information and examples
+  build                       Build the project
+  test                        Run tests
+```
+
+**Subcommand help**
+```shell
+$ myapp build --help
+
+Build the project
+
+Usage: myapp build [--help] [--verbose] [--target <value>] [<project>]
+  --help, -h                  Display comprehensive usage information and examples
+  --verbose, -v               Enable verbose output
+  --target                    Build target
+  <project>                   Project file
+```
+
+**Nested subcommand help**
+```shell
+$ git remote add --help
+
+Add a remote repository
+
+Usage: git remote add [--help] <name> <url>
+  --help, -h                  Show help information
+  <name>                      Remote name
+  <url>                       Remote URL
+```
+
+---
+
+## Global Options
+
+Global options are available across all command contexts and can be specified at any command block stage. They are perfect for options like `--verbose`, `--config`, or `--help` that should work everywhere in your application.
+
+Only Switch or Variable option types can be global. Positional Parameter option types only exist within a command block stage.
+
+### Declaring Global Options
+
+```cpp
+InCommand::CommandParser parser("myapp");
+
+// Declare global options
+parser.DeclareGlobalOption(OptionType::Switch, "verbose", 'v')
+      .SetDescription("Enable verbose output globally");
+
+parser.DeclareGlobalOption(OptionType::Variable, "config", 'c')
+      .SetDescription("Configuration file path");
+
+// These work from any command context:
+// myapp --verbose build --target release
+// myapp build --verbose --target release  
+// myapp --config myconfig.json test --coverage
+```
+
+### Context-Aware Global Option Interpretation
+
+While global options are accessible from anywhere, InCommand preserves the **local context** where each global option was specified. This enables sophisticated custom interpretation based on which command the user was working with when they set the option.
+
+### Global vs Local Options
+
+```cpp
+// Global option - available everywhere
+parser.DeclareGlobalOption(OptionType::Switch, "verbose", 'v');
+
+// Local option - only available on specific command
+auto& buildCmd = rootCmd.DeclareSubCommandBlock("build");
+buildCmd.DeclareOption(OptionType::Variable, "target")
+        .SetDescription("Build target (Debug/Release)");
+```
+
+### Accessing Global Options
+
+```cpp
+const auto& result = parser.ParseArgs(argc, argv);
+
+// Check global options from anywhere
+if (parser.IsGlobalOptionSet("verbose")) {
+    std::cout << "Verbose mode enabled\n";
+}
+
+// Get global option values
+if (parser.IsGlobalOptionSet("config")) {
+    std::string configFile = parser.GetGlobalOptionValue("config");
+    loadConfiguration(configFile);
+}
+
+// Find where the global option was specified
+size_t context = parser.GetGlobalOptionContext("verbose");
+std::cout << "Verbose was set in command block " << context << "\n";
+```
+
+#### Command Context Identification
+
+```cpp
+const auto& result = parser.ParseArgs(argc, argv);
+
+if (parser.IsGlobalOptionSet("verbose")) {
+    size_t contextIndex = parser.GetGlobalOptionContext("verbose");
+    const auto& contextBlock = parser.GetCommandBlock(contextIndex);
+    
+    if (contextBlock.GetDesc().GetName() == "build") {
+        // Verbose was used with build command - enable build-specific verbose
+        std::cout << "Enabling detailed build output\n";
+        setBuildVerbosity(VerboseLevel::Detailed);
+    } else if (contextBlock.GetDesc().GetName() == "test") {
+        // Verbose was used with test command - enable test-specific verbose  
+        std::cout << "Enabling detailed test output\n";
+        setTestVerbosity(VerboseLevel::Detailed);
+    } else {
+        // Verbose was used at root level - general verbose
+        std::cout << "Enabling general verbose output\n";
+        setGlobalVerbosity(VerboseLevel::Standard);
+    }
+}
+```
+
+#### Advanced Context-Based Behavior
+
+```cpp
+enum class CommandContext { Root, Build, Test, Deploy };
+
+// Set unique IDs for easy identification
+rootCmd.SetUniqueId(CommandContext::Root);
+buildCmd.SetUniqueId(CommandContext::Build);
+testCmd.SetUniqueId(CommandContext::Test);
+deployCmd.SetUniqueId(CommandContext::Deploy);
+
+// Parse and handle context-sensitive global options
+const auto& result = parser.ParseArgs(argc, argv);
+
+if (parser.IsGlobalOptionSet("dry-run")) {
+    size_t contextIndex = parser.GetGlobalOptionContext("dry-run");
+    const auto& contextBlock = parser.GetCommandBlock(contextIndex);
+    
+    switch (contextBlock.GetDesc().GetUniqueId<CommandContext>()) {
+        case CommandContext::Build:
+            std::cout << "Dry-run mode: Will show build steps without executing\n";
+            configureBuildDryRun();
+            break;
+            
+        case CommandContext::Deploy:
+            std::cout << "Dry-run mode: Will show deployment plan without changes\n";
+            configureDeploymentDryRun();
+            break;
+            
+        case CommandContext::Root:
+            std::cout << "Dry-run mode: General simulation mode enabled\n";
+            configureGeneralDryRun();
+            break;
+            
+        default:
+            std::cout << "Dry-run mode: Default behavior\n";
+            break;
+    }
+}
+```
+
+#### Real-World Example: Configuration Context
+
+Global options like `--config` can have different meanings depending on where they're used:
+
+```cpp
+if (parser.IsGlobalOptionSet("config")) {
+    std::string configPath = parser.GetGlobalOptionValue("config");
+    size_t contextIndex = parser.GetGlobalOptionContext("config");
+    const auto& contextBlock = parser.GetCommandBlock(contextIndex);
+    
+    if (contextBlock.GetDesc().GetName() == "build") {
+        // Load build-specific configuration
+        loadBuildConfig(configPath);
+        std::cout << "Using build configuration: " << configPath << "\n";
+    } else if (contextBlock.GetDesc().GetName() == "test") {
+        // Load test-specific configuration
+        loadTestConfig(configPath);
+        std::cout << "Using test configuration: " << configPath << "\n";
+    } else {
+        // Load general application configuration
+        loadGeneralConfig(configPath);
+        std::cout << "Using general configuration: " << configPath << "\n";
+    }
+}
+```
+
+#### Benefits of Context-Aware Global Options
+
+- **Flexible Semantics**: Same option name can have nuanced behavior per command
+- **User-Friendly**: Users don't need to remember different option names for different contexts
+- **Powerful Customization**: Developers can implement sophisticated, context-sensitive behaviors
+- **Backward Compatibility**: Options work as expected in all contexts while enabling advanced features
+
+This approach allows applications to provide both the convenience of global options and the precision of context-specific behavior, giving developers maximum flexibility in interpreting user intent.
 
 ---
 
@@ -49,41 +416,33 @@ This feature makes InCommand particularly suitable for applications that need to
 
 ### Command Blocks
 
-A **command block** represents a complete command context with its own set of options. Command blocks can be nested to create hierarchical command structures like `git remote add` or `docker container run`.
-
-```shell
-app-name [options] [command-block [options] [command-block [options]]...]
-```
-
-This shows the hierarchical nature: the outermost command block (`app-name`) can contain nested command blocks, each with their own options. The `...` indicates this nesting can continue to arbitrary depth.
-
-Examples:
-- `myapp --verbose` (outermost command block with switch)
-- `myapp build --target release project.vcxproj` (nested command block with variable and parameter)
-- `git remote add origin https://github.com/user/repo.git` (multiple nested command blocks)
-  - myapp
-  - remote
-  - add
-  - origin
-
-#### Command Block Hierarchy
-
-Command blocks nest to create subcommand structures. Each level represents a new command context:
+InCommand organizes command-line arguments into a **ordered sequence of command blocks**, where each block represents a command context with its own set of options. This architecture enables complex, git-like command structures while maintaining clean separation of concerns.
 
 ```text
-Outermost Command Block: "git"
-├── Switch: --version
-├── Variable: --config-file (-c)
-└── Sub Command Block: "remote"
-    ├── Switch: --verbose (-v)
-    └── Sub Command Block: "add"
-        ├── Parameter: name
-        └── Parameter: url
+Command Line:
+
+myapp --verbose build --target Debug package --output-dir dist installer
+
+Parsed as Ordered Command Blocks:  
+
+[0] "myapp"
+    └── Option: --verbose
+
+[1] "build"
+    └── Option: --target Debug
+
+[2] "package"
+    ├── Option: --output-dir dist  
+    └── Parameter: installer
 ```
 
-### Option Types
+### Options
 
-InCommand supports three distinct option types, each with different syntax rules:
+Options are specified within a command block context. Options come in three distinct types:
+
+- Switches - Boolean flags
+- Variables - Name/value pairs
+- Parameters - Ordered values
 
 #### Switches
 
@@ -122,121 +481,63 @@ myapp input.txt output.txt
 git remote add origin https://github.com/user/repo.git
 ```
 
-### Parsing Rules
+### Option Aliases
 
-1. **Option Precedence**: Options are processed left-to-right
-2. **Switch Grouping**: Multiple single-char switch aliases can be grouped: `-abc` = `-a -b -c`
-3. **Variable Separation**: Variables use space separation: `--key value`
-4. **Parameter Order**: Parameters fill in declaration order regardless of position
-5. **Subcommand Navigation**: Each subcommand creates a new command block context
-6. **Alias Restrictions**: Only switches can be grouped; variables require individual specification
+InCommand supports single-character aliases for switches and variables, enabling concise command-line usage. Aliases provide familiar, efficient shortcuts while maintaining full option name compatibility.
 
-**Example breakdown**:
+#### Switch Alias Grouping
+
+Switches support **alias grouping**, allowing multiple single-character aliases to be combined into a single argument:
 
 ```shell
-git remote add origin https://github.com/user/repo.git
+# Individual switch aliases
+myapp -v -q -h
+
+# Grouped switch aliases (equivalent to above)
+myapp -vqh
+
+# Mixed: some grouped, some individual
+myapp -vq --help
+
+# Grouping with full names
+myapp --verbose -qh
 ```
 
-1. **"git"** - Outermost command block
-2. **"remote"** - First subcommand (creates new command block)
-3. **"add"** - Second subcommand (creates third command block)  
-4. **"origin"** - First parameter of the "add" command block
-5. **"https://..."** - Second parameter of the "add" command block
+#### Variable Alias Usage
 
-Each command block has its own independent set of options and parameters. The `git` block might have `--version`, the `remote` block might have `--verbose`, and the `add` block takes the repository name and URL as parameters.
+Variables use aliases individually and cannot be grouped:
 
----
+```shell
+# Variable aliases work individually
+myapp -o output.txt -c config.json
 
-## Quick Start
+# Equivalent using full names
+myapp --output output.txt --config config.json
 
-### Basic Usage
+# Mixed usage
+myapp -o output.txt --config config.json
+```
+
+#### Alias Declaration
 
 ```cpp
-#include "InCommand.h"
-using namespace InCommand;
+// Switches with aliases
+rootCmd.DeclareOption(OptionType::Switch, "verbose", 'v');
+rootCmd.DeclareOption(OptionType::Switch, "quiet", 'q');
+rootCmd.DeclareOption(OptionType::Switch, "help", 'h');
 
-int main(int argc, const char *argv[])
-{
-    // Create InCommand parser - it owns the root command descriptor
-    CommandParser parser("mybuildtool");
-    auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
-    rootCmdDesc.SetDescription("My awesome application");
+// Variables with aliases
+rootCmd.DeclareOption(OptionType::Variable, "output", 'o');
+rootCmd.DeclareOption(OptionType::Variable, "config", 'c');
 
-    // Note: Help options are automatically declared - no manual setup needed!
-
-    // Declare a subcommand with cascading style
-    CommandBlockDesc& buildCmdDesc = rootCmdDesc.DeclareSubCommandBlock("build");
-    buildCmdDesc.SetDescription("Build the project");
-    buildCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v')
-        .SetDescription("Enable verbose output");
-    buildCmdDesc.DeclareOption(OptionType::Variable, "target")
-        .SetDescription("Build target");
-    buildCmdDesc.DeclareOption(OptionType::Parameter, "project")
-        .SetDescription("Project file");
-
-    try
-    {
-        // ParseArgs returns the last CommandBlock in the chain that was parsed
-        const CommandBlock* result = parser.ParseArgs(argc, argv);
-        
-        // Check which command was parsed
-        if (result->GetDesc().GetName() == "build")
-        {
-            bool verbose = result->IsOptionSet("verbose");
-            std::string target = result->GetOptionValue("target", "debug");
-            std::string project = result->GetParameterValue("project");
-        }
-    }
-    catch (const SyntaxException& e)
-    {
-        std::cout << "Error: " << e.GetMessage() << std::endl;
-        return -1;
-    }
-
-    return 0;
-}
+// Parameters cannot have aliases
+rootCmd.DeclareOption(OptionType::Parameter, "input-file");  // No alias allowed
 ```
 
-### Variable Assignment Delimiters
+#### Alias Rules and Restrictions
 
-InCommand supports flexible variable assignment syntax through the `VariableDelimiter` enum. Each parser instance uses a single delimiter format for consistency:
-
-```cpp
-// Whitespace delimiter (traditional format)
-CommandParser parser("myapp", VariableDelimiter::Whitespace);
-// or simply: CommandParser parser("myapp");  // defaults to Whitespace
-
-// Equals delimiter 
-CommandParser equalsParser("myapp", VariableDelimiter::Equals);
-
-// Colon delimiter
-CommandParser colonParser("myapp", VariableDelimiter::Colon);
-
-auto& rootCmdDesc = equalsParser.GetRootCommandBlockDesc();
-rootCmdDesc.DeclareOption(OptionType::Variable, "output", 'o')
-    .SetDescription("Output file");
-rootCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v')
-    .SetDescription("Verbose mode");
-
-// With VariableDelimiter::Equals, these formats work:
-// myapp --output=file.txt -v
-// myapp -o=file.txt -v
-// myapp --output file.txt -v  (traditional format still works)
-```
-
-**Delimiter Options:**
-
-- **`VariableDelimiter::Whitespace`** - Traditional space-separated format (`--name value`)
-- **`VariableDelimiter::Equals`** - Packed equals format (`--name=value`, `-n=value`)  
-- **`VariableDelimiter::Colon`** - Packed colon format (`--name:value`, `-n:value`)
-
-**Key Features:**
-- **Single delimiter per parser** - Each parser instance uses one consistent format
-- **Type-safe enum** - Prevents invalid delimiter configurations at compile time
-- **Long and short options** - Delimiter format works with both `--name=value` and `-n=value`
-- **Error validation** - Switches cannot have values (`--verbose=true` throws `SyntaxException`)
-- **Backward compatibility** - Traditional space-separated format always works alongside delimiter format
-- **Mixed usage** - Can mix delimiter and space-separated formats in the same command line
+- **Switches Only**: Only switches can be grouped (`-abc` = `-a -b -c`)
+- **Variables Individual**: Variable aliases must be used individually (`-o file.txt`)
 
 ---
 
@@ -376,6 +677,108 @@ OptionDesc& BindTo(T& variable, Converter converter = Converter{});
 
 ---
 
+## Quick Start
+
+### Basic Usage
+
+```cpp
+#include "InCommand.h"
+using namespace InCommand;
+
+int main(int argc, const char *argv[])
+{
+    // Create InCommand parser - it owns the root command descriptor
+    CommandParser parser("mybuildtool");
+    auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
+    rootCmdDesc.SetDescription("My awesome application");
+
+    // Enable auto-help
+    parser.EnableAutoHelp("help", 'h');
+
+    // Declare a subcommand with cascading style
+    CommandBlockDesc& buildCmdDesc = rootCmdDesc.DeclareSubCommandBlock("build");
+    buildCmdDesc.SetDescription("Build the project");
+    buildCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v')
+        .SetDescription("Enable verbose output");
+    buildCmdDesc.DeclareOption(OptionType::Variable, "target")
+        .SetDescription("Build target");
+    buildCmdDesc.DeclareOption(OptionType::Parameter, "project")
+        .SetDescription("Project file");
+
+    try
+    {
+        // ParseArgs returns the number of command blocks that were parsed
+        size_t numBlocks = parser.ParseArgs(argc, argv);
+        
+        // Check if help was requested
+        if (parser.WasAutoHelpRequested()) {
+            return 0; // Help was displayed automatically, exit gracefully
+        }
+        
+        // Get the rightmost (most specific) command block
+        const CommandBlock* result = &parser.GetCommandBlock(numBlocks - 1);
+        
+        // Check which command was parsed
+        if (result->GetDesc().GetName() == "build")
+        {
+            bool verbose = result->IsOptionSet("verbose");
+            std::string target = result->GetOptionValue("target", "debug");
+            std::string project = result->GetParameterValue("project");
+        }
+    }
+    catch (const SyntaxException& e)
+    {
+        std::cout << "Error: " << e.GetMessage() << std::endl;
+        return -1;
+    }
+
+    return 0;
+}
+```
+
+### Variable Assignment Delimiters
+
+InCommand supports flexible variable assignment syntax through the `VariableDelimiter` enum. Each parser instance uses a single delimiter format for consistency:
+
+```cpp
+// Whitespace delimiter
+CommandParser parser("myapp", VariableDelimiter::Whitespace);
+// or simply: CommandParser parser("myapp");  // defaults to Whitespace
+
+// Equals delimiter 
+CommandParser equalsParser("myapp", VariableDelimiter::Equals);
+
+// Colon delimiter
+CommandParser colonParser("myapp", VariableDelimiter::Colon);
+
+auto& rootCmdDesc = equalsParser.GetRootCommandBlockDesc();
+rootCmdDesc.DeclareOption(OptionType::Variable, "output", 'o')
+    .SetDescription("Output file");
+rootCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v')
+    .SetDescription("Verbose mode");
+
+// With VariableDelimiter::Equals, these formats work:
+// myapp --output=file.txt -v
+// myapp -o=file.txt -v
+// myapp --output file.txt -v  (traditional format still works)
+```
+
+**Delimiter Options:**
+
+- **`VariableDelimiter::Whitespace`** - Traditional space-separated format (`--name value`)
+- **`VariableDelimiter::Equals`** - Packed equals format (`--name=value`, `-n=value`)  
+- **`VariableDelimiter::Colon`** - Packed colon format (`--name:value`, `-n:value`)
+
+**Key Features:**
+- **Single delimiter per parser** - Each parser instance uses one consistent format
+- **Type-safe enum** - Prevents invalid delimiter configurations at compile time
+- **Long and short options** - Delimiter format works with both `--name=value` and `-n=value`
+- **Error validation** - Switches cannot have values (`--verbose=true` throws `SyntaxException`)
+- **Backward compatibility** - Traditional space-separated format always works alongside delimiter format
+- **Mixed usage** - Can mix delimiter and space-separated formats in the same command line
+
+---
+
 ## Core API
 
 This section provides comprehensive documentation for all public classes and methods in InCommand.
@@ -383,11 +786,10 @@ This section provides comprehensive documentation for all public classes and met
 ### Class Overview
 
 - **CommandParser** - Main entry point, owns the command structure
-- **CommandBlockDesc** - Describes commands and options (tree structure)
-- **CommandBlock** - Parsed command results (linked chain)
+- **CommandBlockDesc** - Tree node describing command blocks in hierarchical structure
+- **CommandBlock** - Parsed command result within a series of ordered blocks
 - **OptionDesc** - Describes individual options, supports method chaining
-- **Enums** - OptionType, VariableDelimiter, ApiError, SyntaxError
-- **Exceptions** - ApiException, SyntaxException
+- **Option** - Parsed option associated with a given command block
 
 ### CommandParser
 
@@ -441,10 +843,10 @@ parser.DeclareGlobalOption(OptionType::Switch, "verbose", 'v')
 #### `CommandParser::ParseArgs()`
 
 ```cpp
-const CommandBlock* ParseArgs(int argc, const char* argv[])
+size_t ParseArgs(int argc, const char* argv[])
 ```
 
-Parses command-line arguments and returns the last (most specific) command block that was parsed. Throws `SyntaxException` if parsing fails.
+Parses command-line arguments and returns the number of command blocks that were parsed. Throws `SyntaxException` if parsing fails. Use `GetCommandBlock(index)` to access specific command blocks, where index ranges from 0 to the returned count minus 1.
 
 #### `CommandParser::GetNumCommandBlocks()`
 
@@ -482,21 +884,41 @@ size_t GetGlobalOptionContext(const std::string& name) const
 
 Returns the command block indexwhere the global option was set. Throws `ApiException` if the global option was not set.
 
-#### `CommandParser::SimpleUsageString()`
+#### Auto-Help Configuration
+
+#### `CommandParser::EnableAutoHelp()`
 
 ```cpp
-std::string SimpleUsageString() const
+void EnableAutoHelp(const std::string& optionName = "help", char alias = 'h', std::ostream& outputStream = std::cout)
 ```
 
-Generates a basic usage string for the app-level command block showing the application name followed by its options and parameters. Does not include the command description or detailed option explanations.
+Enables automatic help functionality with the specified option name and alias. When users specify this option, context-sensitive help is automatically generated and output to the specified stream. Throws `ApiException` if the option name or alias conflicts with existing options.
 
-#### `CommandParser::OptionDetailsString()`
+#### `CommandParser::SetAutoHelpDescription()`
 
 ```cpp
-std::string OptionDetailsString() const
+void SetAutoHelpDescription(const std::string& description)
 ```
 
-Generates detailed help text for all options defined on the root command. Shows option names, aliases, descriptions, and domains (if applicable). Does not include usage line or command description.
+Sets a custom description for the auto-help option. Default is "Show context-sensitive help information".
+
+#### `CommandParser::DisableAutoHelp()`
+
+```cpp
+void DisableAutoHelp()
+```
+
+Disables automatic help functionality.
+
+#### `CommandParser::WasAutoHelpRequested()`
+
+```cpp
+bool WasAutoHelpRequested() const
+```
+
+Returns `true` if the auto-help option was used during the last parse operation. Use this to determine if your application should exit after parsing.
+
+#### Help String Generation
 
 #### `CommandParser::GetHelpString()`
 
@@ -504,7 +926,15 @@ Generates detailed help text for all options defined on the root command. Shows 
 std::string GetHelpString() const
 ```
 
-Generates complete help text for the root command by combining the command description (if set), usage string, and option details. This is the recommended method for displaying comprehensive help information to users.
+Generates complete help text for the rightmost (most specific) parsed command block. Automatically integrates global options with local options and shows context-sensitive help. Requires that `ParseArgs()` has been called first.
+
+#### `CommandParser::GetHelpString(size_t commandBlockIndex)`
+
+```cpp
+std::string GetHelpString(size_t commandBlockIndex) const
+```
+
+Generates complete help text for a specific command block by index (0 = root command). Automatically integrates global options with local options. Requires that `ParseArgs()` has been called first.
 
 ### CommandBlockDesc
 
@@ -588,40 +1018,6 @@ const std::string& GetDescription() const
 ```
 
 Returns the description text for this command block. Empty string if no description has been set.
-
-#### Help Generation Methods
-
-#### `CommandBlockDesc::SimpleUsageString()`
-
-```cpp
-std::string SimpleUsageString() const
-```
-
-Generates a basic usage line showing the command name followed by its options and parameters. Does not include the command description or detailed option explanations.
-
-#### `CommandBlockDesc::OptionDetailsString()`
-
-```cpp
-std::string OptionDetailsString() const
-```
-
-Generates detailed help text for all options defined on this command. Shows option names, aliases, descriptions, and domains (if applicable). Does not include usage line or command description.
-
-#### `CommandBlockDesc::GetHelpString()`
-
-```cpp
-std::string GetHelpString() const
-```
-
-Generates complete help text by combining the command description (if set), usage string, and option details. This is the recommended method for displaying comprehensive help information to users.
-
-#### `CommandBlockDesc::GetHelpStringWithPath()`
-
-```cpp
-std::string GetHelpStringWithPath(const std::string& commandPath) const
-```
-
-Generates complete help text with a custom command path prefix. Useful for generating help for nested subcommands with their full command path.
 
 ---
 
@@ -869,9 +1265,9 @@ rootCmdDesc.DeclareOption(OptionType::Parameter, "input-file");
 
 ---
 
-## Enums and Types
+### Enums and Types
 
-### OptionType
+#### OptionType
 
 Specifies the type of option when calling `DeclareOption()`.
 
@@ -884,7 +1280,7 @@ enum class OptionType
 }
 ```
 
-### VariableDelimiter
+#### VariableDelimiter
 
 Specifies the delimiter format for variable assignment when creating a `CommandParser`.
 
@@ -905,7 +1301,7 @@ enum class VariableDelimiter
 
 All delimiter formats support both traditional space-separated and the specified packed syntax.
 
-### ApiError
+#### ApiError
 
 Error codes for `ApiException`. Indicates developer API misuse.
 
@@ -923,7 +1319,7 @@ enum class ApiError
 }
 ```
 
-### SyntaxError
+#### SyntaxError
 
 Error codes for `SyntaxException`. Indicates user command-line syntax errors.
 
@@ -942,15 +1338,15 @@ enum class SyntaxError
 
 ---
 
-## Exception Types
+### Exception Types
 
 InCommand provides two distinct exception types for different error scenarios:
 
-### ApiException
+#### ApiException
 
 Thrown when developers misuse the API during command setup. These are programming errors that should be caught during development.
 
-#### `ApiException::GetMessage()`
+##### `ApiException::GetMessage()`
 
 ```cpp
 const std::string& GetMessage() const
@@ -958,7 +1354,7 @@ const std::string& GetMessage() const
 
 Returns a human-readable description of the API misuse error.
 
-#### `ApiException::GetErrorCode()`
+##### `ApiException::GetErrorCode()`
 
 ```cpp
 ApiError GetErrorCode() const
@@ -992,11 +1388,11 @@ catch (const ApiException& e)
 }
 ```
 
-### SyntaxException
+#### SyntaxException
 
 Thrown when end-users provide invalid command-line syntax. These represent user input errors, not programming mistakes.
 
-#### `SyntaxException::GetMessage()`
+##### `SyntaxException::GetMessage()`
 
 ```cpp
 const std::string& GetMessage() const
@@ -1004,7 +1400,7 @@ const std::string& GetMessage() const
 
 Returns a human-readable description of the syntax error.
 
-#### `SyntaxException::GetToken()`
+##### `SyntaxException::GetToken()`
 
 ```cpp
 const std::string& GetToken() const
@@ -1012,7 +1408,7 @@ const std::string& GetToken() const
 
 Returns the specific command-line token that caused the error, if available. May be empty for some error types.
 
-#### `SyntaxException::GetErrorCode()`
+##### `SyntaxException::GetErrorCode()`
 
 ```cpp
 SyntaxError GetErrorCode() const
@@ -1045,208 +1441,7 @@ try
 
 ---
 
-## Help Generation and Error Reporting
-
-#### Complete Help with Description, Usage, and Options
-
-The recommended way to generate help output is to use the `GetHelpString()` method on `CommandParser`:
-
-```cpp
-std::cout << rootCmdDesc.GetHelpString();
-```
-
-This prints the command description (if set), usage string, and option details in a single, formatted output. For subcommands, use the corresponding descriptor:
-
-```cpp
-std::cout << buildCmdDesc.GetHelpString();
-```
-
-**Sample Output:**
-
-```shell
-Sample application demonstrating InCommand
-Usage: sample [--help] [add] [mul]
-  --help, -h                  Show help information
-  add                         Adds two numbers together
-  mul                         Multiplies two numbers together
-```
-
-For subcommands:
-
-```shell
-Multiplies two numbers together
-Usage: sample mul [--help] <x> <y>
-  --help, -h                  Show help information
-  <x>                         First number
-  <y>                         Second number
-```
-
-#### Simple Usage Strings
-
-```cpp
-std::string usage = parser.SimpleUsageString();
-```
-
-**Output:**
-
-```shell
-mybuildtool [--help] [build] [--verbose] [--target <value>] [<project>]
-```
-
-#### Detailed Help with Descriptions
-
-```cpp
-std::string details = parser.OptionDetailsString();
-```
-
-**Output:**
-
-```shell
-  --help, -h                  Show help information
-  build                       Build the project
-  --verbose, -v               Enable verbose output
-  --target                    Build target
-  <project>                   Project file
-```
-
-#### Complete Help Integration
-
-Most applications combine both for comprehensive help:
-
-```cpp
-if (result->IsOptionSet("help"))
-{
-    std::cout << parser.GetHelpString() << std::endl;
-    return 0;
-}
-```
-
-**User Experience:**
-
-```shell
-$ mybuildtool --help
-Usage: mybuildtool [--help] [build] [--verbose] [--target <value>] [<project>]
-
-Options:
-  --help, -h                  Show help information
-  build                       Build the project
-  --verbose, -v               Enable verbose output
-  --target                    Build target
-  <project>                   Project file
-```
-
-### Error Reporting for End Users
-
-InCommand provides detailed, actionable error messages when users make command-line mistakes:
-
-#### Unknown Option Errors
-
-```shell
-$ mybuildtool --invalid-option
-Error: Unknown option: --invalid-option
-```
-
-#### Missing Required Values
-
-```shell
-$ mybuildtool build --target
-Error: Option '--target' requires a value
-```
-
-#### Invalid Command Structure 
-
-```shell
-$ mybuildtool build invalid-subcommand
-Error: Unknown parameter or subcommand: invalid-subcommand
-```
-
-#### Helpful Token Identification
-
-```cpp
-try
-{
-    parser.ParseArgs(argc, argv);
-} catch (const SyntaxException& e)
-{
-    std::cout << "Error: " << e.GetMessage() << std::endl;
-    if (!e.GetToken().empty())
-    {
-        std::cout << "Problem with token: '" << e.GetToken() << "'" << std::endl;
-    }
-}
-```
-
-**User sees:**
-
-```shell
-$ mybuildtool --target=value  # Not supported yet
-Error: Unexpected character in option
-Problem with token: '--target=value'
-```
-
-### Context-Aware Help
-
-Help output adapts to the current command context:
-
-```shell
-# Root level help
-$ mybuildtool --help
-Usage: mybuildtool [--help] [build]
-
-# Subcommand help  
-$ mybuildtool build --help
-Usage: mybuildtool build [--verbose] [--target <value>] [<project>]
-
-Options:
-  --verbose, -v               Enable verbose output
-  --target                    Build target
-  <project>                   Project file (required)
-```
-
----
-
-## API Design Benefits
-
-### Ownership Model
-
-The `CommandParser` uses RAII principles and owns the command structure internally, eliminating the need for developers to manage separate descriptor objects:
-
-```cpp
-// ✅ Clean: Parser owns everything
-CommandParser parser("myapp");
-auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
-```
-
-### Fluent Interface
-
-Method chaining enables elegant, readable command definitions:
-
-```cpp
-rootCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v')
-    .SetDescription("Enable verbose output")
-    .SetDomain({"low", "medium", "high"});  // if applicable
-
-// Cascading for command block setup too
-buildCmdDesc.SetDescription("Build the project")
-            .SetUniqueId(CommandId::Build);
-```
-
-### Type Safety
-
-API validation prevents logical errors at setup time rather than runtime:
-
-```cpp
-// ✅ This works - switches can have aliases
-rootCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v');
-
-// ❌ This throws ApiException - parameters can't have aliases  
-rootCmdDesc.DeclareOption(OptionType::Parameter, "filename", 'f');
-//   → "Parameters cannot have aliases - use DeclareOption(type, name) instead"
-```
-
----
-
-## Advanced Examples
+## Examples
 
 ### Git-like Command Structure
 
