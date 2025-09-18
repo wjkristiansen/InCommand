@@ -878,18 +878,45 @@ TEST(InCommand, TemplateBinding_ErrorHandling)
     EXPECT_THROW(parser.ParseArgs(argc, argv), InCommand::SyntaxException);
 }
 
-TEST(InCommand, TemplateBinding_SwitchError)
+TEST(InCommand, TemplateBinding_SwitchBoolBinding)
 {
-    InCommand::CommandParser parser("testapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
-    
-    bool switchValue = false;
-    
-    // Should throw ApiException when trying to bind to a switch
-    EXPECT_THROW(
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "flag").BindTo(switchValue),
-        InCommand::ApiException
-    );
+    // Verify that Switch options can now bind directly to bool variables.
+    // Presence of switch sets bool to true; absence leaves default unchanged.
+    {
+        InCommand::CommandParser parser("testapp");
+        auto& rootCmd = parser.GetRootCommandBlockDesc();
+        bool verbose = false; // default false
+        rootCmd.DeclareOption(InCommand::OptionType::Switch, "verbose", 'v').BindTo(verbose);
+        const char* argv[] = {"testapp", "--verbose"};
+        parser.ParseArgs(2, argv);
+        EXPECT_TRUE(verbose);
+    }
+
+    // Absence should not flip an already true default to false
+    {
+        InCommand::CommandParser parser("testapp");
+        auto& rootCmd = parser.GetRootCommandBlockDesc();
+        bool featureEnabled = true; // caller chooses default true
+        rootCmd.DeclareOption(InCommand::OptionType::Switch, "feature").BindTo(featureEnabled);
+        const char* argv[] = {"testapp"};
+        parser.ParseArgs(1, argv);
+        EXPECT_TRUE(featureEnabled); // unchanged
+    }
+
+    // Grouped aliases with binding
+    {
+        InCommand::CommandParser parser("testapp");
+        auto& rootCmd = parser.GetRootCommandBlockDesc();
+        bool a=false, b=false, c=false;
+        rootCmd.DeclareOption(InCommand::OptionType::Switch, "alpha", 'a').BindTo(a);
+        rootCmd.DeclareOption(InCommand::OptionType::Switch, "bravo", 'b').BindTo(b);
+        rootCmd.DeclareOption(InCommand::OptionType::Switch, "charlie", 'c').BindTo(c);
+        const char* argv[] = {"testapp", "-abc"};
+        parser.ParseArgs(2, argv);
+        EXPECT_TRUE(a);
+        EXPECT_TRUE(b);
+        EXPECT_TRUE(c);
+    }
 }
 
 TEST(InCommand, TemplateBinding_BooleanVariables)
