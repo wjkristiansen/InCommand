@@ -1,3 +1,9 @@
+//------------------------------------------------------------------------------------------------
+// InCommand
+// Copyright (c) 2025 wjkristiansen@hotmail.com
+// Licensed under the MIT License. See LICENSE for details.
+//------------------------------------------------------------------------------------------------
+
 #pragma once
 
 #include <memory>
