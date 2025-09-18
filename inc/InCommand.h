@@ -228,31 +228,48 @@ namespace InCommand
         template<typename T, typename Converter = DefaultConverter<T>>
         OptionDesc& BindTo(T& variable, Converter converter = Converter{})
         {
-            // Only Variable and Parameter types can have bound values
-            if (m_type != OptionType::Variable && m_type != OptionType::Parameter)
+            // Switch binding specialization (only valid when T is bool)
+            if (m_type == OptionType::Switch)
             {
-                throw ApiException(ApiError::InvalidOptionType, 
-                    "Only Variable and Parameter options can bind values. Switch options are boolean flags.");
+                if constexpr (std::is_same_v<T, bool>)
+                {
+                    m_valueBinding = [&variable](const std::string & /*str*/)
+                        {
+                            variable = true; // presence sets to true
+                        };
+                    return *this;
+                }
+                else
+                {
+                    throw ApiException(ApiError::InvalidOptionType,
+                        "Switch options can only bind to bool variables.");
+                }
             }
 
-            m_valueBinding = [&variable, converter](const std::string &str)
-                {
-                    try
+            // Variable / Parameter binding (all other supported types)
+            if (m_type == OptionType::Variable || m_type == OptionType::Parameter)
+            {
+                m_valueBinding = [&variable, converter](const std::string &str)
                     {
-                        variable = converter(str);
-                    }
-                    catch (const SyntaxException &)
-                    {
-                        throw; // Re-throw syntax exceptions as-is
-                    }
-                    catch (const std::exception &e)
-                    {
-                        throw SyntaxException(SyntaxError::InvalidValue, 
-                            std::string("Conversion failed: ") + e.what(), str);
-                    }
-                };
-            
-            return *this;
+                        try
+                        {
+                            variable = converter(str);
+                        }
+                        catch (const SyntaxException &)
+                        {
+                            throw; // Re-throw syntax exceptions as-is
+                        }
+                        catch (const std::exception &e)
+                        {
+                            throw SyntaxException(SyntaxError::InvalidValue,
+                                std::string("Conversion failed: ") + e.what(), str);
+                        }
+                    };
+                return *this;
+            }
+
+            throw ApiException(ApiError::InvalidOptionType,
+                "Only Variable, Parameter, or Switch(bool) options can bind values.");
         }
 
         // --- Get Accessors ---

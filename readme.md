@@ -339,8 +339,47 @@ OptionDesc& BindTo(T& variable, Converter converter = Converter{});
 **Returns:** Reference to `OptionDesc` for method chaining
 
 **Constraints:**
-- Only `Variable` and `Parameter` options support binding
-- `Switch` options cannot be bound (throws `ApiException`)
+- `Variable` and `Parameter` options support binding to any supported type
+- `Switch` options may be bound only to `bool` (presence sets the variable to `true`, absence leaves its prior value)
+
+### Binding Switches to Booleans
+
+Switch options can be bound directly to a `bool` using `BindTo()`. Binding semantics are intentionally simple and predictable:
+
+Behavior:
+* The variable's value before parsing is its default (e.g., `false` or `true`, as you choose).
+* Each time the bound switch appears on the command line, the variable is set to `true`.
+* If the switch does not appear, the variable remains unchanged.
+* Grouped aliases (e.g., `-abc`) trigger each bound switch's callback, setting all associated booleans to `true`.
+* Attempting to bind a switch to a non-`bool` type throws `ApiException`.
+
+Example:
+```cpp
+bool verbose = false;      // default chosen by the application
+bool featureEnabled = true; // pre-enabled feature, user can confirm by passing --feature (idempotent)
+
+rootCmd.DeclareOption(OptionType::Switch, "verbose", 'v').BindTo(verbose);
+rootCmd.DeclareOption(OptionType::Switch, "feature").BindTo(featureEnabled);
+
+parser.ParseArgs(argc, argv);
+
+// If user passed --verbose or -v -> verbose == true
+// If user omitted --feature       -> featureEnabled stays true (default preserved)
+```
+
+Grouped aliases:
+```cpp
+bool a=false, b=false, c=false;
+rootCmd.DeclareOption(OptionType::Switch, "alpha", 'a').BindTo(a);
+rootCmd.DeclareOption(OptionType::Switch, "bravo", 'b').BindTo(b);
+rootCmd.DeclareOption(OptionType::Switch, "charlie", 'c').BindTo(c);
+
+// Command: myapp -abc  => a == b == c == true
+```
+
+Tip: If you need tri-state semantics (unset / enabled / disabled) consider using:
+* A bound `bool` defaulting to `false` plus a separate `--no-<name>` switch, or
+* A `Variable` option bound to an enum `{ Auto, On, Off }`.
 
 ---
 
