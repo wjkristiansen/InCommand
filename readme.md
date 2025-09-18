@@ -1,5 +1,7 @@
 # InCommand
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **InCommand** is a modern, hierarchical command-line interface (CLI) argument parser for C++ applications. It provides a clean, type-safe API for defining complex command structures with subcommands, options, parameters, and aliases.
 
 ---
@@ -1538,7 +1540,31 @@ ctest -C Debug  # Run tests
 
 ## License
 
-[Add your license information here]
+InCommand is distributed under the MIT License. See the full text in the `LICENSE` file.
+
+Copyright (c) 2025 wjkristiansen@hotmail.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including this paragraph)
+shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+### Third-Party Components
+This project uses GoogleTest, which is licensed under the BSD-3-Clause license.
+That license applies to the GoogleTest sources and is included with its distribution.
 
 ---
 
@@ -1982,24 +2008,7 @@ public:
 
 ---
 
-## Requirements
-* C++17 or later
-* CMake 3.14 or later
-
----
-
-## License
-[Add your license information here]
-
----
-
-## Notes / Future Enhancements (Optional)
-Potential additions:
-* FAQ (design rationale for single delimiter strategy)
-* Extended example repository links
-* Generated man-page output helper
-
----
+<!-- Duplicate Requirements & License sections removed to avoid redundancy -->
 
 
 
