@@ -30,20 +30,20 @@ int main(int argc, const char *argv[])
 {
     // Create InCommand parser - it owns the root command descriptor
     CommandParser parser("mybuildtool");
-    auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
+    auto& rootCmdDesc = parser.GetAppCommandDecl();
     rootCmdDesc.SetDescription("My awesome application");
 
     // Enable auto-help
     parser.EnableAutoHelp("help", 'h');
 
-    // Declare a subcommand with cascading style
-    CommandBlockDesc& buildCmdDesc = rootCmdDesc.DeclareSubCommandBlock("build");
+    // Add a subcommand with cascading style
+    CommandDecl& buildCmdDesc = rootCmdDesc.AddSubCommand("build");
     buildCmdDesc.SetDescription("Build the project");
-    buildCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v')
+    buildCmdDesc.AddOption(OptionType::Switch, "verbose", 'v')
         .SetDescription("Enable verbose output");
-    buildCmdDesc.DeclareOption(OptionType::Variable, "target")
+    buildCmdDesc.AddOption(OptionType::Variable, "target")
         .SetDescription("Build target");
-    buildCmdDesc.DeclareOption(OptionType::Parameter, "project")
+    buildCmdDesc.AddOption(OptionType::Parameter, "project")
         .SetDescription("Project file");
 
     try
@@ -60,7 +60,7 @@ int main(int argc, const char *argv[])
         const CommandBlock* result = &parser.GetCommandBlock(numBlocks - 1);
         
         // Check which command was parsed
-        if (result->GetDesc().GetName() == "build")
+        if (result->GetDecl().GetName() == "build")
         {
             bool verbose = result->IsOptionSet("verbose");
             std::string target = result->GetOptionValue("target", "debug");
@@ -189,16 +189,16 @@ myapp -o output.txt --config config.json
 
 ```cpp
 // Switches with aliases
-rootCmd.DeclareOption(OptionType::Switch, "verbose", 'v');
-rootCmd.DeclareOption(OptionType::Switch, "quiet", 'q');
-rootCmd.DeclareOption(OptionType::Switch, "help", 'h');
+rootCmd.AddOption(OptionType::Switch, "verbose", 'v');
+rootCmd.AddOption(OptionType::Switch, "quiet", 'q');
+rootCmd.AddOption(OptionType::Switch, "help", 'h');
 
 // Variables with aliases
-rootCmd.DeclareOption(OptionType::Variable, "output", 'o');
-rootCmd.DeclareOption(OptionType::Variable, "config", 'c');
+rootCmd.AddOption(OptionType::Variable, "output", 'o');
+rootCmd.AddOption(OptionType::Variable, "config", 'c');
 
 // Parameters cannot have aliases
-rootCmd.DeclareOption(OptionType::Parameter, "input-file");  // No alias allowed
+rootCmd.AddOption(OptionType::Parameter, "input-file");  // No alias allowed
 ```
 
 #### Alias Rules and Restrictions
@@ -220,7 +220,7 @@ InCommand provides a template method `BindTo()` for automatic type conversion an
 int main(int argc, const char* argv[])
 {
     CommandParser parser("myapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
+    auto& rootCmd = parser.GetAppCommandDecl();
     
     // Variables to bind to
     int count = 10;
@@ -228,20 +228,20 @@ int main(int argc, const char* argv[])
     bool verbose = false;
     std::string filename;
     
-    // Declare options with type-safe bindings
-    rootCmd.DeclareOption(OptionType::Variable, "count", 'c')
+    // Add options with type-safe bindings
+    rootCmd.AddOption(OptionType::Variable, "count", 'c')
            .BindTo(count)
            .SetDescription("Number of items");
            
-    rootCmd.DeclareOption(OptionType::Variable, "rate", 'r')
+    rootCmd.AddOption(OptionType::Variable, "rate", 'r')
            .BindTo(rate)
            .SetDescription("Processing rate");
            
-    rootCmd.DeclareOption(OptionType::Variable, "verbose", 'v')
+    rootCmd.AddOption(OptionType::Variable, "verbose", 'v')
            .BindTo(verbose)
            .SetDescription("Enable verbose output");
            
-    rootCmd.DeclareOption(OptionType::Parameter, "filename")
+    rootCmd.AddOption(OptionType::Parameter, "filename")
            .BindTo(filename)
            .SetDescription("Input filename");
     
@@ -306,10 +306,10 @@ struct LogLevelConverter
 std::string name;
 LogLevel logLevel;
 
-rootCmd.DeclareOption(OptionType::Variable, "name")
+rootCmd.AddOption(OptionType::Variable, "name")
        .BindTo(name, UppercaseConverter{});
        
-rootCmd.DeclareOption(OptionType::Variable, "log-level")
+rootCmd.AddOption(OptionType::Variable, "log-level")
        .BindTo(logLevel, LogLevelConverter{});
 ```
 
@@ -319,7 +319,7 @@ Type conversion errors automatically throw `SyntaxException`:
 
 ```cpp
 int number;
-rootCmd.DeclareOption(OptionType::Variable, "number").BindTo(number);
+rootCmd.AddOption(OptionType::Variable, "number").BindTo(number);
 
 // Command: myapp --number abc
 // Result: SyntaxException with message "Invalid value for numeric type (token: abc)"
@@ -329,14 +329,14 @@ rootCmd.DeclareOption(OptionType::Variable, "number").BindTo(number);
 
 ```cpp
 template<typename T, typename Converter = DefaultConverter<T>>
-OptionDesc& BindTo(T& variable, Converter converter = Converter{});
+OptionDecl& BindTo(T& variable, Converter converter = Converter{});
 ```
 
 **Parameters:**
 - `T` - Target type (automatically deduced from variable reference)
 - `Converter` - Conversion functor (defaults to `DefaultConverter<T>`)
 
-**Returns:** Reference to `OptionDesc` for method chaining
+**Returns:** Reference to `OptionDecl` for method chaining
 
 **Constraints:**
 - `Variable` and `Parameter` options support binding to any supported type
@@ -358,8 +358,8 @@ Example:
 bool verbose = false;      // default chosen by the application
 bool featureEnabled = true; // pre-enabled feature, user can confirm by passing --feature (idempotent)
 
-rootCmd.DeclareOption(OptionType::Switch, "verbose", 'v').BindTo(verbose);
-rootCmd.DeclareOption(OptionType::Switch, "feature").BindTo(featureEnabled);
+rootCmd.AddOption(OptionType::Switch, "verbose", 'v').BindTo(verbose);
+rootCmd.AddOption(OptionType::Switch, "feature").BindTo(featureEnabled);
 
 parser.ParseArgs(argc, argv);
 
@@ -370,9 +370,9 @@ parser.ParseArgs(argc, argv);
 Grouped aliases:
 ```cpp
 bool a=false, b=false, c=false;
-rootCmd.DeclareOption(OptionType::Switch, "alpha", 'a').BindTo(a);
-rootCmd.DeclareOption(OptionType::Switch, "bravo", 'b').BindTo(b);
-rootCmd.DeclareOption(OptionType::Switch, "charlie", 'c').BindTo(c);
+rootCmd.AddOption(OptionType::Switch, "alpha", 'a').BindTo(a);
+rootCmd.AddOption(OptionType::Switch, "bravo", 'b').BindTo(b);
+rootCmd.AddOption(OptionType::Switch, "charlie", 'c').BindTo(c);
 
 // Command: myapp -abc  => a == b == c == true
 ```
@@ -394,11 +394,11 @@ Only Switch or Variable option types can be global. Positional Parameter option 
 ```cpp
 InCommand::CommandParser parser("myapp");
 
-// Declare global options
-parser.DeclareGlobalOption(OptionType::Switch, "verbose", 'v')
+// Add global options
+parser.AddGlobalOption(OptionType::Switch, "verbose", 'v')
       .SetDescription("Enable verbose output globally");
 
-parser.DeclareGlobalOption(OptionType::Variable, "config", 'c')
+parser.AddGlobalOption(OptionType::Variable, "config", 'c')
       .SetDescription("Configuration file path");
 
 // These work from any command context:
@@ -415,11 +415,11 @@ While global options are accessible from anywhere, InCommand preserves the **loc
 
 ```cpp
 // Global option - available everywhere
-parser.DeclareGlobalOption(OptionType::Switch, "verbose", 'v');
+parser.AddGlobalOption(OptionType::Switch, "verbose", 'v');
 
 // Local option - only available on specific command
-auto& buildCmd = rootCmd.DeclareSubCommandBlock("build");
-buildCmd.DeclareOption(OptionType::Variable, "target")
+auto& buildCmd = rootCmd.AddSubCommand("build");
+buildCmd.AddOption(OptionType::Variable, "target")
         .SetDescription("Build target (Debug/Release)");
 ```
 
@@ -453,11 +453,11 @@ if (parser.IsGlobalOptionSet("verbose")) {
     size_t contextIndex = parser.GetGlobalOptionContext("verbose");
     const auto& contextBlock = parser.GetCommandBlock(contextIndex);
     
-    if (contextBlock.GetDesc().GetName() == "build") {
+    if (contextBlock.GetDecl().GetName() == "build") {
         // Verbose was used with build command - enable build-specific verbose
         std::cout << "Enabling detailed build output\n";
         setBuildVerbosity(VerboseLevel::Detailed);
-    } else if (contextBlock.GetDesc().GetName() == "test") {
+    } else if (contextBlock.GetDecl().GetName() == "test") {
         // Verbose was used with test command - enable test-specific verbose  
         std::cout << "Enabling detailed test output\n";
         setTestVerbosity(VerboseLevel::Detailed);
@@ -487,7 +487,7 @@ if (parser.IsGlobalOptionSet("dry-run")) {
     size_t contextIndex = parser.GetGlobalOptionContext("dry-run");
     const auto& contextBlock = parser.GetCommandBlock(contextIndex);
     
-    switch (contextBlock.GetDesc().GetUniqueId<CommandContext>()) {
+    switch (contextBlock.GetDecl().GetUniqueId<CommandContext>()) {
         case CommandContext::Build:
             std::cout << "Dry-run mode: Will show build steps without executing\n";
             configureBuildDryRun();
@@ -520,11 +520,11 @@ if (parser.IsGlobalOptionSet("config")) {
     size_t contextIndex = parser.GetGlobalOptionContext("config");
     const auto& contextBlock = parser.GetCommandBlock(contextIndex);
     
-    if (contextBlock.GetDesc().GetName() == "build") {
+    if (contextBlock.GetDecl().GetName() == "build") {
         // Load build-specific configuration
         loadBuildConfig(configPath);
         std::cout << "Using build configuration: " << configPath << "\n";
-    } else if (contextBlock.GetDesc().GetName() == "test") {
+    } else if (contextBlock.GetDecl().GetName() == "test") {
         // Load test-specific configuration
         loadTestConfig(configPath);
         std::cout << "Using test configuration: " << configPath << "\n";
@@ -835,11 +835,9 @@ This section provides comprehensive documentation for all public classes and met
 ### Class Overview
 
 - **CommandParser** - Main entry point, owns the command structure
-- **CommandBlockDesc** - Tree node describing command blocks in hierarchical structure
+- **CommandDecl** - Tree node describing command blocks in hierarchical structure
 - **CommandBlock** - Parsed command result within a series of ordered blocks
-- **OptionDesc** - Describes individual options, supports method chaining
-- **Option** - Parsed option associated with a given command block
-
+- **OptionDecl** - Describes individual options, supports method chaining
 ### CommandParser
 
 The main entry point for InCommand. Owns and manages the command structure hierarchy.
@@ -858,33 +856,33 @@ Creates a new command parser with support for a specific variable assignment del
 - `CommandParser("myapp", VariableDelimiter::Equals)` - Enables `--name=value` and `-n=value` formats
 - `CommandParser("myapp", VariableDelimiter::Colon)` - Enables `--name:value` and `-n:value` formats
 
-#### `CommandParser::GetRootCommandBlockDesc()`
+#### `CommandParser::GetAppCommandDecl()`
 
 ```cpp
-CommandBlockDesc& GetRootCommandBlockDesc()
-const CommandBlockDesc& GetRootCommandBlockDesc() const
+CommandDecl& GetAppCommandDecl()
+const CommandDecl& GetAppCommandDecl() const
 ```
 
 Returns a reference to the root command block descriptor. Use this to configure your application's commands and options.
 
-#### `CommandParser::DeclareGlobalOption()`
+#### `CommandParser::AddGlobalOption()`
 
 ```cpp
-OptionDesc& DeclareGlobalOption(OptionType type, const std::string& name, char alias = 0)
+OptionDecl& AddGlobalOption(OptionType type, const std::string& name, char alias = 0)
 ```
 
-Declares a global option that is available to all command blocks in the hierarchy. Global options can be specified at any level of the command chain and are accessible from any command block after parsing.
+Adds a global option that is available to all command blocks in the hierarchy. Global options can be specified at any level of the command chain and are accessible from any command block after parsing.
 
 **Parameters:**
 - `type`: The option type (Switch, Variable, or Parameter)
 - `name`: The option name
 - `alias`: Optional single-character alias (0 for no alias)
 
-**Returns:** Reference to the created OptionDesc for method chaining
+**Returns:** Reference to the created OptionDecl for method chaining
 
 **Example:**
 ```cpp
-parser.DeclareGlobalOption(OptionType::Switch, "verbose", 'v')
+parser.AddGlobalOption(OptionType::Switch, "verbose", 'v')
       .SetDescription("Enable verbose output");
 // Usage: myapp --verbose build  OR  myapp build --verbose
 ```
@@ -985,48 +983,48 @@ std::string GetHelpString(size_t commandBlockIndex) const
 
 Generates complete help text for a specific command block by index (0 = root command). Automatically integrates global options with local options. Requires that `ParseArgs()` has been called first.
 
-### CommandBlockDesc
+### CommandDecl
 
 Describes a command or subcommand with its available options. Represents the tree structure of your command hierarchy.
 
-#### `CommandBlockDesc::DeclareOption()` - Basic Form
+#### `CommandDecl::AddOption()` - Basic Form
 
 ```cpp
-OptionDesc& DeclareOption(OptionType type, const std::string& name)
+OptionDecl& AddOption(OptionType type, const std::string& name)
 ```
 
-Declares an option without an alias. Returns a reference to the newly created OptionDesc.
+Adds an option without an alias. Returns a reference to the newly created OptionDecl.
 - **type**: `OptionType::Switch`, `OptionType::Variable`, or `OptionType::Parameter`
 - **name**: The option name (e.g., "verbose", "output", "input-file")
 
-#### `CommandBlockDesc::DeclareOption()` - With Alias
+#### `CommandDecl::AddOption()` - With Alias
 
 ```cpp
-OptionDesc& DeclareOption(OptionType type, const std::string& name, char alias)
+OptionDecl& AddOption(OptionType type, const std::string& name, char alias)
 ```
 
-Declares an option with a single-character alias. **Parameters cannot have aliases** and will throw `ApiException`.
+Adds an option with a single-character alias. **Parameters cannot have aliases** and will throw `ApiException`.
 - **type**: `OptionType::Switch` or `OptionType::Variable` (NOT `Parameter`)
 - **name**: The option name
 - **alias**: Single character alias (e.g., 'v', 'o', 'h')
 
-#### `CommandBlockDesc::DeclareSubCommandBlock()`
+#### `CommandDecl::AddSubCommand()`
 
 ```cpp
-CommandBlockDesc& DeclareSubCommandBlock(const std::string& name)
+CommandDecl& AddSubCommand(const std::string& name)
 ```
 
-Declares a new subcommand. Returns a reference to the new command block descriptor for configuration.
+Adds a new subcommand. Returns a reference to the new command block descriptor for configuration.
 
-#### `CommandBlockDesc::SetDescription()`
+#### `CommandDecl::SetDescription()`
 
 ```cpp
-CommandBlockDesc& SetDescription(const std::string& description)
+CommandDecl& SetDescription(const std::string& description)
 ```
 
 Sets the description for this command. Used in help generation. Returns `*this` for method chaining.
 
-#### `CommandBlockDesc::SetUniqueId()`
+#### `CommandDecl::SetUniqueId()`
 
 ```cpp
 template<typename T>
@@ -1035,7 +1033,7 @@ void SetUniqueId(T id)
 
 Assigns a user-defined ID to this command block descriptor. The ID can be any type (typically an enum) and is useful for switch-based command handling in your application logic.
 
-#### `CommandBlockDesc::GetUniqueId()`
+#### `CommandDecl::GetUniqueId()`
 
 ```cpp
 template<typename T>  
@@ -1044,7 +1042,7 @@ T GetUniqueId() const
 
 Retrieves the previously assigned unique ID. Throws `ApiException` if no ID has been set or the type doesn't match the stored ID type.
 
-#### `CommandBlockDesc::HasUniqueId()`
+#### `CommandDecl::HasUniqueId()`
 
 ```cpp
 bool HasUniqueId() const
@@ -1052,7 +1050,7 @@ bool HasUniqueId() const
 
 Returns `true` if a unique ID has been assigned to this command block descriptor, `false` otherwise.
 
-#### `CommandBlockDesc::GetName()`
+#### `CommandDecl::GetName()`
 
 ```cpp
 const std::string& GetName() const
@@ -1060,7 +1058,7 @@ const std::string& GetName() const
 
 Returns the name of this command block (the command word that users type).
 
-#### `CommandBlockDesc::GetDescription()`
+#### `CommandDecl::GetDescription()`
 
 ```cpp
 const std::string& GetDescription() const
@@ -1154,37 +1152,37 @@ CommandBlock* GetNextCommandBlock() const
 
 Returns the next (more specific) command block in the parsed chain, moving toward subcommands. Returns `nullptr` if this is the most specific command block.
 
-#### `CommandBlock::GetDesc()`
+#### `CommandBlock::GetDecl()`
 
 ```cpp
-const CommandBlockDesc& GetDesc() const
+const CommandDecl& GetDecl() const
 ```
 
 Returns a reference to the command block descriptor that was used to create this parsed command block.
 
 ---
 
-### OptionDesc
+### OptionDecl
 
-Describes an individual option (switch, variable, or parameter). Returned by `DeclareOption()` methods.
+Describes an individual option (switch, variable, or parameter). Returned by `AddOption()` methods.
 
-#### `OptionDesc::SetDescription()`
+#### `OptionDecl::SetDescription()`
 
 ```cpp
-OptionDesc& SetDescription(const std::string& description)
+OptionDecl& SetDescription(const std::string& description)
 ```
 
 Sets the description for this option. Used in help generation. Returns `*this` for method chaining.
 
-#### `OptionDesc::SetDomain()`
+#### `OptionDecl::SetDomain()`
 
 ```cpp
-OptionDesc& SetDomain(const std::vector<std::string>& domain)
+OptionDecl& SetDomain(const std::vector<std::string>& domain)
 ```
 
 Restricts the option to a specific set of valid values. Useful for variables with limited choices.
 
-#### `OptionDesc::SetUniqueId()`
+#### `OptionDecl::SetUniqueId()`
 
 ```cpp
 template<typename T>
@@ -1193,7 +1191,7 @@ void SetUniqueId(T id)
 
 Assigns a user-defined ID to this option descriptor. The ID can be any type (typically an enum) and is useful for option identification in your application logic.
 
-#### `OptionDesc::GetUniqueId()`
+#### `OptionDecl::GetUniqueId()`
 
 ```cpp
 template<typename T>
@@ -1202,7 +1200,7 @@ T GetUniqueId() const
 
 Retrieves the previously assigned unique ID. Throws `ApiException` if no ID has been set or the type doesn't match the stored ID type.
 
-#### `OptionDesc::HasUniqueId()`
+#### `OptionDecl::HasUniqueId()`
 
 ```cpp
 bool HasUniqueId() const
@@ -1210,7 +1208,7 @@ bool HasUniqueId() const
 
 Returns `true` if a unique ID has been assigned to this option descriptor, `false` otherwise.
 
-#### `OptionDesc::GetType()`
+#### `OptionDecl::GetType()`
 
 ```cpp
 OptionType GetType() const
@@ -1218,7 +1216,7 @@ OptionType GetType() const
 
 Returns the type of this option (`OptionType::Switch`, `OptionType::Variable`, or `OptionType::Parameter`).
 
-#### `OptionDesc::GetName()`
+#### `OptionDecl::GetName()`
 
 ```cpp
 const std::string& GetName() const
@@ -1226,7 +1224,7 @@ const std::string& GetName() const
 
 Returns the name of this option as specified when it was created.
 
-#### `OptionDesc::GetDescription()`
+#### `OptionDecl::GetDescription()`
 
 ```cpp
 const std::string& GetDescription() const
@@ -1234,7 +1232,7 @@ const std::string& GetDescription() const
 
 Returns the description text for this option. Empty string if no description has been set.
 
-#### `OptionDesc::GetAlias()`
+#### `OptionDecl::GetAlias()`
 
 ```cpp
 char GetAlias() const
@@ -1242,7 +1240,7 @@ char GetAlias() const
 
 Returns the single-character alias for this option. Returns 0 if no alias has been set.
 
-#### `OptionDesc::GetDomain()`
+#### `OptionDecl::GetDomain()`
 
 ```cpp
 const std::vector<std::string>& GetDomain() const
@@ -1250,11 +1248,11 @@ const std::vector<std::string>& GetDomain() const
 
 Returns the list of valid values for this option. Empty vector if no domain restrictions have been set.
 
-#### `OptionDesc::BindTo()`
+#### `OptionDecl::BindTo()`
 
 ```cpp
 template<typename T, typename Converter = DefaultConverter<T>>
-OptionDesc& BindTo(T& variable, Converter converter = Converter{})
+OptionDecl& BindTo(T& variable, Converter converter = Converter{})
 ```
 
 Binds the option's parsed value to a typed variable with automatic type conversion. When the command line is parsed, the string value is converted to the target type and assigned to the variable. Returns `*this` for method chaining.
@@ -1284,7 +1282,7 @@ Binds the option's parsed value to a typed variable with automatic type conversi
 
 Boolean flags that are either present (true) or absent (false).
 ```cpp
-rootCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v');
+rootCmdDesc.AddOption(OptionType::Switch, "verbose", 'v');
 // Usage: myapp --verbose  or  myapp -v  or  myapp -vq (grouped)
 ```
 
@@ -1292,7 +1290,7 @@ rootCmdDesc.DeclareOption(OptionType::Switch, "verbose", 'v');
 
 Options that require a value argument.
 ```cpp
-rootCmdDesc.DeclareOption(OptionType::Variable, "output", 'o');
+rootCmdDesc.AddOption(OptionType::Variable, "output", 'o');
 // Usage: myapp --output file.txt  or  myapp -o file.txt
 ```
 
@@ -1300,7 +1298,7 @@ rootCmdDesc.DeclareOption(OptionType::Variable, "output", 'o');
 
 Positional arguments without option prefixes. Order matters and they are consumed in declaration order.
 ```cpp
-rootCmdDesc.DeclareOption(OptionType::Parameter, "input-file");
+rootCmdDesc.AddOption(OptionType::Parameter, "input-file");
 // Usage: myapp input.txt
 // NOTE: Parameters cannot have aliases
 ```
@@ -1318,7 +1316,7 @@ rootCmdDesc.DeclareOption(OptionType::Parameter, "input-file");
 
 #### OptionType
 
-Specifies the type of option when calling `DeclareOption()`.
+Specifies the type of option when calling `AddOption()`.
 
 ```cpp
 enum class OptionType
@@ -1423,12 +1421,12 @@ Returns the specific `ApiError` enum value indicating the type of API error that
 ```cpp
 try
 {
-    auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
-    rootCmdDesc.DeclareOption(OptionType::Switch, "help");
-    rootCmdDesc.DeclareOption(OptionType::Switch, "help"); // Duplicate!
+    auto& rootCmdDesc = parser.GetAppCommandDecl();
+    rootCmdDesc.AddOption(OptionType::Switch, "help");
+    rootCmdDesc.AddOption(OptionType::Switch, "help"); // Duplicate!
     
     // This also throws ApiException:
-    rootCmdDesc.DeclareOption(OptionType::Parameter, "file", 'f'); // Parameters can't have aliases!
+    rootCmdDesc.AddOption(OptionType::Parameter, "file", 'f'); // Parameters can't have aliases!
 }
 catch (const ApiException& e)
 {
@@ -1507,18 +1505,18 @@ This feature makes InCommand particularly suitable for applications that need to
 
 ```cpp
 CommandParser parser("git");
-auto& gitCmdDesc = parser.GetRootCommandBlockDesc();
+auto& gitCmdDesc = parser.GetAppCommandDecl();
 
 // git remote
-auto& remoteCmdDesc = gitCmdDesc.DeclareSubCommandBlock("remote");
+auto& remoteCmdDesc = gitCmdDesc.AddSubCommand("remote");
 remoteCmdDesc.SetDescription("Manage remote repositories");
 
 // git remote add
-auto& addCmdDesc = remoteCmdDesc.DeclareSubCommandBlock("add");
+auto& addCmdDesc = remoteCmdDesc.AddSubCommand("add");
 addCmdDesc.SetDescription("Add a remote repository")
-           .DeclareOption(OptionType::Parameter, "name")
+           .AddOption(OptionType::Parameter, "name")
                .SetDescription("Remote name");
-addCmdDesc.DeclareOption(OptionType::Parameter, "url")
+addCmdDesc.AddOption(OptionType::Parameter, "url")
     .SetDescription("Remote URL");
 
 // Usage: git remote add origin https://github.com/user/repo.git
@@ -1532,20 +1530,20 @@ Unique, user-defined type IDs can be assigned to Command Block, allowing develop
 enum class MyCommandId { Root, Build, Test, Deploy };
 
 CommandParser parser("myapp");
-auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
+auto& rootCmdDesc = parser.GetAppCommandDecl();
 rootCmdDesc.SetUniqueId(MyCommandId::Root);
 
-auto& buildCmdDesc = rootCmdDesc.DeclareSubCommandBlock("build");
+auto& buildCmdDesc = rootCmdDesc.AddSubCommand("build");
 buildCmdDesc.SetUniqueId(MyCommandId::Build);
 
-auto& testCmdDesc = rootCmdDesc.DeclareSubCommandBlock("test");
+auto& testCmdDesc = rootCmdDesc.AddSubCommand("test");
 testCmdDesc.SetUniqueId(MyCommandId::Test);
 
-auto& deployCmdDesc = rootCmdDesc.DeclareSubCommandBlock("deploy");
+auto& deployCmdDesc = rootCmdDesc.AddSubCommand("deploy");
 deployCmdDesc.SetUniqueId(MyCommandId::Deploy);
 
 const CommandBlock* active = parser.ParseArgs(argc, argv);
-switch (active->GetDesc().GetUniqueId<MyCommandId>())
+switch (active->GetDecl().GetUniqueId<MyCommandId>())
 {
     case MyCommandId::Root: /* handle root command */ break;
     case CommandId::Test:  /* handle test */  break;
@@ -1621,11 +1619,11 @@ Automatically convert and assign option values using `BindTo()` (variables & par
 Basic example:
 ```cpp
 int count = 0; float rate = 0.0f; bool verbose = false; std::string file;
-auto& root = parser.GetRootCommandBlockDesc();
-root.DeclareOption(OptionType::Variable, "count", 'c').BindTo(count);
-root.DeclareOption(OptionType::Variable, "rate", 'r').BindTo(rate);
-root.DeclareOption(OptionType::Variable, "verbose", 'v').BindTo(verbose);
-root.DeclareOption(OptionType::Parameter, "filename").BindTo(file);
+auto& root = parser.GetAppCommandDecl();
+root.AddOption(OptionType::Variable, "count", 'c').BindTo(count);
+root.AddOption(OptionType::Variable, "rate", 'r').BindTo(rate);
+root.AddOption(OptionType::Variable, "verbose", 'v').BindTo(verbose);
+root.AddOption(OptionType::Parameter, "filename").BindTo(file);
 parser.ParseArgs(argc, argv);
 ```
 
@@ -1644,7 +1642,7 @@ struct LogLevelConv {
     }
 };
 LogLevel level;
-root.DeclareOption(OptionType::Variable, "log-level").BindTo(level, LogLevelConv{});
+root.AddOption(OptionType::Variable, "log-level").BindTo(level, LogLevelConv{});
 ```
 
 Errors during conversion raise `SyntaxException`.
@@ -1665,7 +1663,7 @@ struct UppercaseConverter {
     }
 };
 std::string name;
-root.DeclareOption(OptionType::Variable, "name").BindTo(name, UppercaseConverter{});
+root.AddOption(OptionType::Variable, "name").BindTo(name, UppercaseConverter{});
 ```
 
 Enum converter (already shown above for `LogLevel`) demonstrates throwing `SyntaxException` with `SyntaxError::InvalidValue` for invalid input.
@@ -1673,7 +1671,7 @@ Enum converter (already shown above for `LogLevel`) demonstrates throwing `Synta
 ### Conversion Error Example
 ```cpp
 int number;
-root.DeclareOption(OptionType::Variable, "number").BindTo(number);
+root.AddOption(OptionType::Variable, "number").BindTo(number);
 // Command: myapp --number=abc (or "--number abc")
 // Throws: SyntaxException (InvalidValue) token "abc"
 ```
@@ -1686,10 +1684,10 @@ root.DeclareOption(OptionType::Variable, "number").BindTo(number);
 ---
 
 ## Global Options & Context
-Declared once via `DeclareGlobalOption` and visible in all blocks.
+Add once via `AddGlobalOption` and visible in all blocks.
 ```cpp
-parser.DeclareGlobalOption(OptionType::Switch, "verbose", 'v');
-parser.DeclareGlobalOption(OptionType::Variable, "config", 'c');
+parser.AddGlobalOption(OptionType::Switch, "verbose", 'v');
+parser.AddGlobalOption(OptionType::Variable, "config", 'c');
 ```
 Context-aware usage:
 ```cpp
@@ -1703,11 +1701,11 @@ Advanced pattern using unique IDs:
 ```cpp
 enum class ContextId { Root, Build, Test, Deploy };
 root.SetUniqueId(ContextId::Root);
-auto& build = root.DeclareSubCommandBlock("build"); build.SetUniqueId(ContextId::Build);
+auto& build = root.AddSubCommand("build"); build.SetUniqueId(ContextId::Build);
 // ... after parse
 if (parser.IsGlobalOptionSet("dry-run")) {
     size_t i = parser.GetGlobalOptionContext("dry-run");
-    switch (parser.GetCommandBlock(i).GetDesc().GetUniqueId<ContextId>()) {
+    switch (parser.GetCommandBlock(i).GetDecl().GetUniqueId<ContextId>()) {
         case ContextId::Build: /* build dry-run */ break;
         case ContextId::Deploy: /* deploy dry-run */ break;
         default: break;
@@ -1726,9 +1724,9 @@ Verbose interpretation per command:
 if (parser.IsGlobalOptionSet("verbose")) {
     size_t ctxIdx = parser.GetGlobalOptionContext("verbose");
     const auto& ctxBlock = parser.GetCommandBlock(ctxIdx);
-    if (ctxBlock.GetDesc().GetName() == "build") {
+    if (ctxBlock.GetDecl().GetName() == "build") {
         // build-specific verbose level
-    } else if (ctxBlock.GetDesc().GetName() == "test") {
+    } else if (ctxBlock.GetDecl().GetName() == "test") {
         // test-specific verbose level
     } else {
         // root-level generic verbose
@@ -1740,14 +1738,14 @@ Using unique IDs for richer dispatch (extended dry-run example):
 ```cpp
 enum class CommandContext { Root, Build, Test, Deploy };
 root.SetUniqueId(CommandContext::Root);
-auto& build = root.DeclareSubCommandBlock("build").SetUniqueId(CommandContext::Build);
-auto& test  = root.DeclareSubCommandBlock("test").SetUniqueId(CommandContext::Test);
-auto& deploy= root.DeclareSubCommandBlock("deploy").SetUniqueId(CommandContext::Deploy);
-parser.DeclareGlobalOption(OptionType::Switch, "dry-run");
+auto& build = root.AddSubCommand("build").SetUniqueId(CommandContext::Build);
+auto& test  = root.AddSubCommand("test").SetUniqueId(CommandContext::Test);
+auto& deploy= root.AddSubCommand("deploy").SetUniqueId(CommandContext::Deploy);
+parser.AddGlobalOption(OptionType::Switch, "dry-run");
 size_t n = parser.ParseArgs(argc, argv);
 if (parser.IsGlobalOptionSet("dry-run")) {
     size_t origin = parser.GetGlobalOptionContext("dry-run");
-    switch (parser.GetCommandBlock(origin).GetDesc().GetUniqueId<CommandContext>()) {
+    switch (parser.GetCommandBlock(origin).GetDecl().GetUniqueId<CommandContext>()) {
         case CommandContext::Build: /* configure build dry-run */ break;
         case CommandContext::Deploy: /* configure deploy dry-run */ break;
         case CommandContext::Root:   /* general simulation */ break;
@@ -1762,8 +1760,8 @@ if (parser.IsGlobalOptionSet("config")) {
     std::string path = parser.GetGlobalOptionValue("config");
     size_t idx = parser.GetGlobalOptionContext("config");
     const auto& block = parser.GetCommandBlock(idx);
-    if (block.GetDesc().GetName() == "build") { /* load build config */ }
-    else if (block.GetDesc().GetName() == "test") { /* load test config */ }
+    if (block.GetDecl().GetName() == "build") { /* load build config */ }
+    else if (block.GetDecl().GetName() == "test") { /* load test config */ }
     else { /* load general config */ }
 }
 ```
@@ -1898,7 +1896,7 @@ Additional notes:
 
 ### Domains (Value Sets)
 ```cpp
-root.DeclareOption(OptionType::Variable, "mode")
+root.AddOption(OptionType::Variable, "mode")
     .SetDomain({"debug", "release", "profile"});
 ```
 Invalid value triggers `SyntaxException(SyntaxError::InvalidValue)`.
@@ -1908,9 +1906,9 @@ Attach enums to descriptors for switch-based dispatch:
 ```cpp
 enum class CmdId { Root, Build, Test };
 root.SetUniqueId(CmdId::Root);
-auto& build = root.DeclareSubCommandBlock("build"); build.SetUniqueId(CmdId::Build);
+auto& build = root.AddSubCommand("build"); build.SetUniqueId(CmdId::Build);
 // after parse
-switch (parser.GetCommandBlock(count-1).GetDesc().GetUniqueId<CmdId>()) {
+switch (parser.GetCommandBlock(count-1).GetDecl().GetUniqueId<CmdId>()) {
     case CmdId::Build: /* ... */ break;
     default: break;
 }
@@ -1925,24 +1923,24 @@ Provide functor with `T operator()(const std::string&)` and throw `SyntaxExcepti
 ### Git-like Structure
 ```cpp
 CommandParser parser("git");
-auto& git = parser.GetRootCommandBlockDesc();
-auto& remote = git.DeclareSubCommandBlock("remote").SetDescription("Manage remote repositories");
-auto& add = remote.DeclareSubCommandBlock("add").SetDescription("Add a remote repository");
-add.DeclareOption(OptionType::Parameter, "name").SetDescription("Remote name");
-add.DeclareOption(OptionType::Parameter, "url").SetDescription("Remote URL");
+auto& git = parser.GetAppCommandDecl();
+auto& remote = git.AddSubCommand("remote").SetDescription("Manage remote repositories");
+auto& add = remote.AddSubCommand("add").SetDescription("Add a remote repository");
+add.AddOption(OptionType::Parameter, "name").SetDescription("Remote name");
+add.AddOption(OptionType::Parameter, "url").SetDescription("Remote URL");
 ```
 
 ### Command Identification (Unique IDs)
 ```cpp
 enum class MyCommandId { Root, Build, Test, Deploy };
 CommandParser parser("myapp");
-auto& root = parser.GetRootCommandBlockDesc(); root.SetUniqueId(MyCommandId::Root);
-auto& build = root.DeclareSubCommandBlock("build"); build.SetUniqueId(MyCommandId::Build);
-auto& test  = root.DeclareSubCommandBlock("test");  test.SetUniqueId(MyCommandId::Test);
-auto& deploy= root.DeclareSubCommandBlock("deploy");deploy.SetUniqueId(MyCommandId::Deploy);
+auto& root = parser.GetAppCommandDecl(); root.SetUniqueId(MyCommandId::Root);
+auto& build = root.AddSubCommand("build"); build.SetUniqueId(MyCommandId::Build);
+auto& test  = root.AddSubCommand("test");  test.SetUniqueId(MyCommandId::Test);
+auto& deploy= root.AddSubCommand("deploy");deploy.SetUniqueId(MyCommandId::Deploy);
 size_t n = parser.ParseArgs(argc, argv);
 const auto& active = parser.GetCommandBlock(n-1);
-switch (active.GetDesc().GetUniqueId<MyCommandId>()) {
+switch (active.GetDecl().GetUniqueId<MyCommandId>()) {
     case MyCommandId::Build: /* build */ break;
     case MyCommandId::Test:  /* test  */ break;
     default: break;
@@ -1957,9 +1955,9 @@ The following consolidates public interfaces (duplicates removed for brevity). S
 ### CommandParser
 ```cpp
 CommandParser(const std::string& appName, VariableDelimiter delim = VariableDelimiter::Whitespace);
-CommandBlockDesc& GetRootCommandBlockDesc();
-const CommandBlockDesc& GetRootCommandBlockDesc() const;
-OptionDesc& DeclareGlobalOption(OptionType type, const std::string& name, char alias = 0);
+CommandDecl& GetAppCommandDecl();
+const CommandDecl& GetAppCommandDecl() const;
+OptionDecl& AddGlobalOption(OptionType type, const std::string& name, char alias = 0);
 size_t ParseArgs(int argc, const char* argv[]);
 size_t GetNumCommandBlocks() const;
 const CommandBlock& GetCommandBlock(size_t index) const;
@@ -1974,12 +1972,12 @@ std::string GetHelpString() const;                 // active (rightmost) block
 std::string GetHelpString(size_t commandBlockIndex) const; // explicit index
 ```
 
-### CommandBlockDesc
+### CommandDecl
 ```cpp
-OptionDesc& DeclareOption(OptionType type, const std::string& name);
-OptionDesc& DeclareOption(OptionType type, const std::string& name, char alias);  // no alias for parameters
-CommandBlockDesc& DeclareSubCommandBlock(const std::string& name);
-CommandBlockDesc& SetDescription(const std::string& description);
+OptionDecl& AddOption(OptionType type, const std::string& name);
+OptionDecl& AddOption(OptionType type, const std::string& name, char alias);  // no alias for parameters
+CommandDecl& AddSubCommand(const std::string& name);
+CommandDecl& SetDescription(const std::string& description);
 template<typename T> void SetUniqueId(T id);
 template<typename T> T GetUniqueId() const;            // throws if unset/type mismatch
 bool HasUniqueId() const;
@@ -1997,13 +1995,13 @@ const std::string& GetParameterValue(const std::string& name) const;            
 const std::string& GetParameterValue(const std::string& name, const std::string& defaultValue) const;
 CommandBlock* GetPrevCommandBlock() const;     // nullptr if root
 CommandBlock* GetNextCommandBlock() const;     // nullptr if rightmost
-const CommandBlockDesc& GetDesc() const;
+const CommandDecl& GetDecl() const;
 ```
 
-### OptionDesc
+### OptionDecl
 ```cpp
-OptionDesc& SetDescription(const std::string& description);
-OptionDesc& SetDomain(const std::vector<std::string>& domain);
+OptionDecl& SetDescription(const std::string& description);
+OptionDecl& SetDomain(const std::vector<std::string>& domain);
 template<typename T> void SetUniqueId(T id);
 template<typename T> T GetUniqueId() const;
 bool HasUniqueId() const;
@@ -2013,7 +2011,7 @@ const std::string& GetDescription() const;
 char GetAlias() const;                // 0 if none
 const std::vector<std::string>& GetDomain() const;
 template<typename T, typename Converter = DefaultConverter<T>>
-OptionDesc& BindTo(T& variable, Converter converter = Converter{});               // Variable & Parameter only
+OptionDecl& BindTo(T& variable, Converter converter = Converter{});               // Variable & Parameter only
 ```
 
 ### Enums

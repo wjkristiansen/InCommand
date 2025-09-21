@@ -148,9 +148,9 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    // OptionDesc
+    // OptionDecl
     // Describes an option used in a command block.
-    class OptionDesc
+    class OptionDecl
     {
         OptionType m_type;
         std::string m_name;
@@ -160,12 +160,12 @@ namespace InCommand
         std::any m_id;
         std::function<void(const std::string&)> m_valueBinding; // Callback for type-safe value binding
 
-        friend class CommandBlockDesc;
+        friend class CommandDecl;
         friend class CommandParser;
-        friend class Option;
+        friend class CommandBlock;
 
-        // Private setter - only CommandBlockDesc should set aliases
-        OptionDesc &SetAlias(char alias)
+        // Private setter - only CommandDecl should set aliases
+        OptionDecl &SetAlias(char alias)
         {
             m_alias = alias;
             return *this;
@@ -185,7 +185,7 @@ namespace InCommand
 
     public:
         // Constructors
-        OptionDesc(OptionType type, const std::string &name) :
+        OptionDecl(OptionType type, const std::string &name) :
             m_type(type),
             m_name(name)
         {
@@ -202,7 +202,7 @@ namespace InCommand
         T GetUniqueId() const
         {
             if (!HasUniqueId())
-                throw(ApiException(ApiError::UniqueIdNotAssigned, "OptionDesc unique ID not assigned"));
+                throw(ApiException(ApiError::UniqueIdNotAssigned, "OptionDecl unique ID not assigned"));
             return std::any_cast<T>(m_id);
         }
 
@@ -212,13 +212,13 @@ namespace InCommand
         }
 
         // --- Set Accessors ---
-        OptionDesc &SetDescription(const std::string &description)
+        OptionDecl &SetDescription(const std::string &description)
         {
             m_description = description;
             return *this;
         }
 
-        OptionDesc &SetDomain(const std::vector<std::string> &domain)
+        OptionDecl &SetDomain(const std::vector<std::string> &domain)
         {
             m_domain = domain;
             return *this;
@@ -226,7 +226,7 @@ namespace InCommand
 
         // --- Value Binding ---
         template<typename T, typename Converter = DefaultConverter<T>>
-        OptionDesc& BindTo(T& variable, Converter converter = Converter{})
+        OptionDecl& BindTo(T& variable, Converter converter = Converter{})
         {
             // Switch binding specialization (only valid when T is bool)
             if (m_type == OptionType::Switch)
@@ -291,25 +291,25 @@ namespace InCommand
     class CommandParser;
 
     //------------------------------------------------------------------------------------------------
-    // CommandBlockDesc
+    // CommandDecl
     // Describes a command block, including command block name and available options.
-    class CommandBlockDesc
+    class CommandDecl
     {
         std::string m_name;
         std::string m_description;
-        std::unordered_map<std::string, std::shared_ptr<OptionDesc>> m_optionDescs;
-        std::vector<std::reference_wrapper<const OptionDesc>> m_parameterDescs;
-        std::unordered_map<char, std::shared_ptr<OptionDesc>> m_aliasMap;
-        std::unordered_map<std::string, std::shared_ptr<CommandBlockDesc>> m_innerCommandBlockDescs;
+        std::unordered_map<std::string, std::shared_ptr<OptionDecl>> m_optionDescs;
+        std::vector<std::reference_wrapper<const OptionDecl>> m_parameterDescs;
+        std::unordered_map<char, std::shared_ptr<OptionDecl>> m_aliasMap;
+        std::unordered_map<std::string, std::shared_ptr<CommandDecl>> m_innerCommandDecls;
         std::any m_id;
         CommandParser* m_parser; // Back-reference to owning parser
 
-        const OptionDesc *FindOption(const std::string &name) const
+        const OptionDecl *FindOption(const std::string &name) const
         {
             auto it = m_optionDescs.find(name);
             return it == m_optionDescs.end() ? nullptr : it->second.get();
         }
-        const OptionDesc *FindOptionByAlias(const char alias) const
+        const OptionDecl *FindOptionByAlias(const char alias) const
         {
             auto it = m_aliasMap.find(alias);
             return it == m_aliasMap.end() ? nullptr : it->second.get();
@@ -318,12 +318,12 @@ namespace InCommand
         friend class CommandParser;
 
     public:
-        CommandBlockDesc(const std::string &name, CommandParser *parser) :
+        CommandDecl(const std::string &name, CommandParser *parser) :
             m_name(name), m_parser(parser) {}
         
-        OptionDesc &DeclareOption(OptionType type, const std::string &name, char alias = 0);
+        OptionDecl &AddOption(OptionType type, const std::string &name, char alias = 0);
 
-        CommandBlockDesc &DeclareSubCommandBlock(const std::string &name);
+        CommandDecl &AddSubCommand(const std::string &name);
 
         // --- Unique ID ---
         template<typename T>
@@ -336,7 +336,7 @@ namespace InCommand
         T GetUniqueId() const
         {
             if (!HasUniqueId())
-                throw(ApiException(ApiError::UniqueIdNotAssigned, "CommandBlockDesc unique ID not assigned"));
+                throw(ApiException(ApiError::UniqueIdNotAssigned, "CommandDecl unique ID not assigned"));
             return std::any_cast<T>(m_id);
         }
 
@@ -346,7 +346,7 @@ namespace InCommand
         }
         
         // --- Set Accessors ---
-        CommandBlockDesc &SetDescription(const std::string &description)
+        CommandDecl &SetDescription(const std::string &description)
         {
             m_description = description;
             return *this;
@@ -358,61 +358,60 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    class Option
-    {
-        const OptionDesc &m_desc;
-        std::string m_value; // Used when OptionDesc type is Variable or Parameter
-
-    public:
-        // --- Constructors ---
-        Option(const OptionDesc &desc) :
-            m_desc(desc)
-        {
-            // Apply value binding if one exists
-            if (desc.HasValueBinding())
-            {
-                desc.ApplyValueBinding("");
-            }
-        }
-
-        Option(const OptionDesc &desc, const std::string &value) :
-            m_desc(desc),
-            m_value(value)
-        {
-            // Apply value binding if one exists
-            if (desc.HasValueBinding())
-            {
-                desc.ApplyValueBinding(value);
-            }
-        }
-
-        // --- Get Accessors ---
-        const OptionDesc &GetDesc() const { return m_desc; }
-        const std::string &GetValue() const { return m_value; }
-    };
-
-    //------------------------------------------------------------------------------------------------
-    struct OptionHasher
-    {
-        size_t operator()(const Option &option) const
-        {
-            return option.GetDesc().Hash();
-        }
-    };
-    //------------------------------------------------------------------------------------------------
-    struct OptionEqual
-    {
-        bool operator()(const Option &a, const Option &b) const
-        {
-            return a.GetDesc().GetName() == b.GetDesc().GetName();
-        }
-    };
-
-    //------------------------------------------------------------------------------------------------
     // Stores a command block parsed from a range of command arguments
     class CommandBlock
     {
-        const CommandBlockDesc &m_desc;
+        //------------------------------------------------------------------------------------------------
+        struct Option
+        {
+            const OptionDecl &m_decl;
+            std::string m_value; // Used when OptionDecl type is Variable or Parameter
+
+            // --- Constructors ---
+            Option(const OptionDecl &decl) :
+                m_decl(decl)
+            {
+                // Apply value binding if one exists
+                if (decl.HasValueBinding())
+                {
+                    decl.ApplyValueBinding("");
+                }
+            }
+
+            Option(const OptionDecl &decl, const std::string &value) :
+                m_decl(decl),
+                m_value(value)
+            {
+                // Apply value binding if one exists
+                if (decl.HasValueBinding())
+                {
+                    decl.ApplyValueBinding(value);
+                }
+            }
+
+            // --- Get Accessors ---
+            const OptionDecl &GetDecl() const { return m_decl; }
+            const std::string &GetValue() const { return m_value; }
+        };
+
+        //------------------------------------------------------------------------------------------------
+        struct OptionHasher
+        {
+            size_t operator()(const Option& option) const
+            {
+                return option.GetDecl().Hash();
+            }
+        };
+        //------------------------------------------------------------------------------------------------
+        struct OptionEqual
+        {
+            bool operator()(const Option& a, const Option& b) const
+            {
+                return a.GetDecl().GetName() == b.GetDecl().GetName();
+            }
+        };
+
+        const CommandDecl &m_decl;
         std::unordered_set<Option, OptionHasher, OptionEqual> m_optionSet;
 
         CommandBlock &SetOption(const Option &option);
@@ -420,7 +419,7 @@ namespace InCommand
         friend class CommandParser;
 
     public:
-        CommandBlock(const class CommandBlockDesc &desc) : m_desc(desc) {}
+        CommandBlock(const class CommandDecl &decl) : m_decl(decl) {}
 
         bool IsOptionSet(const std::string &name) const;
         const std::string &GetOptionValue(const std::string &name) const;
@@ -428,20 +427,20 @@ namespace InCommand
         bool IsParameterSet(const std::string &name) const;
         const std::string &GetParameterValue(const std::string &name) const;
         const std::string &GetParameterValue(const std::string &name, const std::string &defaultValue) const;
-        const CommandBlockDesc &GetDesc() const { return m_desc; }
+        const CommandDecl &GetDecl() const { return m_decl; }
     };
 
     //------------------------------------------------------------------------------------------------
     class CommandParser
     {
-        CommandBlockDesc m_rootCommandBlockDesc;
+        CommandDecl m_rootCommandBlockDesc;
         VariableDelimiter m_variableDelimiter;
         std::vector<CommandBlock> m_commandBlocks;
-        std::unordered_map<std::string, std::shared_ptr<OptionDesc>> m_globalOptionDescs;
-        std::unordered_map<char, std::shared_ptr<OptionDesc>> m_globalAliasMap;
+        std::unordered_map<std::string, std::shared_ptr<OptionDecl>> m_globalOptionDecls;
+        std::unordered_map<char, std::shared_ptr<OptionDecl>> m_globalAliasMap;
 
         // Parsed global options: option -> CommandBlock where set
-        std::unordered_map<Option, size_t, OptionHasher, OptionEqual> m_parsedGlobalOptions;
+        std::unordered_map<CommandBlock::Option, size_t, CommandBlock::OptionHasher, CommandBlock::OptionEqual> m_parsedGlobalOptions;
            
         // Global/Local option registry
         enum class OptionScope { Global, Local };
@@ -461,24 +460,24 @@ namespace InCommand
         char GetDelimiterChar() const;
 
         // Private help generation methods
-        std::string GenerateHelpWithGlobalOptions(const CommandBlockDesc& cmdDesc, const std::string& commandPath) const;
+        std::string GenerateHelpWithGlobalOptions(const CommandDecl& cmdDesc, const std::string& commandPath) const;
 
         // Private registry methods
         void RegisterLocalOption(const std::string& name, char alias = 0);
         void RegisterGlobalOption(const std::string& name, char alias = 0);
 
-        const OptionDesc *FindGlobalOption(const std::string &name) const
+        const OptionDecl *FindGlobalOption(const std::string &name) const
         {
-            auto it = m_globalOptionDescs.find(name);
-            return it == m_globalOptionDescs.end() ? nullptr : it->second.get();
+            auto it = m_globalOptionDecls.find(name);
+            return it == m_globalOptionDecls.end() ? nullptr : it->second.get();
         }
-        const OptionDesc *FindGlobalOptionByAlias(const char alias) const
+        const OptionDecl *FindGlobalOptionByAlias(const char alias) const
         {
             auto it = m_globalAliasMap.find(alias);
             return it == m_globalAliasMap.end() ? nullptr : it->second.get();
         }
 
-        friend class CommandBlockDesc;
+        friend class CommandDecl;
         
     public:
         CommandParser(const std::string &appName, VariableDelimiter delimiter = VariableDelimiter::Whitespace) :
@@ -490,9 +489,9 @@ namespace InCommand
         {
         }
 
-        OptionDesc& DeclareGlobalOption(OptionType type, const std::string& name, char alias = 0);
+        OptionDecl& AddGlobalOption(OptionType type, const std::string& name, char alias = 0);
 
-        CommandBlockDesc& GetRootCommandBlockDesc() { return m_rootCommandBlockDesc; }
+        CommandDecl& GetAppCommandDecl() { return m_rootCommandBlockDesc; }
 
         // Auto-help configuration methods
         void EnableAutoHelp(const std::string& optionName, char alias, std::ostream& outputStream = std::cout);

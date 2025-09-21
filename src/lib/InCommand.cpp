@@ -13,11 +13,11 @@ namespace InCommand
 {
 
 //------------------------------------------------------------------------------------------------
-CommandBlockDesc &CommandBlockDesc::DeclareSubCommandBlock(const std::string &name)
+CommandDecl &CommandDecl::AddSubCommand(const std::string &name)
 {
     try
     {
-        auto [it, inserted] = m_innerCommandBlockDescs.emplace(name, std::make_shared<CommandBlockDesc>(name, m_parser));
+        auto [it, inserted] = m_innerCommandDecls.emplace(name, std::make_shared<CommandDecl>(name, m_parser));
         if (!inserted)
         {
             throw ApiException(ApiError::DuplicateCommandBlock, "Command block '" + name + "' already exists");
@@ -90,8 +90,8 @@ void CommandParser::RegisterGlobalOption(const std::string& name, char alias)
 void CommandParser::EnableAutoHelp(const std::string& optionName, char alias, std::ostream& outputStream)
 {
     // Check for conflicts with existing global options
-    auto it = m_globalOptionDescs.find(optionName);
-    if (it != m_globalOptionDescs.end())
+    auto it = m_globalOptionDecls.find(optionName);
+    if (it != m_globalOptionDecls.end())
     {
         throw ApiException(ApiError::DuplicateOption, "Auto-help option '" + optionName + "' conflicts with existing global option");
     }
@@ -99,7 +99,7 @@ void CommandParser::EnableAutoHelp(const std::string& optionName, char alias, st
     // Check for conflicts with existing alias
     if (alias)
     {
-        for (const auto& pair : m_globalOptionDescs)
+        for (const auto& pair : m_globalOptionDecls)
         {
             if (pair.second->GetAlias() == alias)
             {
@@ -128,7 +128,7 @@ void CommandParser::DisableAutoHelp()
 }
 
 //------------------------------------------------------------------------------------------------
-OptionDesc& CommandParser::DeclareGlobalOption(OptionType type, const std::string& name, char alias)
+OptionDecl& CommandParser::AddGlobalOption(OptionType type, const std::string& name, char alias)
 {
     // Parameters cannot be global
     if (type == OptionType::Parameter)
@@ -149,7 +149,7 @@ OptionDesc& CommandParser::DeclareGlobalOption(OptionType type, const std::strin
         }
         
         // Store global option in root command block
-        auto [it, inserted] = m_globalOptionDescs.emplace(name, std::make_shared<OptionDesc>(type, name));
+        auto [it, inserted] = m_globalOptionDecls.emplace(name, std::make_shared<OptionDecl>(type, name));
         if (!inserted)
         {
             throw ApiException(ApiError::DuplicateOption, "Global option '" + name + "' already exists");
@@ -171,14 +171,14 @@ OptionDesc& CommandParser::DeclareGlobalOption(OptionType type, const std::strin
 }
 
 //------------------------------------------------------------------------------------------------
-OptionDesc& CommandBlockDesc::DeclareOption(OptionType type, const std::string& name, char alias)
+OptionDecl& CommandDecl::AddOption(OptionType type, const std::string& name, char alias)
 {
     if (alias != 0)
     {
         // Parameters cannot have aliases - they are positional arguments
         if (type == OptionType::Parameter)
         {
-            throw ApiException(ApiError::InvalidOptionType, "Parameters cannot have aliases - use DeclareOption(type, name) instead");
+            throw ApiException(ApiError::InvalidOptionType, "Parameters cannot have aliases - use AddOption(type, name) instead");
         }
     }
 
@@ -194,7 +194,7 @@ OptionDesc& CommandBlockDesc::DeclareOption(OptionType type, const std::string& 
         m_parser->RegisterLocalOption(name, alias);
         
         // All option types go into m_optionDescs for unified storage
-        auto [it, inserted] = m_optionDescs.emplace(name, std::make_shared<OptionDesc>(type, name));
+        auto [it, inserted] = m_optionDescs.emplace(name, std::make_shared<OptionDecl>(type, name));
         if (!inserted)
         {
             throw ApiException(ApiError::DuplicateOption, "Option '" + name + "' already exists");
@@ -241,12 +241,12 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
     
     // Determine which command block to show help for
-    const CommandBlockDesc* cmdDesc = nullptr;
+    const CommandDecl* cmdDesc = nullptr;
     std::string commandPath;
     
     if (commandBlockIndex < m_commandBlocks.size())
     {
-        cmdDesc = &m_commandBlocks[commandBlockIndex].GetDesc();
+        cmdDesc = &m_commandBlocks[commandBlockIndex].GetDecl();
         
         // Build command path up to the specified index
         commandPath = m_rootCommandBlockDesc.GetName();
@@ -254,7 +254,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
         {
             if (i < m_commandBlocks.size())
             {
-                commandPath += " " + m_commandBlocks[i].GetDesc().GetName();
+                commandPath += " " + m_commandBlocks[i].GetDecl().GetName();
             }
         }
     }
@@ -281,11 +281,11 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     s << "Usage:" << std::endl << firstCommand << " [options]" << remainingPath << " ";
 
     // Show global options first (they're available for all commands)
-    for (const auto& optionPair : m_globalOptionDescs)
+    for (const auto& optionPair : m_globalOptionDecls)
     {
-        const OptionDesc& desc = *optionPair.second;
-        s << "[--" << desc.GetName();
-        if (desc.GetType() == OptionType::Variable)
+        const OptionDecl& decl = *optionPair.second;
+        s << "[--" << decl.GetName();
+        if (decl.GetType() == OptionType::Variable)
             s << " <value>";
         s << "] ";
     }
@@ -293,9 +293,9 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     // Show specific options for this command block
     for (const auto& optionPair : cmdDesc->m_optionDescs)
     {
-        const OptionDesc& desc = *optionPair.second;
-        s << "[--" << desc.GetName();
-        if (desc.GetType() == OptionType::Variable)
+        const OptionDecl& decl = *optionPair.second;
+        s << "[--" << decl.GetName();
+        if (decl.GetType() == OptionType::Variable)
             s << " <value>";
         s << "] ";
     }
@@ -313,15 +313,15 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     static const int colwidth = 30;
 
     // Add global options first
-    for (const auto& optionPair : m_globalOptionDescs)
+    for (const auto& optionPair : m_globalOptionDecls)
     {
-        const OptionDesc& desc = *optionPair.second;
-        if (!desc.GetDescription().empty())
+        const OptionDecl& decl = *optionPair.second;
+        if (!decl.GetDescription().empty())
         {
-            std::string optionName = "  --" + desc.GetName();
-            if (desc.GetAlias() != 0)
+            std::string optionName = "  --" + decl.GetName();
+            if (decl.GetAlias() != 0)
             {
-                optionName += ", -" + std::string(1, desc.GetAlias());
+                optionName += ", -" + std::string(1, decl.GetAlias());
             }
             optionDetails << std::setw(colwidth) << std::left << optionName;
             if (optionName.length() > colwidth)
@@ -329,20 +329,20 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
                 optionDetails << std::endl;
                 optionDetails << std::setw(colwidth) << ' ';
             }
-            optionDetails << desc.GetDescription() << std::endl;
+            optionDetails << decl.GetDescription() << std::endl;
         }
     }
 
     // Add local option details
     for (const auto& optionPair : cmdDesc->m_optionDescs)
     {
-        const OptionDesc& desc = *optionPair.second;
-        if (!desc.GetDescription().empty())
+        const OptionDecl& decl = *optionPair.second;
+        if (!decl.GetDescription().empty())
         {
-            std::string optionName = "  --" + desc.GetName();
-            if (desc.GetAlias() != 0)
+            std::string optionName = "  --" + decl.GetName();
+            if (decl.GetAlias() != 0)
             {
-                optionName += ", -" + std::string(1, desc.GetAlias());
+                optionName += ", -" + std::string(1, decl.GetAlias());
             }
             optionDetails << std::setw(colwidth) << std::left << optionName;
             if (optionName.length() > colwidth)
@@ -350,7 +350,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
                 optionDetails << std::endl;
                 optionDetails << std::setw(colwidth) << ' ';
             }
-            optionDetails << desc.GetDescription() << std::endl;
+            optionDetails << decl.GetDescription() << std::endl;
         }
     }
 
@@ -371,9 +371,9 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Add inner command blocks (subcommands)
-    for (const auto& innerPair : cmdDesc->m_innerCommandBlockDescs)
+    for (const auto& innerPair : cmdDesc->m_innerCommandDecls)
     {
-        const CommandBlockDesc& innerDesc = *innerPair.second;
+        const CommandDecl& innerDesc = *innerPair.second;
         if (!innerDesc.GetDescription().empty())
         {
             std::string commandName = "  " + innerDesc.GetName();
@@ -408,14 +408,14 @@ CommandBlock &CommandBlock::SetOption(const Option &option)
 //------------------------------------------------------------------------------------------------
 bool CommandBlock::IsOptionSet(const std::string &name) const
 {
-    auto it = m_optionSet.find(Option(OptionDesc(OptionType::Undefined, name)));
+    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
     return it != m_optionSet.end();
 }
 
 //------------------------------------------------------------------------------------------------
 const std::string &CommandBlock::GetOptionValue(const std::string &name) const
 {
-    auto it = m_optionSet.find(Option(OptionDesc(OptionType::Undefined, name)));
+    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
     if (it != m_optionSet.end())
     {
         return it->GetValue();
@@ -426,7 +426,7 @@ const std::string &CommandBlock::GetOptionValue(const std::string &name) const
 //------------------------------------------------------------------------------------------------
 const std::string &CommandBlock::GetOptionValue(const std::string &name, const std::string &defaultValue) const
 {
-    auto it = m_optionSet.find(Option(OptionDesc(OptionType::Undefined, name)));
+    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
     if (it != m_optionSet.end())
     {
         return it->GetValue();
@@ -437,14 +437,14 @@ const std::string &CommandBlock::GetOptionValue(const std::string &name, const s
 //------------------------------------------------------------------------------------------------
 bool CommandBlock::IsParameterSet(const std::string &name) const
 {
-    auto it = m_optionSet.find(Option(OptionDesc(OptionType::Undefined, name)));
+    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
     return it != m_optionSet.end();
 }
 
 //------------------------------------------------------------------------------------------------
 const std::string &CommandBlock::GetParameterValue(const std::string &name) const
 {
-    auto it = m_optionSet.find(Option(OptionDesc(OptionType::Undefined, name)));
+    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
     if (it != m_optionSet.end())
     {
         return it->GetValue();
@@ -455,7 +455,7 @@ const std::string &CommandBlock::GetParameterValue(const std::string &name) cons
 //------------------------------------------------------------------------------------------------
 const std::string &CommandBlock::GetParameterValue(const std::string &name, const std::string &defaultValue) const
 {
-    auto it = m_optionSet.find(Option(OptionDesc(OptionType::Undefined, name)));
+    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
     if (it != m_optionSet.end())
     {
         return it->GetValue();
@@ -487,11 +487,11 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
     // Auto-declare help option if enabled and not already declared
     if (m_autoHelpEnabled && !m_autoHelpOptionName.empty())
     {
-        auto it = m_globalOptionDescs.find(m_autoHelpOptionName);
-        if (it == m_globalOptionDescs.end())
+        auto it = m_globalOptionDecls.find(m_autoHelpOptionName);
+        if (it == m_globalOptionDecls.end())
         {
             // Help option not declared yet, auto-declare it
-            DeclareGlobalOption(OptionType::Switch, m_autoHelpOptionName, m_autoHelpAlias)
+            AddGlobalOption(OptionType::Switch, m_autoHelpOptionName, m_autoHelpAlias)
                 .SetDescription(m_autoHelpDescription);
         }
     }
@@ -502,7 +502,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
     for (int i = 1; i < argc; ++i)
     {
         CommandBlock &currentBlock = m_commandBlocks.back();
-        const CommandBlockDesc &currentDesc = currentBlock.GetDesc();
+        const CommandDecl &currentDesc = currentBlock.GetDecl();
         std::string token = argv[i];
 
         // Check for long option (--name)
@@ -527,7 +527,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             }
 
             bool isGlobalOption = false;
-            const OptionDesc *optionDesc = FindGlobalOption(name);
+            const OptionDecl *optionDesc = FindGlobalOption(name);
 
             if (optionDesc)
             {
@@ -549,11 +549,11 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 
                     if (isGlobalOption)
                     {
-                        m_parsedGlobalOptions.insert(std::pair(Option(*optionDesc), m_commandBlocks.size() - 1));
+                        m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc), m_commandBlocks.size() - 1));
                     }
                     else
                     {
-                        currentBlock.m_optionSet.insert(Option(*optionDesc));
+                        currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc));
                     }
                 }
                 else if (optionDesc->GetType() == OptionType::Variable)
@@ -562,11 +562,11 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                     {
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.insert(std::pair(Option(*optionDesc, value), m_commandBlocks.size() - 1));
+                            m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc, value), m_commandBlocks.size() - 1));
                         }
                         else
                         {
-                            currentBlock.m_optionSet.insert(Option(*optionDesc, value));
+                            currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc, value));
                         }
                     }
                     else
@@ -586,11 +586,11 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                         
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.insert(std::pair(Option(*optionDesc, nextArg), m_commandBlocks.size() - 1));
+                            m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc, nextArg), m_commandBlocks.size() - 1));
                         }
                         else
                         {
-                            currentBlock.m_optionSet.insert(Option(*optionDesc, nextArg));
+                            currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc, nextArg));
                         }
                     }
                 }
@@ -610,7 +610,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             char firstAlias = aliases[0];
 
             bool isGlobalOption = false;
-            const OptionDesc *firstDesc = FindGlobalOptionByAlias(firstAlias);
+            const OptionDecl *firstDesc = FindGlobalOptionByAlias(firstAlias);
 
             if (firstDesc)
             {
@@ -637,11 +637,11 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                         std::string value = aliases.substr(2);
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.insert(std::pair(Option(*firstDesc, value), m_commandBlocks.size() - 1));
+                            m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*firstDesc, value), m_commandBlocks.size() - 1));
                         }
                         else
                         {
-                            currentBlock.m_optionSet.insert(Option(*firstDesc, value));
+                            currentBlock.m_optionSet.insert(CommandBlock::Option(*firstDesc, value));
                         }
                         continue;
                     }
@@ -653,7 +653,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             {
                 char alias = aliases[0];
                 bool isGlobalOptionAlias = false;
-                const OptionDesc *optionDesc = FindGlobalOptionByAlias(alias);
+                const OptionDecl *optionDesc = FindGlobalOptionByAlias(alias);
                 if (optionDesc)
                 {
                     isGlobalOptionAlias = true;
@@ -672,11 +672,11 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                 {
                     if (isGlobalOptionAlias)
                     {
-                        m_parsedGlobalOptions.insert(std::pair(Option(*optionDesc), m_commandBlocks.size() - 1));
+                        m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc), m_commandBlocks.size() - 1));
                     }
                     else
                     {
-                        currentBlock.m_optionSet.insert(Option(*optionDesc));
+                        currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc));
                     }
                 }
                 else if (optionDesc->GetType() == OptionType::Variable)
@@ -695,11 +695,11 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 
                     if (isGlobalOptionAlias)
                     {
-                        m_parsedGlobalOptions.insert(std::pair(Option(*optionDesc, nextArg), m_commandBlocks.size() - 1));
+                        m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc, nextArg), m_commandBlocks.size() - 1));
                     }
                     else
                     {
-                        currentBlock.m_optionSet.insert(Option(*optionDesc, nextArg));
+                        currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc, nextArg));
                     }
                 }
                 continue;
@@ -709,7 +709,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             for (char alias : aliases)
             {
                 bool isGlobalOptionAlias = false;
-                const OptionDesc *optionDesc = FindGlobalOptionByAlias(alias);
+                const OptionDecl *optionDesc = FindGlobalOptionByAlias(alias);
                 if (optionDesc)
                 {
                     isGlobalOptionAlias = true;
@@ -730,19 +730,19 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 
                 if (isGlobalOptionAlias)
                 {
-                    m_parsedGlobalOptions.insert(std::pair(Option(*optionDesc), m_commandBlocks.size() - 1));
+                    m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc), m_commandBlocks.size() - 1));
                 }
                 else
                 {
-                    currentBlock.m_optionSet.insert(Option(*optionDesc));
+                    currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc));
                 }
             }
             continue;
         }
 
         // Check for inner command block
-        auto innerIt = currentDesc.m_innerCommandBlockDescs.find(token);
-        if (innerIt != currentDesc.m_innerCommandBlockDescs.end())
+        auto innerIt = currentDesc.m_innerCommandDecls.find(token);
+        if (innerIt != currentDesc.m_innerCommandDecls.end())
         {
             m_commandBlocks.emplace_back(*innerIt->second.get());
             currentParameterIndex = 0; // Reset parameter index for new command block
@@ -752,8 +752,8 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
         // Otherwise treat as positional parameter
         if (currentParameterIndex < currentDesc.m_parameterDescs.size())
         {
-            const OptionDesc &desc = currentDesc.m_parameterDescs[currentParameterIndex].get();
-            currentBlock.SetOption(Option(desc, token));
+            const OptionDecl &decl = currentDesc.m_parameterDescs[currentParameterIndex].get();
+            currentBlock.SetOption(CommandBlock::Option(decl, token));
             currentParameterIndex++;
             continue;
         }
@@ -802,7 +802,7 @@ bool CommandParser::IsGlobalOptionSet(const std::string& name) const
     // Search through all parsed global options to find one with matching name
     for (const auto &[option, commandBlock] : m_parsedGlobalOptions)
     {
-        if (option.GetDesc().GetName() == name)
+        if (option.GetDecl().GetName() == name)
         {
             return true;
         }
@@ -816,7 +816,7 @@ const std::string& CommandParser::GetGlobalOptionValue(const std::string& name) 
     // Search through all parsed global options to find one with matching name
     for (const auto &[option, commandBlock] : m_parsedGlobalOptions)
     {
-        if (option.GetDesc().GetName() == name)
+        if (option.GetDecl().GetName() == name)
         {
             return option.GetValue();
         }
@@ -830,7 +830,7 @@ size_t CommandParser::GetGlobalOptionContext(const std::string& name) const
     // Search through all parsed global options to find one with matching name
     for (const auto& [option, contextIndex] : m_parsedGlobalOptions)
     {
-        if (option.GetDesc().GetName() == name)
+        if (option.GetDecl().GetName() == name)
         {
             return contextIndex;
         }

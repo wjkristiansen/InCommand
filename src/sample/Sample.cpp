@@ -31,65 +31,65 @@ int main(int argc, const char *argv[])
     std::string message;
     
     // Configure the root descriptor through the parser
-    InCommand::CommandBlockDesc& rootCmdDesc = parser.GetRootCommandBlockDesc();
-    rootCmdDesc.SetDescription("Sample application demonstrating InCommand")
+    InCommand::CommandDecl& appCmdDesc = parser.GetAppCommandDecl();
+    appCmdDesc.SetDescription("Sample application demonstrating InCommand")
                .SetUniqueId(CommandId::Root);
     
-    // Declare a global verbose option that will be available for all commands
-    parser.DeclareGlobalOption(InCommand::OptionType::Switch, "verbose", 'v')
+    // Add a global verbose option that will be available for all commands
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose", 'v')
         .SetDescription("Enable verbose output globally");
 
     // Note: Auto-help is explicitly enabled with --help/-h option
     // This will automatically handle help requests for all command contexts!
 
     // Add inner command blocks for each operation
-    InCommand::CommandBlockDesc& addCmdDesc = rootCmdDesc.DeclareSubCommandBlock("add");
+    InCommand::CommandDecl& addCmdDesc = appCmdDesc.AddSubCommand("add");
     addCmdDesc
         .SetDescription("Adds two integers")
         .SetUniqueId(CommandId::Add);
     addCmdDesc
-        .DeclareOption(InCommand::OptionType::Parameter, "value1")
+        .AddOption(InCommand::OptionType::Parameter, "value1")
         .BindTo(value1)
         .SetDescription("First add value");
     addCmdDesc
-        .DeclareOption(InCommand::OptionType::Parameter, "value2")
+        .AddOption(InCommand::OptionType::Parameter, "value2")
         .BindTo(value2)
         .SetDescription("Second add value");
     addCmdDesc
-        .DeclareOption(InCommand::OptionType::Switch, "quiet", 'q')
+        .AddOption(InCommand::OptionType::Switch, "quiet", 'q')
         .SetDescription("Suppress normal output, show only result");
     addCmdDesc
-        .DeclareOption(InCommand::OptionType::Variable, "message", 'm')
+        .AddOption(InCommand::OptionType::Variable, "message", 'm')
         .BindTo(message)
         .SetDescription("Print <message> N-times where N = value1 + value2");
 
     // Add inner command blocks for each operation
-    InCommand::CommandBlockDesc& mulCmdDesc = rootCmdDesc.DeclareSubCommandBlock("mul");
+    InCommand::CommandDecl& mulCmdDesc = appCmdDesc.AddSubCommand("mul");
     mulCmdDesc
         .SetDescription("Adds two integers")
         .SetUniqueId(CommandId::Add);
     mulCmdDesc
-        .DeclareOption(InCommand::OptionType::Parameter, "value1")
+        .AddOption(InCommand::OptionType::Parameter, "value1")
         .BindTo(value1)
         .SetDescription("First add value");
     mulCmdDesc
-        .DeclareOption(InCommand::OptionType::Parameter, "value2")
+        .AddOption(InCommand::OptionType::Parameter, "value2")
         .BindTo(value2)
         .SetDescription("Second add value");
     mulCmdDesc
-        .DeclareOption(InCommand::OptionType::Switch, "quiet", 'q')
+        .AddOption(InCommand::OptionType::Switch, "quiet", 'q')
         .SetDescription("Suppress normal output, show only result");
     mulCmdDesc
-        .DeclareOption(InCommand::OptionType::Variable, "message", 'm')
+        .AddOption(InCommand::OptionType::Variable, "message", 'm')
         .BindTo(message)
         .SetDescription("Print <message> N-times where N = value1 + value2");
 
-    InCommand::CommandBlockDesc& roshamboCmdDesc = rootCmdDesc.DeclareSubCommandBlock("roshambo");
+    InCommand::CommandDecl& roshamboCmdDesc = appCmdDesc.AddSubCommand("roshambo");
     roshamboCmdDesc
         .SetDescription("Play Roshambo")
         .SetUniqueId(CommandId::Roshambo);
     roshamboCmdDesc
-        .DeclareOption(InCommand::OptionType::Variable, "choice")
+        .AddOption(InCommand::OptionType::Variable, "choice")
             .SetDomain({ "rock", "paper", "scissors" })
             .SetDescription("1-2-3 Shoot!");
     
@@ -122,7 +122,7 @@ int main(int argc, const char *argv[])
         }
         
         // Now we can determine which command was actually parsed by checking the unique ID
-        CommandId commandId = cmdBlock.GetDesc().GetUniqueId<CommandId>();
+        CommandId commandId = cmdBlock.GetDecl().GetUniqueId<CommandId>();
         
         switch (commandId)
         {
