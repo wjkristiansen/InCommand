@@ -135,7 +135,7 @@ int main(int argc, const char *argv[])
         case CommandId::Add:
             {
                 // Check if required parameters were provided
-                if (!cmdBlock.IsParameterSet("value1") || !cmdBlock.IsParameterSet("value2"))
+                if (!cmdBlock.IsOptionSet("value1") || !cmdBlock.IsOptionSet("value2"))
                 {
                     std::cout << std::endl;
                     std::cout << "Error: Both value1 and value2 are required for add command" << std::endl;
@@ -181,7 +181,7 @@ int main(int argc, const char *argv[])
         case CommandId::Mul:
             {
                 // Check if required parameters were provided
-                if (!cmdBlock.IsParameterSet("value1") || !cmdBlock.IsParameterSet("value2"))
+                if (!cmdBlock.IsOptionSet("value1") || !cmdBlock.IsOptionSet("value2"))
                 {
                     std::cout << std::endl;
                     std::cout << "Error: Both value1 and value2 are required for mul command" << std::endl;

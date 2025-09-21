@@ -361,60 +361,10 @@ namespace InCommand
     // Stores a command block parsed from a range of command arguments
     class CommandBlock
     {
-        //------------------------------------------------------------------------------------------------
-        struct Option
-        {
-            const OptionDecl &m_decl;
-            std::string m_value; // Used when OptionDecl type is Variable or Parameter
-
-            // --- Constructors ---
-            Option(const OptionDecl &decl) :
-                m_decl(decl)
-            {
-                // Apply value binding if one exists
-                if (decl.HasValueBinding())
-                {
-                    decl.ApplyValueBinding("");
-                }
-            }
-
-            Option(const OptionDecl &decl, const std::string &value) :
-                m_decl(decl),
-                m_value(value)
-            {
-                // Apply value binding if one exists
-                if (decl.HasValueBinding())
-                {
-                    decl.ApplyValueBinding(value);
-                }
-            }
-
-            // --- Get Accessors ---
-            const OptionDecl &GetDecl() const { return m_decl; }
-            const std::string &GetValue() const { return m_value; }
-        };
-
-        //------------------------------------------------------------------------------------------------
-        struct OptionHasher
-        {
-            size_t operator()(const Option& option) const
-            {
-                return option.GetDecl().Hash();
-            }
-        };
-        //------------------------------------------------------------------------------------------------
-        struct OptionEqual
-        {
-            bool operator()(const Option& a, const Option& b) const
-            {
-                return a.GetDecl().GetName() == b.GetDecl().GetName();
-            }
-        };
-
         const CommandDecl &m_decl;
-        std::unordered_set<Option, OptionHasher, OptionEqual> m_optionSet;
+        std::unordered_map<std::string, std::string> m_optionMap;
 
-        CommandBlock &SetOption(const Option &option);
+        CommandBlock &SetOption(const OptionDecl &option, const std::string &value = "");
 
         friend class CommandParser;
 
@@ -424,9 +374,6 @@ namespace InCommand
         bool IsOptionSet(const std::string &name) const;
         const std::string &GetOptionValue(const std::string &name) const;
         const std::string &GetOptionValue(const std::string &name, const std::string &defaultValue) const;
-        bool IsParameterSet(const std::string &name) const;
-        const std::string &GetParameterValue(const std::string &name) const;
-        const std::string &GetParameterValue(const std::string &name, const std::string &defaultValue) const;
         const CommandDecl &GetDecl() const { return m_decl; }
     };
 
@@ -440,7 +387,7 @@ namespace InCommand
         std::unordered_map<char, std::shared_ptr<OptionDecl>> m_globalAliasMap;
 
         // Parsed global options: option -> CommandBlock where set
-        std::unordered_map<CommandBlock::Option, size_t, CommandBlock::OptionHasher, CommandBlock::OptionEqual> m_parsedGlobalOptions;
+        std::unordered_map<std::string, std::pair<std::string, size_t>> m_parsedGlobalOptions;
            
         // Global/Local option registry
         enum class OptionScope { Global, Local };

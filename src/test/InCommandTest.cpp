@@ -187,12 +187,12 @@ TEST(InCommand, Parameters)
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         EXPECT_TRUE(cmdBlock.IsOptionSet("some-switch"));
-        EXPECT_EQ(cmdBlock.GetParameterValue("file1", ""), std::string("myfile1.txt"));
-        EXPECT_EQ(cmdBlock.GetParameterValue("file2", ""), std::string("myfile2.txt"));
-        EXPECT_EQ(cmdBlock.GetParameterValue("file3", ""), std::string("myfile3.txt"));
-        EXPECT_TRUE(cmdBlock.IsParameterSet("file1"));
-        EXPECT_TRUE(cmdBlock.IsParameterSet("file2"));
-        EXPECT_TRUE(cmdBlock.IsParameterSet("file3"));
+        EXPECT_EQ(cmdBlock.GetOptionValue("file1", ""), std::string("myfile1.txt"));
+        EXPECT_EQ(cmdBlock.GetOptionValue("file2", ""), std::string("myfile2.txt"));
+        EXPECT_EQ(cmdBlock.GetOptionValue("file3", ""), std::string("myfile3.txt"));
+        EXPECT_TRUE(cmdBlock.IsOptionSet("file1"));
+        EXPECT_TRUE(cmdBlock.IsOptionSet("file2"));
+        EXPECT_TRUE(cmdBlock.IsOptionSet("file3"));
     }
 
     // Test 2: Only first two parameters provided
@@ -205,12 +205,12 @@ TEST(InCommand, Parameters)
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         EXPECT_TRUE(cmdBlock.IsOptionSet("some-switch"));
-        EXPECT_EQ(cmdBlock.GetParameterValue("file1", ""), std::string("myfile1.txt"));
-        EXPECT_EQ(cmdBlock.GetParameterValue("file2", ""), std::string("myfile2.txt"));
-        EXPECT_EQ(cmdBlock.GetParameterValue("file3", "nope"), "nope");
-        EXPECT_TRUE(cmdBlock.IsParameterSet("file1"));
-        EXPECT_TRUE(cmdBlock.IsParameterSet("file2"));
-        EXPECT_FALSE(cmdBlock.IsParameterSet("file3"));
+        EXPECT_EQ(cmdBlock.GetOptionValue("file1", ""), std::string("myfile1.txt"));
+        EXPECT_EQ(cmdBlock.GetOptionValue("file2", ""), std::string("myfile2.txt"));
+        EXPECT_EQ(cmdBlock.GetOptionValue("file3", "nope"), "nope");
+        EXPECT_TRUE(cmdBlock.IsOptionSet("file1"));
+        EXPECT_TRUE(cmdBlock.IsOptionSet("file2"));
+        EXPECT_FALSE(cmdBlock.IsOptionSet("file3"));
     }
 }
 
@@ -450,7 +450,7 @@ TEST(InCommand, VariableDelimiters)
         EXPECT_EQ(result.GetOptionValue("name"), "John");
         
         EXPECT_TRUE(result.IsOptionSet("output"));
-        EXPECT_EQ(result.GetParameterValue("output"), "file.txt");
+        EXPECT_EQ(result.GetOptionValue("output"), "file.txt");
         
         EXPECT_TRUE(result.IsOptionSet("verbose"));
     }
@@ -574,13 +574,13 @@ TEST(InCommand, MidChainCommandBlocksWithParameters)
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         // Should be at 'run' command level
-        EXPECT_EQ(cmdBlock.GetParameterValue("image"), "ubuntu");
+        EXPECT_EQ(cmdBlock.GetOptionValue("image"), "ubuntu");
         EXPECT_EQ(cmdBlock.GetOptionValue("port"), "8080");
         
         // Check that mid-chain 'container' command received its parameter
         const InCommand::CommandBlock &containerBlock = parser.GetCommandBlock(1);
-        EXPECT_TRUE(containerBlock.IsParameterSet("container_id"));
-        EXPECT_EQ(containerBlock.GetParameterValue("container_id"), "12345");
+        EXPECT_TRUE(containerBlock.IsOptionSet("container_id"));
+        EXPECT_EQ(containerBlock.GetOptionValue("container_id"), "12345");
     }
     
     // Test: app container --all run ubuntu (switch on mid-chain)
@@ -595,12 +595,12 @@ TEST(InCommand, MidChainCommandBlocksWithParameters)
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         // Should be at 'run' command level
-        EXPECT_EQ(cmdBlock.GetParameterValue("image"), "ubuntu");
+        EXPECT_EQ(cmdBlock.GetOptionValue("image"), "ubuntu");
         
         // Check that mid-chain 'container' command has switch set
         EXPECT_EQ(parser.GetNumCommandBlocks(), 3);
         EXPECT_TRUE(parser.GetCommandBlock(1).IsOptionSet("all"));
-        EXPECT_FALSE(parser.GetCommandBlock(1).IsParameterSet("container_id"));
+        EXPECT_FALSE(parser.GetCommandBlock(1).IsOptionSet("container_id"));
     }
 }
 
@@ -632,10 +632,10 @@ TEST(InCommand, ParametersWithSubCommandNameCollisions)
 
         // Should stay at root level and treat as parameters
         EXPECT_EQ(&cmdBlock.GetDecl(), &parser.GetAppCommandDecl());
-        EXPECT_TRUE(cmdBlock.IsParameterSet("build"));
-        EXPECT_TRUE(cmdBlock.IsParameterSet("test"));
-        EXPECT_EQ(cmdBlock.GetParameterValue("build"), "mybuild.json");
-        EXPECT_EQ(cmdBlock.GetParameterValue("test"), "mytest.json");
+        EXPECT_TRUE(cmdBlock.IsOptionSet("build"));
+        EXPECT_TRUE(cmdBlock.IsOptionSet("test"));
+        EXPECT_EQ(cmdBlock.GetOptionValue("build"), "mybuild.json");
+        EXPECT_EQ(cmdBlock.GetOptionValue("test"), "mytest.json");
     }
     
     // Test 2: Use as sub-command (when followed by options)
@@ -1072,8 +1072,8 @@ TEST(InCommand, GlobalOptionsBasic)
         
         // Should be at build command level
         EXPECT_EQ(cmdBlock.GetDecl().GetName(), "build");
-        EXPECT_TRUE(cmdBlock.IsParameterSet("target"));
-        EXPECT_EQ(cmdBlock.GetParameterValue("target"), "debug");
+        EXPECT_TRUE(cmdBlock.IsOptionSet("target"));
+        EXPECT_EQ(cmdBlock.GetOptionValue("target"), "debug");
     }
 }
 

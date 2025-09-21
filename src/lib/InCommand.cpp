@@ -241,12 +241,12 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
     
     // Determine which command block to show help for
-    const CommandDecl* cmdDesc = nullptr;
+    const CommandDecl* firstDecl = nullptr;
     std::string commandPath;
     
     if (commandBlockIndex < m_commandBlocks.size())
     {
-        cmdDesc = &m_commandBlocks[commandBlockIndex].GetDecl();
+        firstDecl = &m_commandBlocks[commandBlockIndex].GetDecl();
         
         // Build command path up to the specified index
         commandPath = m_rootCommandBlockDesc.GetName();
@@ -266,9 +266,9 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     std::ostringstream s;
     
     // Add description if available
-    if (!cmdDesc->GetDescription().empty())
+    if (!firstDecl->GetDescription().empty())
     {
-        s << cmdDesc->GetDescription() << std::endl << std::endl;
+        s << firstDecl->GetDescription() << std::endl << std::endl;
     }
 
     // For the usage line, parse command path and insert [options] after the first command
@@ -291,7 +291,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Show specific options for this command block
-    for (const auto& optionPair : cmdDesc->m_optionDescs)
+    for (const auto& optionPair : firstDecl->m_optionDescs)
     {
         const OptionDecl& decl = *optionPair.second;
         s << "[--" << decl.GetName();
@@ -301,7 +301,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Parameters (positional arguments) in declaration order
-    for (const auto& paramDesc : cmdDesc->m_parameterDescs)
+    for (const auto& paramDesc : firstDecl->m_parameterDescs)
     {
         s << "<" << paramDesc.get().GetName() << "> ";
     }
@@ -334,7 +334,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Add local option details
-    for (const auto& optionPair : cmdDesc->m_optionDescs)
+    for (const auto& optionPair : firstDecl->m_optionDescs)
     {
         const OptionDecl& decl = *optionPair.second;
         if (!decl.GetDescription().empty())
@@ -355,7 +355,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Add parameter details
-    for (const auto& paramDesc : cmdDesc->m_parameterDescs)
+    for (const auto& paramDesc : firstDecl->m_parameterDescs)
     {
         if (!paramDesc.get().GetDescription().empty())
         {
@@ -371,7 +371,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Add inner command blocks (subcommands)
-    for (const auto& innerPair : cmdDesc->m_innerCommandDecls)
+    for (const auto& innerPair : firstDecl->m_innerCommandDecls)
     {
         const CommandDecl& innerDesc = *innerPair.second;
         if (!innerDesc.GetDescription().empty())
@@ -398,27 +398,28 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
 }
 
 //------------------------------------------------------------------------------------------------
-CommandBlock &CommandBlock::SetOption(const Option &option)
+CommandBlock &CommandBlock::SetOption(const OptionDecl &option, const std::string &value)
 {
-    m_optionSet.insert(option);
-    
+    m_optionMap.emplace(option.GetName(), value);
+    option.ApplyValueBinding(value);
+
     return *this;
 }
 
 //------------------------------------------------------------------------------------------------
 bool CommandBlock::IsOptionSet(const std::string &name) const
 {
-    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
-    return it != m_optionSet.end();
+    auto it = m_optionMap.find(name);
+    return it != m_optionMap.end();
 }
 
 //------------------------------------------------------------------------------------------------
 const std::string &CommandBlock::GetOptionValue(const std::string &name) const
 {
-    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
-    if (it != m_optionSet.end())
+    auto it = m_optionMap.find(name);
+    if (it != m_optionMap.end())
     {
-        return it->GetValue();
+        return it->second;
     }
     throw ApiException(ApiError::OptionNotFound, "Option '" + name + "' not set");
 }
@@ -426,39 +427,10 @@ const std::string &CommandBlock::GetOptionValue(const std::string &name) const
 //------------------------------------------------------------------------------------------------
 const std::string &CommandBlock::GetOptionValue(const std::string &name, const std::string &defaultValue) const
 {
-    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
-    if (it != m_optionSet.end())
+    auto it = m_optionMap.find(name);
+    if (it != m_optionMap.end())
     {
-        return it->GetValue();
-    }
-    return defaultValue;
-}
-
-//------------------------------------------------------------------------------------------------
-bool CommandBlock::IsParameterSet(const std::string &name) const
-{
-    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
-    return it != m_optionSet.end();
-}
-
-//------------------------------------------------------------------------------------------------
-const std::string &CommandBlock::GetParameterValue(const std::string &name) const
-{
-    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
-    if (it != m_optionSet.end())
-    {
-        return it->GetValue();
-    }
-    throw ApiException(ApiError::ParameterNotFound, "Parameter '" + name + "' not found");
-}
-
-//------------------------------------------------------------------------------------------------
-const std::string &CommandBlock::GetParameterValue(const std::string &name, const std::string &defaultValue) const
-{
-    auto it = m_optionSet.find(Option(OptionDecl(OptionType::Undefined, name)));
-    if (it != m_optionSet.end())
-    {
-        return it->GetValue();
+        return it->second;
     }
     return defaultValue;
 }
@@ -502,7 +474,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
     for (int i = 1; i < argc; ++i)
     {
         CommandBlock &currentBlock = m_commandBlocks.back();
-        const CommandDecl &currentDesc = currentBlock.GetDecl();
+        const CommandDecl &commandDecl = currentBlock.GetDecl();
         std::string token = argv[i];
 
         // Check for long option (--name)
@@ -527,20 +499,20 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             }
 
             bool isGlobalOption = false;
-            const OptionDecl *optionDesc = FindGlobalOption(name);
+            const OptionDecl *optionDecl = FindGlobalOption(name);
 
-            if (optionDesc)
+            if (optionDecl)
             {
                 isGlobalOption = true;
             }
             else
             {
-                optionDesc = currentDesc.FindOption(name);
+                optionDecl = commandDecl.FindOption(name);
             }
 
-            if (optionDesc)
+            if (optionDecl)
             {
-                if (optionDesc->GetType() == OptionType::Switch)
+                if (optionDecl->GetType() == OptionType::Switch)
                 {
                     if (delimiterPos != std::string::npos)
                     {
@@ -549,25 +521,27 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 
                     if (isGlobalOption)
                     {
-                        m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc), m_commandBlocks.size() - 1));
+                        m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(std::string(), m_commandBlocks.size() - 1));
                     }
                     else
                     {
-                        currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc));
+                        currentBlock.m_optionMap.emplace(optionDecl->GetName(), std::string());
                     }
+                    optionDecl->ApplyValueBinding(std::string());
                 }
-                else if (optionDesc->GetType() == OptionType::Variable)
+                else if (optionDecl->GetType() == OptionType::Variable)
                 {
                     if (delimiterPos != std::string::npos)
                     {
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc, value), m_commandBlocks.size() - 1));
+                            m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(value, m_commandBlocks.size() - 1));
                         }
                         else
                         {
-                            currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc, value));
+                            currentBlock.m_optionMap.emplace(optionDecl->GetName(), value);
                         }
+                        optionDecl->ApplyValueBinding(value);
                     }
                     else
                     {
@@ -586,12 +560,13 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                         
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc, nextArg), m_commandBlocks.size() - 1));
+                            m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(nextArg, m_commandBlocks.size() - 1));
                         }
                         else
                         {
-                            currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc, nextArg));
+                            currentBlock.m_optionMap.emplace(optionDecl->GetName(), nextArg);
                         }
+                        optionDecl->ApplyValueBinding(nextArg);
                     }
                 }
                 continue;
@@ -610,39 +585,40 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             char firstAlias = aliases[0];
 
             bool isGlobalOption = false;
-            const OptionDecl *firstDesc = FindGlobalOptionByAlias(firstAlias);
+            const OptionDecl *firstDecl = FindGlobalOptionByAlias(firstAlias);
 
-            if (firstDesc)
+            if (firstDecl)
             {
                 isGlobalOption = true;
             }
             else
             {
-                firstDesc = currentDesc.FindOptionByAlias(firstAlias);
+                firstDecl = commandDecl.FindOptionByAlias(firstAlias);
             }
             
-            if (firstDesc != nullptr && aliases.length() > 1)
+            if (firstDecl != nullptr && aliases.length() > 1)
             {
                 // Check if second character is a delimiter
                 char possibleDelimiter = aliases[1];
                 char delimiterChar = GetDelimiterChar();
                 if (delimiterChar != '\0' && possibleDelimiter == delimiterChar)
                 {
-                    if (firstDesc->GetType() == OptionType::Switch)
+                    if (firstDecl->GetType() == OptionType::Switch)
                     {
                         throw SyntaxException(SyntaxError::InvalidValue, "Switch options cannot have values. Option -" + std::string(1, firstAlias) + " is a switch", "-" + std::string(1, firstAlias) + possibleDelimiter + aliases.substr(2));
                     }
-                    else if (firstDesc->GetType() == OptionType::Variable)
+                    else if (firstDecl->GetType() == OptionType::Variable)
                     {
                         std::string value = aliases.substr(2);
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*firstDesc, value), m_commandBlocks.size() - 1));
+                            m_parsedGlobalOptions.emplace(firstDecl->GetName(), std::make_pair(value, m_commandBlocks.size() - 1));
                         }
                         else
                         {
-                            currentBlock.m_optionSet.insert(CommandBlock::Option(*firstDesc, value));
+                            currentBlock.m_optionMap.emplace(firstDecl->GetName(), value);
                         }
+                        firstDecl->ApplyValueBinding(value);
                         continue;
                     }
                 }
@@ -653,33 +629,34 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             {
                 char alias = aliases[0];
                 bool isGlobalOptionAlias = false;
-                const OptionDecl *optionDesc = FindGlobalOptionByAlias(alias);
-                if (optionDesc)
+                const OptionDecl *optionDecl = FindGlobalOptionByAlias(alias);
+                if (optionDecl)
                 {
                     isGlobalOptionAlias = true;
                 }
                 else
                 {
-                    optionDesc = currentDesc.FindOptionByAlias(alias);
+                    optionDecl = commandDecl.FindOptionByAlias(alias);
                 }
                 
-                if (optionDesc == nullptr)
+                if (optionDecl == nullptr)
                 {
                     throw SyntaxException(SyntaxError::UnknownOption, "Unknown option -" + std::string(1, alias), "-" + std::string(1, alias));
                 }
                 
-                if (optionDesc->GetType() == OptionType::Switch)
+                if (optionDecl->GetType() == OptionType::Switch)
                 {
                     if (isGlobalOptionAlias)
                     {
-                        m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc), m_commandBlocks.size() - 1));
+                        m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(std::string(), m_commandBlocks.size() - 1));
                     }
                     else
                     {
-                        currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc));
+                        currentBlock.m_optionMap.emplace(optionDecl->GetName(), std::string());
                     }
+                    optionDecl->ApplyValueBinding(std::string());
                 }
-                else if (optionDesc->GetType() == OptionType::Variable)
+                else if (optionDecl->GetType() == OptionType::Variable)
                 {
                     if (i + 1 >= argc)
                     {
@@ -695,12 +672,13 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 
                     if (isGlobalOptionAlias)
                     {
-                        m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc, nextArg), m_commandBlocks.size() - 1));
+                        m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(nextArg, m_commandBlocks.size() - 1));
                     }
                     else
                     {
-                        currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc, nextArg));
+                        currentBlock.m_optionMap.emplace(optionDecl->GetName(), nextArg);
                     }
+                    optionDecl->ApplyValueBinding(nextArg);
                 }
                 continue;
             }
@@ -709,40 +687,41 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             for (char alias : aliases)
             {
                 bool isGlobalOptionAlias = false;
-                const OptionDecl *optionDesc = FindGlobalOptionByAlias(alias);
-                if (optionDesc)
+                const OptionDecl *optionDecl = FindGlobalOptionByAlias(alias);
+                if (optionDecl)
                 {
                     isGlobalOptionAlias = true;
                 }
                 else
                 {
-                    optionDesc = currentDesc.FindOptionByAlias(alias);
+                    optionDecl = commandDecl.FindOptionByAlias(alias);
                 }
-                if (optionDesc == nullptr)
+                if (optionDecl == nullptr)
                 {
                     throw SyntaxException(SyntaxError::UnknownOption, "Unknown option -" + std::string(1, alias), "-" + std::string(1, alias));
                 }
                 
-                if (optionDesc->GetType() != OptionType::Switch)
+                if (optionDecl->GetType() != OptionType::Switch)
                 {
                     throw SyntaxException(SyntaxError::InvalidAlias, "Only switch options can be grouped. Option -" + std::string(1, alias) + " is not a switch", "-" + std::string(1, alias));
                 }
 
                 if (isGlobalOptionAlias)
                 {
-                    m_parsedGlobalOptions.insert(std::pair(CommandBlock::Option(*optionDesc), m_commandBlocks.size() - 1));
+                    m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(std::string(), m_commandBlocks.size() - 1));
                 }
                 else
                 {
-                    currentBlock.m_optionSet.insert(CommandBlock::Option(*optionDesc));
+                    currentBlock.m_optionMap.emplace(optionDecl->GetName(), std::string());
                 }
+                optionDecl->ApplyValueBinding(std::string());
             }
             continue;
         }
 
         // Check for inner command block
-        auto innerIt = currentDesc.m_innerCommandDecls.find(token);
-        if (innerIt != currentDesc.m_innerCommandDecls.end())
+        auto innerIt = commandDecl.m_innerCommandDecls.find(token);
+        if (innerIt != commandDecl.m_innerCommandDecls.end())
         {
             m_commandBlocks.emplace_back(*innerIt->second.get());
             currentParameterIndex = 0; // Reset parameter index for new command block
@@ -750,10 +729,10 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
         }
 
         // Otherwise treat as positional parameter
-        if (currentParameterIndex < currentDesc.m_parameterDescs.size())
+        if (currentParameterIndex < commandDecl.m_parameterDescs.size())
         {
-            const OptionDecl &decl = currentDesc.m_parameterDescs[currentParameterIndex].get();
-            currentBlock.SetOption(CommandBlock::Option(decl, token));
+            const OptionDecl &decl = commandDecl.m_parameterDescs[currentParameterIndex].get();
+            currentBlock.SetOption(decl, token);
             currentParameterIndex++;
             continue;
         }
@@ -799,43 +778,30 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 //------------------------------------------------------------------------------------------------
 bool CommandParser::IsGlobalOptionSet(const std::string& name) const
 {
-    // Search through all parsed global options to find one with matching name
-    for (const auto &[option, commandBlock] : m_parsedGlobalOptions)
-    {
-        if (option.GetDecl().GetName() == name)
-        {
-            return true;
-        }
-    }
-    return false;
+    auto it = m_parsedGlobalOptions.find(name);
+    return it != m_parsedGlobalOptions.end();
 }
 
 //------------------------------------------------------------------------------------------------
 const std::string& CommandParser::GetGlobalOptionValue(const std::string& name) const
 {
-    // Search through all parsed global options to find one with matching name
-    for (const auto &[option, commandBlock] : m_parsedGlobalOptions)
+    auto it = m_parsedGlobalOptions.find(name);
+    if (it == m_parsedGlobalOptions.end())
     {
-        if (option.GetDecl().GetName() == name)
-        {
-            return option.GetValue();
-        }
+        throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
     }
-    throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
+    return it->second.first;
 }
 
 //------------------------------------------------------------------------------------------------
 size_t CommandParser::GetGlobalOptionContext(const std::string& name) const
 {
-    // Search through all parsed global options to find one with matching name
-    for (const auto& [option, contextIndex] : m_parsedGlobalOptions)
+    auto it = m_parsedGlobalOptions.find(name);
+    if (it == m_parsedGlobalOptions.end())
     {
-        if (option.GetDecl().GetName() == name)
-        {
-            return contextIndex;
-        }
+        throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
     }
-    throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
+    return it->second.second;
 }
 
 } // namespace InCommand

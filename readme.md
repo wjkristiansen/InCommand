@@ -64,7 +64,7 @@ int main(int argc, const char *argv[])
         {
             bool verbose = result->IsOptionSet("verbose");
             std::string target = result->GetOptionValue("target", "debug");
-            std::string project = result->GetParameterValue("project");
+            std::string project = result->GetOptionValue("project");
         }
     }
     catch (const SyntaxException& e)
@@ -1096,61 +1096,7 @@ const std::string& GetOptionValue(const std::string& name, const std::string& de
 
 Returns the value of a variable or parameter, or the provided default value if the option wasn't set.
 
-#### `CommandBlock::IsParameterSet()`
-
-```cpp
-bool IsParameterSet(const std::string& name) const
-```
-
-Returns `true` if the named parameter has a value. Semantically equivalent to `IsOptionSet()` but more clear for positional arguments.
-
-#### `CommandBlock::GetParameterValue()` - Basic Form
-
-```cpp
-const std::string& GetParameterValue(const std::string& name) const
-```
-
-Returns the value of a parameter. Throws `ApiException` if the parameter doesn't exist or has no value.
-
-#### `CommandBlock::GetParameterValue()` - With Default
-
-```cpp
-const std::string& GetParameterValue(const std::string& name, const std::string& defaultValue) const
-```
-
 Returns the value of a parameter, or the provided default value if the parameter wasn't set.
-
-#### `CommandBlock::GetPrevCommandBlock()`
-
-```cpp
-CommandBlock* GetPrevCommandBlock() const
-```
-
-Returns the previous (more general) command block in the parsed chain, moving toward the root command. Returns `nullptr` if this is the root command block.
-
-#### `CommandBlock::GetNextCommandBlock()`
-
-```cpp
-CommandBlock* GetNextCommandBlock() const
-```
-
-Returns the next (more specific) command block in the parsed chain, moving toward subcommands. Returns `nullptr` if this is the most specific command block.
-
-#### `CommandBlock::GetPrevCommandBlock()`
-
-```cpp
-CommandBlock* GetPrevCommandBlock() const
-```
-
-Returns the previous (more general) command block in the parsed chain, moving toward the root command. Returns `nullptr` if this is the root command block.
-
-#### `CommandBlock::GetNextCommandBlock()`
-
-```cpp
-CommandBlock* GetNextCommandBlock() const
-```
-
-Returns the next (more specific) command block in the parsed chain, moving toward subcommands. Returns `nullptr` if this is the most specific command block.
 
 #### `CommandBlock::GetDecl()`
 
@@ -1990,11 +1936,6 @@ const std::string& GetDescription() const;
 bool IsOptionSet(const std::string& name) const;
 const std::string& GetOptionValue(const std::string& name) const;                 // throws if missing
 const std::string& GetOptionValue(const std::string& name, const std::string& defaultValue) const;
-bool IsParameterSet(const std::string& name) const;
-const std::string& GetParameterValue(const std::string& name) const;              // throws if missing
-const std::string& GetParameterValue(const std::string& name, const std::string& defaultValue) const;
-CommandBlock* GetPrevCommandBlock() const;     // nullptr if root
-CommandBlock* GetNextCommandBlock() const;     // nullptr if rightmost
 const CommandDecl& GetDecl() const;
 ```
 
