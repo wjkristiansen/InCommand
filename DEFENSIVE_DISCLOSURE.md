@@ -22,7 +22,7 @@ InCommand introduces a novel CLI parsing model that separates **declarative sche
 
 ## Key Innovations
 
-### 1. **Declarative Schema Tree (`CommandBlockDesc`)**
+### 1. **Declarative Schema Tree (`CommandDecl`)**
 - CLI structure is defined as a tree of command blocks, each with scoped options and subcommands.
 - Options are declared with metadata, domain constraints, and type-safe bindings via `BindTo()`.
 
@@ -44,7 +44,7 @@ InCommand introduces a novel CLI parsing model that separates **declarative sche
 - Includes option descriptions, constraints, and visibility based on scope.
 
 ### 5. **Type-Safe Option Binding**
-- Developers can bind options directly to variables using `OptionDesc::BindTo()`.
+- Developers can bind options directly to variables using `OptionDecl::BindTo()`.
 - Supports domain-constrained values and automatic conversion.
 
 ---
@@ -54,10 +54,12 @@ InCommand introduces a novel CLI parsing model that separates **declarative sche
 ```cpp
 CommandParser parser("rocket");
 
-parser.DeclareOption(OptionType::Switch, {"verbose", "v"})
+parser.GetAppCommandDecl().AddOption(OptionType::Switch, {"verbose", "v"})
       .SetDescription("Enable verbose output");
 
-auto& fuel = parser.DeclareSubcommand("fuel");
-fuel.DeclareOption(OptionType::Parameter, {"amount"})
+int fuelAmount = 0;
+auto& fuel = parser.GetAppCommandDecl().AddSubcommand("fuel");
+fuel.AddOption(OptionType::Parameter, {"amount"})
     .SetDescription("Amount of fuel to add")
     .BindTo(fuelAmount);
+```

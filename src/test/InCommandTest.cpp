@@ -9,22 +9,22 @@ TEST(InCommand, HelpStringGeneration)
 {
     // Create parser
     InCommand::CommandParser parser("myapp");
-    auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
+    auto& rootCmdDesc = parser.GetAppCommandDecl();
     rootCmdDesc.SetDescription("My application");
 
     // Add some options to the root command
-    rootCmdDesc.DeclareOption(InCommand::OptionType::Switch, "verbose").SetDescription("Show help information");
-    rootCmdDesc.DeclareOption(InCommand::OptionType::Variable, "config").SetDescription("Configuration file path");
+    rootCmdDesc.AddOption(InCommand::OptionType::Switch, "verbose").SetDescription("Show help information");
+    rootCmdDesc.AddOption(InCommand::OptionType::Variable, "config").SetDescription("Configuration file path");
 
     // Add inner command blocks
-    auto& buildCmdDesc = rootCmdDesc.DeclareSubCommandBlock("build");
-    buildCmdDesc.SetDescription("Build the project");
-    buildCmdDesc.DeclareOption(InCommand::OptionType::Switch, "verbose").SetDescription("Enable verbose output");
-    buildCmdDesc.DeclareOption(InCommand::OptionType::Variable, "target").SetDescription("Build target");
+    auto& buildBlockDescDesc = rootCmdDesc.AddSubCommand("build");
+    buildBlockDescDesc.SetDescription("Build the project");
+    buildBlockDescDesc.AddOption(InCommand::OptionType::Switch, "verbose").SetDescription("Enable verbose output");
+    buildBlockDescDesc.AddOption(InCommand::OptionType::Variable, "target").SetDescription("Build target");
 
-    auto& testCmdDesc = rootCmdDesc.DeclareSubCommandBlock("test");
+    auto& testCmdDesc = rootCmdDesc.AddSubCommand("test");
     testCmdDesc.SetDescription("Run tests");
-    testCmdDesc.DeclareOption(InCommand::OptionType::Switch, "coverage").SetDescription("Generate coverage report");
+    testCmdDesc.AddOption(InCommand::OptionType::Switch, "coverage").SetDescription("Generate coverage report");
 
     // Test GetHelpString(0) for root command help after parsing
     const char* rootArgs[] = {"myapp"};
@@ -56,26 +56,26 @@ TEST(InCommand, BasicOptions)
 {
     // Create a command block description hierarchy for testing basic option parsing
     InCommand::CommandParser parser("test");
-    InCommand::CommandBlockDesc& rootCmd = parser.GetRootCommandBlockDesc();
+    InCommand::CommandDecl& appBlockDesc = parser.GetAppCommandDecl();
     
     // Add global help switch with alias
-    rootCmd.DeclareOption(InCommand::OptionType::Switch, "verbose", 'v');
+    appBlockDesc.AddOption(InCommand::OptionType::Switch, "verbose", 'v');
     
     // Create inner command blocks
-    auto& fooCmd = rootCmd.DeclareSubCommandBlock("foo");
-    fooCmd.DeclareOption(InCommand::OptionType::Variable, "number");
+    auto& fooCmd = appBlockDesc.AddSubCommand("foo");
+    fooCmd.AddOption(InCommand::OptionType::Variable, "number");
     
-    auto& barCmd = rootCmd.DeclareSubCommandBlock("bar");
-    barCmd.DeclareOption(InCommand::OptionType::Variable, "word");
-    barCmd.DeclareOption(InCommand::OptionType::Variable, "name", 'n');
+    auto& barCmd = appBlockDesc.AddSubCommand("bar");
+    barCmd.AddOption(InCommand::OptionType::Variable, "word");
+    barCmd.AddOption(InCommand::OptionType::Variable, "name", 'n');
     
-    auto& bazCmd = barCmd.DeclareSubCommandBlock("baz");
-    bazCmd.DeclareOption(InCommand::OptionType::Variable, "color")
+    auto& bazCmd = barCmd.AddSubCommand("baz");
+    bazCmd.AddOption(InCommand::OptionType::Variable, "color")
         .SetDomain({"red", "green", "blue", "yellow", "purple"});
     
-    auto& zapCmd = rootCmd.DeclareSubCommandBlock("zap");
-    zapCmd.DeclareOption(InCommand::OptionType::Parameter, "file1");
-    zapCmd.DeclareOption(InCommand::OptionType::Parameter, "file2");
+    auto& zapCmd = appBlockDesc.AddSubCommand("zap");
+    zapCmd.AddOption(InCommand::OptionType::Parameter, "file1");
+    zapCmd.AddOption(InCommand::OptionType::Parameter, "file2");
 
     // Test 1: --verbose foo --number 42
     {
@@ -83,8 +83,8 @@ TEST(InCommand, BasicOptions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("test");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
@@ -99,8 +99,8 @@ TEST(InCommand, BasicOptions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("test");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
@@ -120,8 +120,8 @@ TEST(InCommand, BasicOptions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("test");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
@@ -134,8 +134,8 @@ TEST(InCommand, BasicOptions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
@@ -147,7 +147,7 @@ TEST(InCommand, BasicOptions)
         const char *argv[] = {"app", "bar", "--name", "Anna"};
         int argc = std::size(argv);
 
-        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
+        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetAppCommandDecl(); testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
@@ -159,7 +159,7 @@ TEST(InCommand, BasicOptions)
         const char *argv[] = {"app", "bar", "-n", "Anna"};
         int argc = std::size(argv);
 
-        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
+        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetAppCommandDecl(); testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
@@ -171,18 +171,18 @@ TEST(InCommand, Parameters)
 {
     // Create command with parameters
     InCommand::CommandParser parser("app");
-    InCommand::CommandBlockDesc& rootCmd = parser.GetRootCommandBlockDesc();
-    rootCmd.DeclareOption(InCommand::OptionType::Parameter, "file1").SetDescription("file 1");
-    rootCmd.DeclareOption(InCommand::OptionType::Parameter, "file2").SetDescription("file 2");
-    rootCmd.DeclareOption(InCommand::OptionType::Parameter, "file3").SetDescription("file 3");
-    rootCmd.DeclareOption(InCommand::OptionType::Switch, "some-switch").SetDescription("Some switch");
+    InCommand::CommandDecl& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.AddOption(InCommand::OptionType::Parameter, "file1").SetDescription("file 1");
+    appBlockDesc.AddOption(InCommand::OptionType::Parameter, "file2").SetDescription("file 2");
+    appBlockDesc.AddOption(InCommand::OptionType::Parameter, "file3").SetDescription("file 3");
+    appBlockDesc.AddOption(InCommand::OptionType::Switch, "some-switch").SetDescription("Some switch");
 
     // Test 1: All parameters provided with switch in middle
     {
         const char *argv[] = {"foo", "myfile1.txt", "--some-switch", "myfile2.txt", "myfile3.txt"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
+        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetAppCommandDecl(); testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
@@ -200,7 +200,7 @@ TEST(InCommand, Parameters)
         const char *argv[] = {"foo", "myfile1.txt", "--some-switch", "myfile2.txt"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
+        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetAppCommandDecl(); testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
@@ -218,38 +218,38 @@ TEST(InCommand, SubCategories)
 {
     // Create nested command structure
     InCommand::CommandParser parser("app");
-    InCommand::CommandBlockDesc& rootCmd = parser.GetRootCommandBlockDesc();
-    rootCmd.DeclareOption(InCommand::OptionType::Switch, "verbose");
+    InCommand::CommandDecl& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.AddOption(InCommand::OptionType::Switch, "verbose");
 
     // plant -> tree, shrub
-    auto& plantCmd = rootCmd.DeclareSubCommandBlock("plant");
-    plantCmd.DeclareOption(InCommand::OptionType::Switch, "list");
+    auto& plantCmd = appBlockDesc.AddSubCommand("plant");
+    plantCmd.AddOption(InCommand::OptionType::Switch, "list");
     
-    auto& treeCmd = plantCmd.DeclareSubCommandBlock("tree");
+    auto& treeCmd = plantCmd.AddSubCommand("tree");
     
-    auto& shrubCmd = plantCmd.DeclareSubCommandBlock("shrub");
-    shrubCmd.DeclareOption(InCommand::OptionType::Switch, "prune");
-    shrubCmd.DeclareOption(InCommand::OptionType::Switch, "burn");
+    auto& shrubCmd = plantCmd.AddSubCommand("shrub");
+    shrubCmd.AddOption(InCommand::OptionType::Switch, "prune");
+    shrubCmd.AddOption(InCommand::OptionType::Switch, "burn");
 
     // animal -> dog, cat
-    auto& animalCmd = rootCmd.DeclareSubCommandBlock("animal");
+    auto& animalCmd = appBlockDesc.AddSubCommand("animal");
     
-    auto& dogCmd = animalCmd.DeclareSubCommandBlock("dog");
+    auto& dogCmd = animalCmd.AddSubCommand("dog");
     
-    auto& catCmd = animalCmd.DeclareSubCommandBlock("cat");
-    catCmd.DeclareOption(InCommand::OptionType::Variable, "lives");
+    auto& catCmd = animalCmd.AddSubCommand("cat");
+    catCmd.AddOption(InCommand::OptionType::Variable, "lives");
 
     // Test 1: plant shrub --burn
     {
         const char* argv[] = {"app", "plant", "shrub", "--burn"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
+        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetAppCommandDecl(); testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Should be at the shrub command level
-        EXPECT_EQ(&cmdBlock.GetDesc(), &shrubCmd);
+        EXPECT_EQ(&cmdBlock.GetDecl(), &shrubCmd);
         EXPECT_TRUE(cmdBlock.IsOptionSet("burn"));
         EXPECT_FALSE(cmdBlock.IsOptionSet("prune"));
     }
@@ -259,12 +259,12 @@ TEST(InCommand, SubCategories)
         const char* argv[] = {"app", "animal", "cat", "--lives", "8"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
+        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetAppCommandDecl(); testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Should be at the cat command level
-        EXPECT_EQ(&cmdBlock.GetDesc(), &catCmd);
+        EXPECT_EQ(&cmdBlock.GetDecl(), &catCmd);
         EXPECT_TRUE(cmdBlock.IsOptionSet("lives"));
         EXPECT_EQ(cmdBlock.GetOptionValue("lives", "9"), "8");
     }
@@ -274,12 +274,12 @@ TEST(InCommand, SubCategories)
         const char* argv[] = {"app", "--verbose"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
-        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetRootCommandBlockDesc(); testRootCmdDesc = rootCmd;
+        InCommand::CommandParser parser("testapp"); auto& testRootCmdDesc = parser.GetAppCommandDecl(); testRootCmdDesc = appBlockDesc;
         size_t numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
         
         // Should be at the root command level
-        EXPECT_EQ(&cmdBlock.GetDesc(), &parser.GetRootCommandBlockDesc());
+        EXPECT_EQ(&cmdBlock.GetDecl(), &parser.GetAppCommandDecl());
         EXPECT_TRUE(cmdBlock.IsOptionSet("verbose"));
     }
 }
@@ -289,24 +289,24 @@ TEST(InCommand, Errors)
     // Test 1: Duplicate command block
     {
         InCommand::CommandParser parser("app");
-        InCommand::CommandBlockDesc& rootCmd = parser.GetRootCommandBlockDesc();
-        rootCmd.DeclareSubCommandBlock("goto");
+        InCommand::CommandDecl& appBlockDesc = parser.GetAppCommandDecl();
+        appBlockDesc.AddSubCommand("goto");
         
         EXPECT_THROW(
             {
-                rootCmd.DeclareSubCommandBlock("goto"); // Duplicate
+                appBlockDesc.AddSubCommand("goto"); // Duplicate
             }, InCommand::ApiException);
     }
     
     // Test 2: Duplicate option
     {
         InCommand::CommandParser parser2("app");
-        InCommand::CommandBlockDesc& rootCmd = parser2.GetRootCommandBlockDesc();
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "foo");
+        InCommand::CommandDecl& appBlockDesc = parser2.GetAppCommandDecl();
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "foo");
         
         EXPECT_THROW(
             {
-                rootCmd.DeclareOption(InCommand::OptionType::Switch, "foo"); // Duplicate
+                appBlockDesc.AddOption(InCommand::OptionType::Switch, "foo"); // Duplicate
             }, InCommand::ApiException);
     }
 
@@ -316,10 +316,10 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser3("app");
-        InCommand::CommandBlockDesc& rootCmd = parser3.GetRootCommandBlockDesc();
-        auto& gotoCmd = rootCmd.DeclareSubCommandBlock("goto");
-        gotoCmd.DeclareOption(InCommand::OptionType::Switch, "foo");
-        gotoCmd.DeclareOption(InCommand::OptionType::Variable, "bar");
+        InCommand::CommandDecl& appBlockDesc = parser3.GetAppCommandDecl();
+        auto& gotoCmd = appBlockDesc.AddSubCommand("goto");
+        gotoCmd.AddOption(InCommand::OptionType::Switch, "foo");
+        gotoCmd.AddOption(InCommand::OptionType::Variable, "bar");
 
         EXPECT_THROW(
             {
@@ -333,10 +333,10 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser4("app");
-        InCommand::CommandBlockDesc& rootCmd = parser4.GetRootCommandBlockDesc();
-        auto& gotoCmd = rootCmd.DeclareSubCommandBlock("goto");
-        gotoCmd.DeclareOption(InCommand::OptionType::Switch, "fop"); // Note: "fop" not "foo"
-        gotoCmd.DeclareOption(InCommand::OptionType::Variable, "bar");
+        InCommand::CommandDecl& appBlockDesc = parser4.GetAppCommandDecl();
+        auto& gotoCmd = appBlockDesc.AddSubCommand("goto");
+        gotoCmd.AddOption(InCommand::OptionType::Switch, "fop"); // Note: "fop" not "foo"
+        gotoCmd.AddOption(InCommand::OptionType::Variable, "bar");
 
         EXPECT_THROW(
             {
@@ -350,8 +350,8 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser5("app");
-        InCommand::CommandBlockDesc& rootCmd = parser5.GetRootCommandBlockDesc();
-        rootCmd.DeclareOption(InCommand::OptionType::Variable, "foo");
+        InCommand::CommandDecl& appBlockDesc = parser5.GetAppCommandDecl();
+        appBlockDesc.AddOption(InCommand::OptionType::Variable, "foo");
 
         EXPECT_THROW(
             {
@@ -365,9 +365,9 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser6("app");
-        InCommand::CommandBlockDesc& rootCmd = parser6.GetRootCommandBlockDesc();
-        rootCmd.DeclareOption(InCommand::OptionType::Variable, "foo");
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "bar");
+        InCommand::CommandDecl& appBlockDesc = parser6.GetAppCommandDecl();
+        appBlockDesc.AddOption(InCommand::OptionType::Variable, "foo");
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "bar");
 
         EXPECT_THROW(
             {
@@ -381,8 +381,8 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser7("app");
-        InCommand::CommandBlockDesc& rootCmd = parser7.GetRootCommandBlockDesc();
-        rootCmd.DeclareOption(InCommand::OptionType::Parameter, "file1");
+        InCommand::CommandDecl& appBlockDesc = parser7.GetAppCommandDecl();
+        appBlockDesc.AddOption(InCommand::OptionType::Parameter, "file1");
         // Only one parameter defined, but three provided
 
         EXPECT_THROW(
@@ -397,9 +397,9 @@ TEST(InCommand, Errors)
         const int argc = sizeof(argv) / sizeof(argv[0]);
 
         InCommand::CommandParser parser8("app");
-        InCommand::CommandBlockDesc& rootCmd = parser8.GetRootCommandBlockDesc();
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "verbose", 'v');
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "quiet", 'q');
+        InCommand::CommandDecl& appBlockDesc = parser8.GetAppCommandDecl();
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "verbose", 'v');
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "quiet", 'q');
 
         auto numBlocks = parser8.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser8.GetCommandBlock(numBlocks - 1);
@@ -413,19 +413,19 @@ TEST(InCommand, ParameterAliasValidation)
 {
     // Test that parameters cannot have aliases
     InCommand::CommandParser parser("testapp");
-    auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
+    auto& rootCmdDesc = parser.GetAppCommandDecl();
     
     // This should throw an ApiException with InvalidOptionType
     EXPECT_THROW(
         {
-            rootCmdDesc.DeclareOption(InCommand::OptionType::Parameter, "filename", 'f');
+            rootCmdDesc.AddOption(InCommand::OptionType::Parameter, "filename", 'f');
         }, InCommand::ApiException);
     
     // But switches and variables should work fine
     EXPECT_NO_THROW(
         {
-            rootCmdDesc.DeclareOption(InCommand::OptionType::Switch, "verbose", 'v');
-            rootCmdDesc.DeclareOption(InCommand::OptionType::Variable, "output", 'o');
+            rootCmdDesc.AddOption(InCommand::OptionType::Switch, "verbose", 'v');
+            rootCmdDesc.AddOption(InCommand::OptionType::Variable, "output", 'o');
         });
 }
 
@@ -433,12 +433,12 @@ TEST(InCommand, VariableDelimiters)
 {
     // Test parser with = as delimiter
     InCommand::CommandParser parser("myapp", InCommand::VariableDelimiter::Equals);
-    auto& rootCmdDesc = parser.GetRootCommandBlockDesc();
+    auto& rootCmdDesc = parser.GetAppCommandDecl();
     
     // Add options
-    rootCmdDesc.DeclareOption(InCommand::OptionType::Variable, "name", 'n').SetDescription("User name");
-    rootCmdDesc.DeclareOption(InCommand::OptionType::Variable, "output").SetDescription("Output file");
-    rootCmdDesc.DeclareOption(InCommand::OptionType::Switch, "verbose", 'v').SetDescription("Verbose mode");
+    rootCmdDesc.AddOption(InCommand::OptionType::Variable, "name", 'n').SetDescription("User name");
+    rootCmdDesc.AddOption(InCommand::OptionType::Variable, "output").SetDescription("Output file");
+    rootCmdDesc.AddOption(InCommand::OptionType::Switch, "verbose", 'v').SetDescription("Verbose mode");
 
     // Test --name=value format
     {
@@ -496,8 +496,8 @@ TEST(InCommand, VariableDelimiters)
 
     // Test parser with colon delimiter
     InCommand::CommandParser colonParser("myapp", InCommand::VariableDelimiter::Colon);
-    auto& colonRootCmdDesc = colonParser.GetRootCommandBlockDesc();
-    colonRootCmdDesc.DeclareOption(InCommand::OptionType::Variable, "name").SetDescription("User name");
+    auto& colonRootCmdDesc = colonParser.GetAppCommandDecl();
+    colonRootCmdDesc.AddOption(InCommand::OptionType::Variable, "name").SetDescription("User name");
 
     {
         const char* args[] = {"myapp", "--name:Alice"};
@@ -510,9 +510,9 @@ TEST(InCommand, VariableDelimiters)
 
     // Test parser with explicit whitespace delimiter (traditional format only)
     InCommand::CommandParser whitespaceParser("myapp", InCommand::VariableDelimiter::Whitespace);
-    auto& whitespaceRootCmdDesc = whitespaceParser.GetRootCommandBlockDesc();
-    whitespaceRootCmdDesc.DeclareOption(InCommand::OptionType::Variable, "name").SetDescription("User name");
-    whitespaceRootCmdDesc.DeclareOption(InCommand::OptionType::Switch, "verbose").SetDescription("Verbose mode");
+    auto& whitespaceRootCmdDesc = whitespaceParser.GetAppCommandDecl();
+    whitespaceRootCmdDesc.AddOption(InCommand::OptionType::Variable, "name").SetDescription("User name");
+    whitespaceRootCmdDesc.AddOption(InCommand::OptionType::Switch, "verbose").SetDescription("Verbose mode");
 
     // Traditional whitespace-separated format should work
     {
@@ -533,8 +533,8 @@ TEST(InCommand, VariableDelimiters)
 
     // Test parser without explicit delimiter (defaults to whitespace - traditional format only)
     InCommand::CommandParser traditionalParser("myapp");
-    auto& traditionalRootCmdDesc = traditionalParser.GetRootCommandBlockDesc();
-    traditionalRootCmdDesc.DeclareOption(InCommand::OptionType::Variable, "name").SetDescription("User name");
+    auto& traditionalRootCmdDesc = traditionalParser.GetAppCommandDecl();
+    traditionalRootCmdDesc.AddOption(InCommand::OptionType::Variable, "name").SetDescription("User name");
 
     // Traditional format should work with default constructor
     {
@@ -552,15 +552,15 @@ TEST(InCommand, MidChainCommandBlocksWithParameters)
     // Test command structure: app container run image_name
     // where 'container' is mid-chain and has parameters, 'run' is final command
     InCommand::CommandParser parser("app");
-    InCommand::CommandBlockDesc& rootCmd = parser.GetRootCommandBlockDesc();
+    InCommand::CommandDecl& appBlockDesc = parser.GetAppCommandDecl();
     
-    auto& containerCmd = rootCmd.DeclareSubCommandBlock("container");
-    containerCmd.DeclareOption(InCommand::OptionType::Parameter, "container_id").SetDescription("Container ID");
-    containerCmd.DeclareOption(InCommand::OptionType::Switch, "all", 'a').SetDescription("Show all containers");
+    auto& containerCmd = appBlockDesc.AddSubCommand("container");
+    containerCmd.AddOption(InCommand::OptionType::Parameter, "container_id").SetDescription("Container ID");
+    containerCmd.AddOption(InCommand::OptionType::Switch, "all", 'a').SetDescription("Show all containers");
     
-    auto& runCmd = containerCmd.DeclareSubCommandBlock("run");
-    runCmd.DeclareOption(InCommand::OptionType::Parameter, "image").SetDescription("Image name");
-    runCmd.DeclareOption(InCommand::OptionType::Variable, "port", 'p').SetDescription("Port mapping");
+    auto& runCmd = containerCmd.AddSubCommand("run");
+    runCmd.AddOption(InCommand::OptionType::Parameter, "image").SetDescription("Image name");
+    runCmd.AddOption(InCommand::OptionType::Variable, "port", 'p').SetDescription("Port mapping");
     
     // Test: app container 12345 run ubuntu --port 8080
     {
@@ -568,8 +568,8 @@ TEST(InCommand, MidChainCommandBlocksWithParameters)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         auto numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
@@ -589,8 +589,8 @@ TEST(InCommand, MidChainCommandBlocksWithParameters)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         auto numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
@@ -608,16 +608,16 @@ TEST(InCommand, ParametersWithSubCommandNameCollisions)
 {
     // Test when parameter names collide with sub-command names
     InCommand::CommandParser parser("app");
-    InCommand::CommandBlockDesc& rootCmd = parser.GetRootCommandBlockDesc();
-    rootCmd.DeclareOption(InCommand::OptionType::Parameter, "build").SetDescription("Build file parameter");
-    rootCmd.DeclareOption(InCommand::OptionType::Parameter, "test").SetDescription("Test file parameter");
+    InCommand::CommandDecl& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.AddOption(InCommand::OptionType::Parameter, "build").SetDescription("Build file parameter");
+    appBlockDesc.AddOption(InCommand::OptionType::Parameter, "test").SetDescription("Test file parameter");
     
     // Add sub-commands with same names as parameters
-    auto& buildCmd = rootCmd.DeclareSubCommandBlock("build");
-    buildCmd.DeclareOption(InCommand::OptionType::Switch, "verbose").SetDescription("Verbose build");
+    auto& buildBlockDesc = appBlockDesc.AddSubCommand("build");
+    buildBlockDesc.AddOption(InCommand::OptionType::Switch, "verbose").SetDescription("Verbose build");
     
-    auto& testCmd = rootCmd.DeclareSubCommandBlock("test");
-    testCmd.DeclareOption(InCommand::OptionType::Switch, "coverage").SetDescription("Coverage report");
+    auto& testCmd = appBlockDesc.AddSubCommand("test");
+    testCmd.AddOption(InCommand::OptionType::Switch, "coverage").SetDescription("Coverage report");
     
     // Test 1: Use as parameter (positional arguments)
     {
@@ -625,13 +625,13 @@ TEST(InCommand, ParametersWithSubCommandNameCollisions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         auto numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         // Should stay at root level and treat as parameters
-        EXPECT_EQ(&cmdBlock.GetDesc(), &parser.GetRootCommandBlockDesc());
+        EXPECT_EQ(&cmdBlock.GetDecl(), &parser.GetAppCommandDecl());
         EXPECT_TRUE(cmdBlock.IsParameterSet("build"));
         EXPECT_TRUE(cmdBlock.IsParameterSet("test"));
         EXPECT_EQ(cmdBlock.GetParameterValue("build"), "mybuild.json");
@@ -644,13 +644,13 @@ TEST(InCommand, ParametersWithSubCommandNameCollisions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         auto numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         // Should be at build command level
-        EXPECT_EQ(&cmdBlock.GetDesc(), &buildCmd);
+        EXPECT_EQ(&cmdBlock.GetDecl(), &buildBlockDesc);
         EXPECT_TRUE(cmdBlock.IsOptionSet("verbose"));
     }
     
@@ -660,13 +660,13 @@ TEST(InCommand, ParametersWithSubCommandNameCollisions)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         auto numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         // Should be at test command level
-        EXPECT_EQ(&cmdBlock.GetDesc(), &testCmd);
+        EXPECT_EQ(&cmdBlock.GetDecl(), &testCmd);
         EXPECT_FALSE(cmdBlock.IsOptionSet("coverage"));
     }
 }
@@ -675,28 +675,28 @@ TEST(InCommand, DuplicateAliasCharacters)
 {
     // Test that duplicate alias characters across different options throw ApiException
     InCommand::CommandParser parser("app");
-    InCommand::CommandBlockDesc& rootCmd = parser.GetRootCommandBlockDesc();
+    InCommand::CommandDecl& appBlockDesc = parser.GetAppCommandDecl();
     
     // First option with alias 'v'
-    rootCmd.DeclareOption(InCommand::OptionType::Switch, "verbose", 'v');
+    appBlockDesc.AddOption(InCommand::OptionType::Switch, "verbose", 'v');
     
     // Test 1: Duplicate alias in same command block should throw
     EXPECT_THROW(
         {
-            rootCmd.DeclareOption(InCommand::OptionType::Switch, "version", 'v'); // Duplicate 'v'
+            appBlockDesc.AddOption(InCommand::OptionType::Switch, "version", 'v'); // Duplicate 'v'
         }, InCommand::ApiException);
     
     // Test 2: Duplicate alias with different option type should also throw
     EXPECT_THROW(
         {
-            rootCmd.DeclareOption(InCommand::OptionType::Variable, "value", 'v'); // Duplicate 'v'
+            appBlockDesc.AddOption(InCommand::OptionType::Variable, "value", 'v'); // Duplicate 'v'
         }, InCommand::ApiException);
     
     // Test 3: Same alias in different command blocks should be allowed
-    auto& subCmd = rootCmd.DeclareSubCommandBlock("sub");
+    auto& subCmdBlockDesc = appBlockDesc.AddSubCommand("sub");
     EXPECT_NO_THROW(
         {
-            subCmd.DeclareOption(InCommand::OptionType::Switch, "verify", 'v'); // Same 'v' in different block is OK
+            subCmdBlockDesc.AddOption(InCommand::OptionType::Switch, "verify", 'v'); // Same 'v' in different block is OK
         });
     
     // Test 4: Verify both aliases work independently
@@ -705,13 +705,13 @@ TEST(InCommand, DuplicateAliasCharacters)
         int argc = std::size(argv);
 
         InCommand::CommandParser parser("testapp");
-        auto& testRootCmdDesc = parser.GetRootCommandBlockDesc();
-        testRootCmdDesc = rootCmd;
+        auto& testRootCmdDesc = parser.GetAppCommandDecl();
+        testRootCmdDesc = appBlockDesc;
         auto numBlocks = parser.ParseArgs(argc, argv);
         const InCommand::CommandBlock &cmdBlock = parser.GetCommandBlock(numBlocks - 1);
 
         // Should be at sub command level
-        EXPECT_EQ(&cmdBlock.GetDesc(), &subCmd);
+        EXPECT_EQ(&cmdBlock.GetDecl(), &subCmdBlockDesc);
         EXPECT_TRUE(cmdBlock.IsOptionSet("verify"));
         
         // Check that root command also had its verbose set
@@ -722,9 +722,9 @@ TEST(InCommand, DuplicateAliasCharacters)
     // Test 5: Multiple different aliases should work fine
     EXPECT_NO_THROW(
         {
-            rootCmd.DeclareOption(InCommand::OptionType::Switch, "quiet", 'q');
-            rootCmd.DeclareOption(InCommand::OptionType::Variable, "output", 'o');
-            rootCmd.DeclareOption(InCommand::OptionType::Switch, "reset", 'r');
+            appBlockDesc.AddOption(InCommand::OptionType::Switch, "quiet", 'q');
+            appBlockDesc.AddOption(InCommand::OptionType::Variable, "output", 'o');
+            appBlockDesc.AddOption(InCommand::OptionType::Switch, "reset", 'r');
         });
 }
 
@@ -765,7 +765,7 @@ struct LogLevelConverter
 TEST(InCommand, TemplateBinding_FundamentalTypes)
 {
     InCommand::CommandParser parser("testapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
+    auto& appBlockDesc = parser.GetAppCommandDecl();
     
     // Test variables for binding
     int intValue = 0;
@@ -774,12 +774,12 @@ TEST(InCommand, TemplateBinding_FundamentalTypes)
     char charValue = '\0';
     std::string stringValue;
     
-    // Declare options with bindings
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "int-opt").BindTo(intValue);
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "float-opt").BindTo(floatValue);
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "double-opt").BindTo(doubleValue);
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "char-opt").BindTo(charValue);
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "string-opt").BindTo(stringValue);
+    // Add options with bindings
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "int-opt").BindTo(intValue);
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "float-opt").BindTo(floatValue);
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "double-opt").BindTo(doubleValue);
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "char-opt").BindTo(charValue);
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "string-opt").BindTo(stringValue);
     
     // Test arguments
     const char *argv[] =
@@ -807,15 +807,15 @@ TEST(InCommand, TemplateBinding_FundamentalTypes)
 TEST(InCommand, TemplateBinding_Parameters)
 {
     InCommand::CommandParser parser("testapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
+    auto& appBlockDesc = parser.GetAppCommandDecl();
     
     // Test variables for parameter binding
     std::string filename;
     int count = 0;
     
-    // Declare parameters with bindings
-    rootCmd.DeclareOption(InCommand::OptionType::Parameter, "filename").BindTo(filename);
-    rootCmd.DeclareOption(InCommand::OptionType::Parameter, "count").BindTo(count);
+    // Add parameters with bindings
+    appBlockDesc.AddOption(InCommand::OptionType::Parameter, "filename").BindTo(filename);
+    appBlockDesc.AddOption(InCommand::OptionType::Parameter, "count").BindTo(count);
     
     // Test arguments
     const char *argv[] =
@@ -837,12 +837,12 @@ TEST(InCommand, TemplateBinding_Parameters)
 TEST(InCommand, TemplateBinding_CustomConverter)
 {
     InCommand::CommandParser parser("testapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
+    auto& appBlockDesc = parser.GetAppCommandDecl();
     
     std::string upperValue;
     
-    // Declare option with custom converter
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "upper").BindTo(upperValue, UppercaseConverter{});
+    // Add option with custom converter
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "upper").BindTo(upperValue, UppercaseConverter{});
     
     const char *argv[] =
     {
@@ -859,12 +859,12 @@ TEST(InCommand, TemplateBinding_CustomConverter)
 TEST(InCommand, TemplateBinding_ErrorHandling)
 {
     InCommand::CommandParser parser("testapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
+    auto& appBlockDesc = parser.GetAppCommandDecl();
     
     int intValue = 0;
     
-    // Declare option with integer binding
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "number").BindTo(intValue);
+    // Add option with integer binding
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "number").BindTo(intValue);
     
     // Test with invalid integer value
     const char *argv[] =
@@ -884,9 +884,9 @@ TEST(InCommand, TemplateBinding_SwitchBoolBinding)
     // Presence of switch sets bool to true; absence leaves default unchanged.
     {
         InCommand::CommandParser parser("testapp");
-        auto& rootCmd = parser.GetRootCommandBlockDesc();
+        auto& appBlockDesc = parser.GetAppCommandDecl();
         bool verbose = false; // default false
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "verbose", 'v').BindTo(verbose);
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "verbose", 'v').BindTo(verbose);
         const char* argv[] = {"testapp", "--verbose"};
         parser.ParseArgs(2, argv);
         EXPECT_TRUE(verbose);
@@ -895,9 +895,9 @@ TEST(InCommand, TemplateBinding_SwitchBoolBinding)
     // Absence should not flip an already true default to false
     {
         InCommand::CommandParser parser("testapp");
-        auto& rootCmd = parser.GetRootCommandBlockDesc();
+        auto& appBlockDesc = parser.GetAppCommandDecl();
         bool featureEnabled = true; // caller chooses default true
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "feature").BindTo(featureEnabled);
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "feature").BindTo(featureEnabled);
         const char* argv[] = {"testapp"};
         parser.ParseArgs(1, argv);
         EXPECT_TRUE(featureEnabled); // unchanged
@@ -906,11 +906,11 @@ TEST(InCommand, TemplateBinding_SwitchBoolBinding)
     // Grouped aliases with binding
     {
         InCommand::CommandParser parser("testapp");
-        auto& rootCmd = parser.GetRootCommandBlockDesc();
+        auto& appBlockDesc = parser.GetAppCommandDecl();
         bool a=false, b=false, c=false;
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "alpha", 'a').BindTo(a);
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "bravo", 'b').BindTo(b);
-        rootCmd.DeclareOption(InCommand::OptionType::Switch, "charlie", 'c').BindTo(c);
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "alpha", 'a').BindTo(a);
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "bravo", 'b').BindTo(b);
+        appBlockDesc.AddOption(InCommand::OptionType::Switch, "charlie", 'c').BindTo(c);
         const char* argv[] = {"testapp", "-abc"};
         parser.ParseArgs(2, argv);
         EXPECT_TRUE(a);
@@ -922,12 +922,12 @@ TEST(InCommand, TemplateBinding_SwitchBoolBinding)
 TEST(InCommand, TemplateBinding_BooleanVariables)
 {
     InCommand::CommandParser parser("testapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
+    auto& appBlockDesc = parser.GetAppCommandDecl();
     
     bool flag = false;
     
-    // Declare boolean variable (not switch)
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+    // Add boolean variable (not switch)
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
     
     // Test "true"
     const char* argv1[] = {"testapp", "--flag", "true"};
@@ -937,8 +937,8 @@ TEST(InCommand, TemplateBinding_BooleanVariables)
     
     // Reset parser for next test
     InCommand::CommandParser parser2("testapp");
-    auto& rootCmd2 = parser2.GetRootCommandBlockDesc();
-    rootCmd2.DeclareOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+    auto& appBlock2 = parser2.GetAppCommandDecl();
+    appBlock2.AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
     
     // Test "false" 
     const char* argv2[] = {"testapp", "--flag", "false"};
@@ -950,12 +950,12 @@ TEST(InCommand, TemplateBinding_BooleanVariables)
 TEST(InCommand, TemplateBinding_CustomEnumType)
 {
     InCommand::CommandParser parser("testapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
+    auto& appBlockDesc = parser.GetAppCommandDecl();
     
     LogLevel logLevel = LogLevel::Info;  // Default value
     
-    // Declare option with custom enum converter
-    rootCmd.DeclareOption(InCommand::OptionType::Variable, "log-level", 'l')
+    // Add option with custom enum converter
+    appBlockDesc.AddOption(InCommand::OptionType::Variable, "log-level", 'l')
            .BindTo(logLevel, LogLevelConverter{})
            .SetDescription("Set logging level");
     
@@ -970,9 +970,9 @@ TEST(InCommand, TemplateBinding_CustomEnumType)
     // Test with short alias
     {
         InCommand::CommandParser parser2("testapp");
-        auto& rootCmd2 = parser2.GetRootCommandBlockDesc();
+        auto& appBlock2 = parser2.GetAppCommandDecl();
         LogLevel logLevel2 = LogLevel::Debug;
-        rootCmd2.DeclareOption(InCommand::OptionType::Variable, "log-level", 'l')
+        appBlock2.AddOption(InCommand::OptionType::Variable, "log-level", 'l')
                .BindTo(logLevel2, LogLevelConverter{});
         
         const char* argv[] = {"testapp", "-l", "error"};
@@ -983,9 +983,9 @@ TEST(InCommand, TemplateBinding_CustomEnumType)
     // Test parameter binding with enum
     {
         InCommand::CommandParser parser3("testapp");
-        auto& rootCmd3 = parser3.GetRootCommandBlockDesc();
+        auto& rootCmd3 = parser3.GetAppCommandDecl();
         LogLevel paramLevel = LogLevel::Debug;
-        rootCmd3.DeclareOption(InCommand::OptionType::Parameter, "level")
+        rootCmd3.AddOption(InCommand::OptionType::Parameter, "level")
                .BindTo(paramLevel, LogLevelConverter{});
         
         const char* argv[] = {"testapp", "warning"};
@@ -996,9 +996,9 @@ TEST(InCommand, TemplateBinding_CustomEnumType)
     // Test invalid enum value throws exception
     {
         InCommand::CommandParser parser4("testapp");
-        auto& rootCmd4 = parser4.GetRootCommandBlockDesc();
+        auto& rootCmd4 = parser4.GetAppCommandDecl();
         LogLevel invalidLevel = LogLevel::Info;
-        rootCmd4.DeclareOption(InCommand::OptionType::Variable, "log-level")
+        rootCmd4.AddOption(InCommand::OptionType::Variable, "log-level")
                .BindTo(invalidLevel, LogLevelConverter{});
         
         const char* argv[] = {"testapp", "--log-level", "invalid"};
@@ -1026,15 +1026,15 @@ TEST(InCommand, TemplateBinding_CustomEnumType)
 TEST(InCommand, GlobalOptionsBasic)
 {
     InCommand::CommandParser parser("testapp");
-    auto& rootCmd = parser.GetRootCommandBlockDesc();
+    auto& appBlockDesc = parser.GetAppCommandDecl();
     
-    // Declare a global verbose option
-    parser.DeclareGlobalOption(InCommand::OptionType::Switch, "verbose", 'v')
+    // Add a global verbose option
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose", 'v')
         .SetDescription("Enable verbose output");
     
     // Add a subcommand
-    auto& buildCmd = rootCmd.DeclareSubCommandBlock("build");
-    buildCmd.DeclareOption(InCommand::OptionType::Parameter, "target")
+    auto& buildBlockDesc = appBlockDesc.AddSubCommand("build");
+    buildBlockDesc.AddOption(InCommand::OptionType::Parameter, "target")
         .SetDescription("Build target");
     
     // Test 1: Global option at root level
@@ -1054,12 +1054,12 @@ TEST(InCommand, GlobalOptionsBasic)
     // Test 2: Global option with subcommand
     {
         InCommand::CommandParser parser2("testapp");
-        auto& rootCmd2 = parser2.GetRootCommandBlockDesc();
+        auto& appBlock2 = parser2.GetAppCommandDecl();
         
-        // Re-declare the same structure for a fresh test
-        parser2.DeclareGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
-        auto& buildCmd2 = rootCmd2.DeclareSubCommandBlock("build");
-        buildCmd2.DeclareOption(InCommand::OptionType::Parameter, "target");
+        // Re-Add the same structure for a fresh test
+        parser2.AddGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
+        auto& buildBlockDesc2 = appBlock2.AddSubCommand("build");
+        buildBlockDesc2.AddOption(InCommand::OptionType::Parameter, "target");
         
         const char* argv[] = {"testapp", "build", "--verbose", "debug"};
         const int argc = sizeof(argv) / sizeof(argv[0]);
@@ -1071,7 +1071,7 @@ TEST(InCommand, GlobalOptionsBasic)
         EXPECT_TRUE(parser2.IsGlobalOptionSet("verbose"));
         
         // Should be at build command level
-        EXPECT_EQ(cmdBlock.GetDesc().GetName(), "build");
+        EXPECT_EQ(cmdBlock.GetDecl().GetName(), "build");
         EXPECT_TRUE(cmdBlock.IsParameterSet("target"));
         EXPECT_EQ(cmdBlock.GetParameterValue("target"), "debug");
     }
@@ -1086,20 +1086,20 @@ TEST(InCommand, GlobalOptionLocality)
     InCommand::CommandParser parser("testapp");
     
     // Setup global options
-    parser.DeclareGlobalOption(InCommand::OptionType::Switch, "verbose", 'v')
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose", 'v')
         .SetDescription("Enable verbose output");
-    parser.DeclareGlobalOption(InCommand::OptionType::Variable, "config", 'c')
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "config", 'c')
         .SetDescription("Configuration file");
     
     // Setup command hierarchy with unique IDs for identification
-    auto& rootDesc = parser.GetRootCommandBlockDesc();
-    rootDesc.SetDescription("Test application").SetUniqueId(1);
+    auto& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.SetDescription("Test application").SetUniqueId(1);
     
-    auto& subCmd1 = rootDesc.DeclareSubCommandBlock("subcmd1");
-    subCmd1.SetDescription("Sub command 1").SetUniqueId(2);
+    auto& subCmdBlockDesc1 = appBlockDesc.AddSubCommand("subcmd1");
+    subCmdBlockDesc1.SetDescription("Sub command 1").SetUniqueId(2);
     
-    auto& subCmd2 = subCmd1.DeclareSubCommandBlock("subcmd2");
-    subCmd2.SetDescription("Sub command 2").SetUniqueId(3);
+    auto& subCmdBlockDesc2 = subCmdBlockDesc1.AddSubCommand("subcmd2");
+    subCmdBlockDesc2.SetDescription("Sub command 2").SetUniqueId(3);
     
     // Test 1: Global option specified at left-most command block
     {
@@ -1117,23 +1117,23 @@ TEST(InCommand, GlobalOptionLocality)
         EXPECT_THROW(parser.GetGlobalOptionContext("config"), InCommand::ApiException);
         
         // Final command should be subcmd2
-        EXPECT_EQ(result.GetDesc().GetUniqueId<int>(), 3);
+        EXPECT_EQ(result.GetDecl().GetUniqueId<int>(), 3);
     }
     
     // Test 2: Global option specified at intermediate level
     {
         InCommand::CommandParser parser2("testapp");
-        parser2.DeclareGlobalOption(InCommand::OptionType::Switch, "debug", 'd');
-        parser2.DeclareGlobalOption(InCommand::OptionType::Variable, "output", 'o');
+        parser2.AddGlobalOption(InCommand::OptionType::Switch, "debug", 'd');
+        parser2.AddGlobalOption(InCommand::OptionType::Variable, "output", 'o');
         
-        auto& rootDesc2 = parser2.GetRootCommandBlockDesc();
-        rootDesc2.SetUniqueId(10);
+        auto& appBlockDesc2 = parser2.GetAppCommandDecl();
+        appBlockDesc2.SetUniqueId(10);
         
-        auto& subCmd1_2 = rootDesc2.DeclareSubCommandBlock("subcmd1");
-        subCmd1_2.SetUniqueId(20);
+        auto& subCmdBlockDesc1_2 = appBlockDesc2.AddSubCommand("subcmd1");
+        subCmdBlockDesc1_2.SetUniqueId(20);
         
-        auto& subCmd2_2 = subCmd1_2.DeclareSubCommandBlock("subcmd2");
-        subCmd2_2.SetUniqueId(30);
+        auto& subCmdBlockDesc2_2 = subCmdBlockDesc1_2.AddSubCommand("subcmd2");
+        subCmdBlockDesc2_2.SetUniqueId(30);
         
         const char* args[] = { "testapp", "subcmd1", "--debug", "--output", "file.txt", "subcmd2" };
         size_t numBlocks = parser2.ParseArgs(6, args);
@@ -1148,22 +1148,22 @@ TEST(InCommand, GlobalOptionLocality)
         EXPECT_EQ(parser2.GetGlobalOptionContext("output"), 1); // subcmd1 block
         
         // Final command should be subcmd2
-        EXPECT_EQ(result.GetDesc().GetUniqueId<int>(), 30);
+        EXPECT_EQ(result.GetDecl().GetUniqueId<int>(), 30);
     }
     
     // Test 3: Global option specified at deepest level
     {
         InCommand::CommandParser parser3("testapp");
-        parser3.DeclareGlobalOption(InCommand::OptionType::Switch, "trace", 't');
+        parser3.AddGlobalOption(InCommand::OptionType::Switch, "trace", 't');
         
-        auto& rootDesc3 = parser3.GetRootCommandBlockDesc();
-        rootDesc3.SetUniqueId(100);
+        auto& appBlockDesc3 = parser3.GetAppCommandDecl();
+        appBlockDesc3.SetUniqueId(100);
         
-        auto& subCmd1_3 = rootDesc3.DeclareSubCommandBlock("subcmd1");
-        subCmd1_3.SetUniqueId(200);
+        auto& subCmdBlockDesc1_3 = appBlockDesc3.AddSubCommand("subcmd1");
+        subCmdBlockDesc1_3.SetUniqueId(200);
         
-        auto& subCmd2_3 = subCmd1_3.DeclareSubCommandBlock("subcmd2");
-        subCmd2_3.SetUniqueId(300);
+        auto& subCmdBlockDesc2_3 = subCmdBlockDesc1_3.AddSubCommand("subcmd2");
+        subCmdBlockDesc2_3.SetUniqueId(300);
         
         const char* args[] = { "testapp", "subcmd1", "subcmd2", "--trace" };
         size_t numBlocks = parser3.ParseArgs(4, args);
@@ -1175,21 +1175,21 @@ TEST(InCommand, GlobalOptionLocality)
         EXPECT_EQ(parser3.GetGlobalOptionContext("trace"), 2); // subcmd2 block
         
         // Final command should be subcmd2
-        EXPECT_EQ(result.GetDesc().GetUniqueId<int>(), 300);
+        EXPECT_EQ(result.GetDecl().GetUniqueId<int>(), 300);
     }
     
     // Test 4: Multiple global options at different levels
     {
         InCommand::CommandParser parser4("testapp");
-        parser4.DeclareGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
-        parser4.DeclareGlobalOption(InCommand::OptionType::Switch, "debug", 'd');
-        parser4.DeclareGlobalOption(InCommand::OptionType::Variable, "config", 'c');
+        parser4.AddGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
+        parser4.AddGlobalOption(InCommand::OptionType::Switch, "debug", 'd');
+        parser4.AddGlobalOption(InCommand::OptionType::Variable, "config", 'c');
         
-        auto& rootDesc4 = parser4.GetRootCommandBlockDesc();
-        rootDesc4.SetUniqueId(1000);
+        auto& appBlockDesc4 = parser4.GetAppCommandDecl();
+        appBlockDesc4.SetUniqueId(1000);
         
-        auto& subCmd1_4 = rootDesc4.DeclareSubCommandBlock("subcmd1");
-        subCmd1_4.SetUniqueId(2000);
+        auto& subCmdBlockDesc1_4 = appBlockDesc4.AddSubCommand("subcmd1");
+        subCmdBlockDesc1_4.SetUniqueId(2000);
         
         const char* args[] = { "testapp", "--verbose", "subcmd1", "--debug", "--config", "test.conf" };
         size_t numBlocks = parser4.ParseArgs(6, args);
@@ -1206,7 +1206,7 @@ TEST(InCommand, GlobalOptionLocality)
         EXPECT_EQ(parser4.GetGlobalOptionContext("debug"), 1);
         EXPECT_EQ(parser4.GetGlobalOptionContext("config"), 1);
         
-        EXPECT_EQ(result.GetDesc().GetUniqueId<int>(), 2000);
+        EXPECT_EQ(result.GetDecl().GetUniqueId<int>(), 2000);
     }
 }
 
@@ -1255,8 +1255,8 @@ TEST(InCommand, AutoHelpDescriptionCustomization)
     parser.EnableAutoHelp("help", 'h', output);
     parser.SetAutoHelpDescription("Display usage and command information");
     
-    auto& rootDesc = parser.GetRootCommandBlockDesc();
-    rootDesc.SetDescription("Test application");
+    auto& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.SetDescription("Test application");
     
     const char* args[] = { "testapp", "--help" };
     parser.ParseArgs(2, args);
@@ -1273,8 +1273,8 @@ TEST(InCommand, AutoHelpDisabled)
     InCommand::CommandParser parser("testapp");
     parser.DisableAutoHelp();
     
-    auto& rootDesc = parser.GetRootCommandBlockDesc();
-    rootDesc.SetDescription("Test application");
+    auto& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.SetDescription("Test application");
     
     // Should parse without issues since no help option is automatically declared
     const char* args[] = { "testapp" };
@@ -1291,8 +1291,8 @@ TEST(InCommand, AutoHelpCustomization)
     InCommand::CommandParser parser("testapp");
     parser.EnableAutoHelp("usage", 'u', output);
     
-    auto& rootDesc = parser.GetRootCommandBlockDesc();
-    rootDesc.SetDescription("Test application");
+    auto& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.SetDescription("Test application");
     
     // The custom help option should be auto-declared during parsing
     const char* args[] = { "testapp" };
@@ -1309,8 +1309,8 @@ TEST(InCommand, AutoHelpConflictHandling)
     std::ostringstream output;
     InCommand::CommandParser parser("testapp");
     
-    // Manually declare a conflicting help option first
-    parser.DeclareGlobalOption(InCommand::OptionType::Variable, "help", 'h')
+    // Manually Add a conflicting help option first
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "help", 'h')
         .SetDescription("Manual help option");
     
     // Now try to enable auto-help with the same option name - should throw
@@ -1332,8 +1332,8 @@ TEST(InCommand, AutoHelpOutput)
     InCommand::CommandParser parser("testapp");
     parser.EnableAutoHelp("help", 'h', output);
     
-    auto& rootDesc = parser.GetRootCommandBlockDesc();
-    rootDesc.SetDescription("Test application for auto-help");
+    auto& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.SetDescription("Test application for auto-help");
     
     // Test 1: Help at root level
     {
@@ -1358,8 +1358,8 @@ TEST(InCommand, AutoHelpCustomOption)
     InCommand::CommandParser parser("testapp");
     parser.EnableAutoHelp("usage", 'u', output);
     
-    auto& rootDesc = parser.GetRootCommandBlockDesc();
-    rootDesc.SetDescription("Test application");
+    auto& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.SetDescription("Test application");
     
     const char* args[] = { "testapp", "--usage" };
     
@@ -1377,8 +1377,8 @@ TEST(InCommand, AutoHelpDisabledNoException)
     InCommand::CommandParser parser("testapp");
     parser.DisableAutoHelp();
     
-    auto& rootDesc = parser.GetRootCommandBlockDesc();
-    rootDesc.SetDescription("Test application");
+    auto& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.SetDescription("Test application");
     
     // Should parse without requesting help
     const char* args[] = { "testapp" };
@@ -1387,7 +1387,7 @@ TEST(InCommand, AutoHelpDisabledNoException)
     
     // Should complete normally without help being requested
     EXPECT_FALSE(parser.WasAutoHelpRequested());
-    EXPECT_EQ(result.GetDesc().GetName(), "testapp");
+    EXPECT_EQ(result.GetDecl().GetName(), "testapp");
 }
 
 TEST(InCommand, NormalParsingStillWorks)
@@ -1395,14 +1395,14 @@ TEST(InCommand, NormalParsingStillWorks)
     // Test that normal parsing without help requests works correctly
     InCommand::CommandParser parser("testapp");
     
-    auto& rootDesc = parser.GetRootCommandBlockDesc();
-    rootDesc.SetDescription("Test application");
+    auto& appBlockDesc = parser.GetAppCommandDecl();
+    appBlockDesc.SetDescription("Test application");
     
-    // Declare global verbose option
-    parser.DeclareGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
+    // Add global verbose option
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
     
-    auto& subCmd = rootDesc.DeclareSubCommandBlock("build");
-    subCmd.DeclareOption(InCommand::OptionType::Variable, "target", 't');
+    auto& subCmdBlockDesc = appBlockDesc.AddSubCommand("build");
+    subCmdBlockDesc.AddOption(InCommand::OptionType::Variable, "target", 't');
     
     const char* args[] = { "testapp", "--verbose", "build", "--target", "release" };
     size_t numBlocks = parser.ParseArgs(5, args);
@@ -1412,7 +1412,7 @@ TEST(InCommand, NormalParsingStillWorks)
     EXPECT_FALSE(parser.WasAutoHelpRequested());
     
     // Should have normal parsing results
-    EXPECT_EQ(result.GetDesc().GetName(), "build");
+    EXPECT_EQ(result.GetDecl().GetName(), "build");
     EXPECT_TRUE(parser.IsGlobalOptionSet("verbose"));
     EXPECT_EQ(result.GetOptionValue("target"), "release");
 }
