@@ -111,7 +111,7 @@ int main(int argc, const char *argv[])
         // Check if the global verbose option is set
         if (parser.IsGlobalOptionSet("verbose"))
         {
-            const size_t verboseBlockIndex = parser.GetGlobalOptionContext("verbose");
+            const size_t verboseBlockIndex = parser.GetGlobalOptionBlockIndex("verbose");
 
             if (verboseBlockIndex == 0)
             {

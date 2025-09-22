@@ -1048,7 +1048,7 @@ TEST(InCommand, GlobalOptionsBasic)
         EXPECT_TRUE(parser.IsGlobalOptionSet("verbose"));
         
         // Global option should also be accessible from first command block
-        EXPECT_EQ(parser.GetGlobalOptionContext("verbose"), 0);
+        EXPECT_EQ(parser.GetGlobalOptionBlockIndex("verbose"), 0);
     }
     
     // Test 2: Global option with subcommand
@@ -1110,11 +1110,11 @@ TEST(InCommand, GlobalOptionLocality)
         EXPECT_TRUE(parser.IsGlobalOptionSet("verbose"));
         EXPECT_FALSE(parser.IsGlobalOptionSet("config"));
         
-        // GetGlobalOptionContext should return the left-most command block
-        EXPECT_EQ(parser.GetGlobalOptionContext("verbose"), 0);
+        // GetGlobalOptionBlockIndex should return the left-most command block
+        EXPECT_EQ(parser.GetGlobalOptionBlockIndex("verbose"), 0);
         
         // Option that wasn't set should throw
-        EXPECT_THROW(parser.GetGlobalOptionContext("config"), InCommand::ApiException);
+        EXPECT_THROW(parser.GetGlobalOptionBlockIndex("config"), InCommand::ApiException);
         
         // Final command should be subcmd2
         EXPECT_EQ(result.GetDecl().GetUniqueId<int>(), 3);
@@ -1143,9 +1143,9 @@ TEST(InCommand, GlobalOptionLocality)
         EXPECT_TRUE(parser2.IsGlobalOptionSet("output"));
         EXPECT_EQ(parser2.GetGlobalOptionValue("output"), "file.txt");
         
-        // GetGlobalOptionContext should return the subcmd1 command block  
-        EXPECT_EQ(parser2.GetGlobalOptionContext("debug"), 1); // subcmd1 block
-        EXPECT_EQ(parser2.GetGlobalOptionContext("output"), 1); // subcmd1 block
+        // GetGlobalOptionBlockIndex should return the subcmd1 command block  
+        EXPECT_EQ(parser2.GetGlobalOptionBlockIndex("debug"), 1); // subcmd1 block
+        EXPECT_EQ(parser2.GetGlobalOptionBlockIndex("output"), 1); // subcmd1 block
         
         // Final command should be subcmd2
         EXPECT_EQ(result.GetDecl().GetUniqueId<int>(), 30);
@@ -1171,8 +1171,8 @@ TEST(InCommand, GlobalOptionLocality)
         
         EXPECT_TRUE(parser3.IsGlobalOptionSet("trace"));
         
-        // GetGlobalOptionContext should return the subcmd2 command block
-        EXPECT_EQ(parser3.GetGlobalOptionContext("trace"), 2); // subcmd2 block
+        // GetGlobalOptionBlockIndex should return the subcmd2 command block
+        EXPECT_EQ(parser3.GetGlobalOptionBlockIndex("trace"), 2); // subcmd2 block
         
         // Final command should be subcmd2
         EXPECT_EQ(result.GetDecl().GetUniqueId<int>(), 300);
@@ -1200,50 +1200,13 @@ TEST(InCommand, GlobalOptionLocality)
         EXPECT_TRUE(parser4.IsGlobalOptionSet("config"));
         
         // verbose should in block 0
-        EXPECT_EQ(parser4.GetGlobalOptionContext("verbose"), 0);
+        EXPECT_EQ(parser4.GetGlobalOptionBlockIndex("verbose"), 0);
         
         // debug and config should be in block 1
-        EXPECT_EQ(parser4.GetGlobalOptionContext("debug"), 1);
-        EXPECT_EQ(parser4.GetGlobalOptionContext("config"), 1);
+        EXPECT_EQ(parser4.GetGlobalOptionBlockIndex("debug"), 1);
+        EXPECT_EQ(parser4.GetGlobalOptionBlockIndex("config"), 1);
         
         EXPECT_EQ(result.GetDecl().GetUniqueId<int>(), 2000);
-    }
-}
-
-TEST(InCommand, AutoHelpBasic)
-{
-    // Test 1: Auto-help is disabled by default
-    {
-        InCommand::CommandParser parser("testapp");
-        EXPECT_FALSE(parser.IsAutoHelpEnabled());
-    }
-    
-    // Test 2: Enable auto-help with default options
-    {
-        std::ostringstream output;
-        InCommand::CommandParser parser("testapp");
-        parser.EnableAutoHelp("help", 'h', output);
-        EXPECT_TRUE(parser.IsAutoHelpEnabled());
-        EXPECT_EQ(parser.GetAutoHelpOptionName(), "help");
-        EXPECT_EQ(parser.GetAutoHelpAlias(), 'h');
-    }
-    
-    // Test 3: Disable auto-help
-    {
-        std::ostringstream output;
-        InCommand::CommandParser parser("testapp");
-        parser.EnableAutoHelp("help", 'h', output);
-        parser.DisableAutoHelp();
-        EXPECT_FALSE(parser.IsAutoHelpEnabled());
-    }
-    
-    // Test 4: Customize auto-help option
-    {
-        std::ostringstream output;
-        InCommand::CommandParser parser("testapp");
-        parser.EnableAutoHelp("usage", 'u', output);
-        EXPECT_EQ(parser.GetAutoHelpOptionName(), "usage");
-        EXPECT_EQ(parser.GetAutoHelpAlias(), 'u');
     }
 }
 
@@ -1297,10 +1260,6 @@ TEST(InCommand, AutoHelpCustomization)
     // The custom help option should be auto-declared during parsing
     const char* args[] = { "testapp" };
     parser.ParseArgs(1, args);
-    
-    // The custom help option should now be available
-    EXPECT_TRUE(parser.GetAutoHelpOptionName() == "usage");
-    EXPECT_TRUE(parser.GetAutoHelpAlias() == 'u');
 }
 
 TEST(InCommand, AutoHelpConflictHandling)
@@ -1315,9 +1274,6 @@ TEST(InCommand, AutoHelpConflictHandling)
     
     // Now try to enable auto-help with the same option name - should throw
     EXPECT_THROW(parser.EnableAutoHelp("help", 'h', output), InCommand::ApiException);
-    
-    // Auto-help should remain disabled after the exception
-    EXPECT_FALSE(parser.IsAutoHelpEnabled());
 }
 
 // Note: Testing actual help output with exit() is complex in unit tests

@@ -49,7 +49,7 @@ int main(int argc, const char *argv[])
     try
     {
         // ParseArgs returns the number of command blocks that were parsed
-        size_t numBlocks = parser.ParseArgs(argc, argv);
+        auto numBlocks = parser.ParseArgs(argc, argv);
         
         // Check if help was requested
         if (parser.WasAutoHelpRequested()) {
@@ -57,14 +57,14 @@ int main(int argc, const char *argv[])
         }
         
         // Get the rightmost (most specific) command block
-        const CommandBlock* result = &parser.GetCommandBlock(numBlocks - 1);
+        const CommandBlock &result = parser.GetCommandBlock(numBlocks - 1);
         
         // Check which command was parsed
-        if (result->GetDecl().GetName() == "build")
+        if (result.GetDecl().GetName() == "build")
         {
-            bool verbose = result->IsOptionSet("verbose");
-            std::string target = result->GetOptionValue("target", "debug");
-            std::string project = result->GetOptionValue("project");
+            bool verbose = result.IsOptionSet("verbose");
+            std::string target = result.GetOptionValue("target", "debug");
+            std::string project = result.GetOptionValue("project");
         }
     }
     catch (const SyntaxException& e)
@@ -426,7 +426,7 @@ buildCmd.AddOption(OptionType::Variable, "target")
 ### Accessing Global Options
 
 ```cpp
-const auto& result = parser.ParseArgs(argc, argv);
+auto numBlocks = parser.ParseArgs(argc, argv);
 
 // Check global options from anywhere
 if (parser.IsGlobalOptionSet("verbose")) {
@@ -440,17 +440,17 @@ if (parser.IsGlobalOptionSet("config")) {
 }
 
 // Find where the global option was specified
-size_t context = parser.GetGlobalOptionContext("verbose");
+size_t context = parser.GetGlobalOptionBlockIndex("verbose");
 std::cout << "Verbose was set in command block " << context << "\n";
 ```
 
 #### Command Context Identification
 
 ```cpp
-const auto& result = parser.ParseArgs(argc, argv);
+auto numBlocks = parser.ParseArgs(argc, argv);
 
 if (parser.IsGlobalOptionSet("verbose")) {
-    size_t contextIndex = parser.GetGlobalOptionContext("verbose");
+    size_t contextIndex = parser.GetGlobalOptionBlockIndex("verbose");
     const auto& contextBlock = parser.GetCommandBlock(contextIndex);
     
     if (contextBlock.GetDecl().GetName() == "build") {
@@ -481,10 +481,10 @@ testCmd.SetUniqueId(CommandContext::Test);
 deployCmd.SetUniqueId(CommandContext::Deploy);
 
 // Parse and handle context-sensitive global options
-const auto& result = parser.ParseArgs(argc, argv);
+auto numBlocks = parser.ParseArgs(argc, argv);
 
 if (parser.IsGlobalOptionSet("dry-run")) {
-    size_t contextIndex = parser.GetGlobalOptionContext("dry-run");
+    size_t contextIndex = parser.GetGlobalOptionBlockIndex("dry-run");
     const auto& contextBlock = parser.GetCommandBlock(contextIndex);
     
     switch (contextBlock.GetDecl().GetUniqueId<CommandContext>()) {
@@ -517,7 +517,7 @@ Global options like `--config` can have different meanings depending on where th
 ```cpp
 if (parser.IsGlobalOptionSet("config")) {
     std::string configPath = parser.GetGlobalOptionValue("config");
-    size_t contextIndex = parser.GetGlobalOptionContext("config");
+    size_t contextIndex = parser.GetGlobalOptionBlockIndex("config");
     const auto& contextBlock = parser.GetCommandBlock(contextIndex);
     
     if (contextBlock.GetDecl().GetName() == "build") {
@@ -623,7 +623,7 @@ $ myapp --help
 
 My application
 
-Usage: myapp [--help] [build] [test]
+Usage: myapp [--help]
   --help, -h                  Display comprehensive usage information and examples
   build                       Build the project
   test                        Run tests
@@ -663,20 +663,20 @@ Usage: git remote add [--help] <name> <url>
 The recommended way to generate help output is to use the `GetHelpString()` method on `CommandParser`:
 
 ```cpp
-std::cout << rootCmdDesc.GetHelpString();
+std::cout << parser.GetHelpString();
 ```
 
 This prints the command description (if set), usage string, and option details in a single, formatted output. For subcommands, use the corresponding descriptor:
 
 ```cpp
-std::cout << buildCmdDesc.GetHelpString();
+std::cout << parser.GetHelpString(commandBlockIndex);
 ```
 
 **Sample Output:**
 
 ```shell
 Sample application demonstrating InCommand
-Usage: sample [--help] [add] [mul]
+Usage: sample [--help]
   --help, -h                  Show help information
   add                         Adds two numbers together
   mul                         Multiplies two numbers together
@@ -761,7 +761,7 @@ Help output adapts to the current command context:
 ```shell
 # Root level help
 $ mybuildtool --help
-Usage: mybuildtool [--help] [build]
+Usage: mybuildtool [--help]
 
 # Subcommand help  
 $ mybuildtool build --help
@@ -909,7 +909,7 @@ Returns the number of command blocks parsed from `ParseArgs()`.
 const CommandBlock &GetCommandBlock(size_t index) const
 ```
 
-Returns the command block at the requested `index`. Throws `SyntaxException` if no command blocks have been parsed.
+Returns the command block at the requested `index` using zero-based indexing. Throws `ApiException` if no command blocks have been parsed or if index exceeds the last block parsed.
 
 #### Global Option Access Methods
 
@@ -926,7 +926,7 @@ const std::string& GetGlobalOptionValue(const std::string& name) const
 Returns the value of a global variable or parameter option. Throws `ApiException` if the option doesn't exist or has no value.
 
 ```cpp
-size_t GetGlobalOptionContext(const std::string& name) const
+size_t GetGlobalOptionBlockIndex(const std::string& name) const
 ```
 
 Returns the command block indexwhere the global option was set. Throws `ApiException` if the global option was not set.
@@ -936,7 +936,7 @@ Returns the command block indexwhere the global option was set. Throws `ApiExcep
 #### `CommandParser::EnableAutoHelp()`
 
 ```cpp
-void EnableAutoHelp(const std::string& optionName = "help", char alias = 'h', std::ostream& outputStream = std::cout)
+void EnableAutoHelp(const std::string& optionName, char alias, std::ostream& outputStream = std::cout)
 ```
 
 Enables automatic help functionality with the specified option name and alias. When users specify this option, context-sensitive help is automatically generated and output to the specified stream. Throws `ApiException` if the option name or alias conflicts with existing options.
@@ -950,10 +950,6 @@ void SetAutoHelpDescription(const std::string& description)
 Sets a custom description for the auto-help option. Default is "Show context-sensitive help information".
 
 #### `CommandParser::DisableAutoHelp()`
-
-```cpp
-void DisableAutoHelp()
-```
 
 Disables automatic help functionality.
 
@@ -1128,32 +1124,6 @@ OptionDecl& SetDomain(const std::vector<std::string>& domain)
 
 Restricts the option to a specific set of valid values. Useful for variables with limited choices.
 
-#### `OptionDecl::SetUniqueId()`
-
-```cpp
-template<typename T>
-void SetUniqueId(T id)
-```
-
-Assigns a user-defined ID to this option descriptor. The ID can be any type (typically an enum) and is useful for option identification in your application logic.
-
-#### `OptionDecl::GetUniqueId()`
-
-```cpp
-template<typename T>
-T GetUniqueId() const
-```
-
-Retrieves the previously assigned unique ID. Throws `ApiException` if no ID has been set or the type doesn't match the stored ID type.
-
-#### `OptionDecl::HasUniqueId()`
-
-```cpp
-bool HasUniqueId() const
-```
-
-Returns `true` if a unique ID has been assigned to this option descriptor, `false` otherwise.
-
 #### `OptionDecl::GetType()`
 
 ```cpp
@@ -1206,10 +1176,6 @@ Binds the option's parsed value to a typed variable with automatic type conversi
 **Parameters:**
 - `T` - Target type (automatically deduced from variable reference)
 - `Converter` - Conversion functor (defaults to `DefaultConverter<T>`)
-
-**Constraints:**
-- Only `Variable` and `Parameter` options support binding
-- `Switch` options cannot be bound (throws `ApiException`)
 
 **Conversion Support:**
 - **Fundamental types**: `int`, `float`, `double`, `char`, `bool`, etc.
@@ -1301,14 +1267,16 @@ Error codes for `ApiException`. Indicates developer API misuse.
 ```cpp
 enum class ApiError
 {
-    None,                    // No error
+    None,                   // No error
     OutOfMemory,            // Memory allocation failed
     DuplicateCommandBlock,  // Command name already exists
     DuplicateOption,        // Option name or alias already exists
     UniqueIdNotAssigned,    // Trying to get unassigned unique ID
     OptionNotFound,         // Referenced option doesn't exist
     ParameterNotFound,      // Referenced parameter doesn't exist
-    InvalidOptionType       // Invalid operation for option type (e.g., alias on parameter)
+    InvalidOptionType,      // Invalid operation for option type (e.g., alias on parameter)
+    InvalidUniqueIdType,    // Unique ID type is invalid
+    OutOfRange,             // An out-of-range index was used
 }
 ```
 
@@ -1347,10 +1315,10 @@ const std::string& GetMessage() const
 
 Returns a human-readable description of the API misuse error.
 
-##### `ApiException::GetErrorCode()`
+##### `ApiException::GetError()`
 
 ```cpp
-ApiError GetErrorCode() const
+ApiError GetError() const
 ```
 
 Returns the specific `ApiError` enum value indicating the type of API error that occurred.
@@ -1401,10 +1369,10 @@ const std::string& GetToken() const
 
 Returns the specific command-line token that caused the error, if available. May be empty for some error types.
 
-##### `SyntaxException::GetErrorCode()`
+##### `SyntaxException::GetError()`
 
 ```cpp
-SyntaxError GetErrorCode() const
+SyntaxError GetError() const
 ```
 
 Returns the specific `SyntaxError` enum value indicating the type of syntax error that occurred.
@@ -1488,13 +1456,13 @@ testCmdDesc.SetUniqueId(MyCommandId::Test);
 auto& deployCmdDesc = rootCmdDesc.AddSubCommand("deploy");
 deployCmdDesc.SetUniqueId(MyCommandId::Deploy);
 
-const CommandBlock* active = parser.ParseArgs(argc, argv);
-switch (active->GetDecl().GetUniqueId<MyCommandId>())
+auto numBlocks = parser.ParseArgs(argc, argv);
+switch (parser.GetCommandBlock(numBlocks - 1).GetDecl().GetUniqueId<MyCommandId>())
 {
     case MyCommandId::Root: /* handle root command */ break;
-    case CommandId::Test:  /* handle test */  break;
-    case CommandId::Build: /* handle build */ break;
-    case CommandId::Deploy:  /* handle deploy */  break;
+    case MyCommandId::Test:  /* handle test */  break;
+    case MyCommandId::Build: /* handle build */ break;
+    case MyCommandId::Deploy:  /* handle deploy */  break;
 }
 ```
 
@@ -1560,7 +1528,7 @@ Potential additions:
 ---
 
 ## Type-Safe Value Binding
-Automatically convert and assign option values using `BindTo()` (variables & parameters only).
+Automatically convert and assign option values using `BindTo()`.
 
 Basic example:
 ```cpp
@@ -1622,11 +1590,6 @@ root.AddOption(OptionType::Variable, "number").BindTo(number);
 // Throws: SyntaxException (InvalidValue) token "abc"
 ```
 
-### Binding Constraints
-* Only `Variable` & `Parameter` option types may bind
-* Binding a `Switch` triggers `ApiException`
-* Domains (see Advanced Topics) validate before custom converter is applied
-
 ---
 
 ## Global Options & Context
@@ -1638,7 +1601,7 @@ parser.AddGlobalOption(OptionType::Variable, "config", 'c');
 Context-aware usage:
 ```cpp
 if (parser.IsGlobalOptionSet("verbose")) {
-    size_t idx = parser.GetGlobalOptionContext("verbose");
+    size_t idx = parser.GetGlobalOptionBlockIndex("verbose");
     const auto& block = parser.GetCommandBlock(idx);
     // differentiate build vs test vs root
 }
@@ -1650,7 +1613,7 @@ root.SetUniqueId(ContextId::Root);
 auto& build = root.AddSubCommand("build"); build.SetUniqueId(ContextId::Build);
 // ... after parse
 if (parser.IsGlobalOptionSet("dry-run")) {
-    size_t i = parser.GetGlobalOptionContext("dry-run");
+    size_t i = parser.GetGlobalOptionBlockIndex("dry-run");
     switch (parser.GetCommandBlock(i).GetDecl().GetUniqueId<ContextId>()) {
         case ContextId::Build: /* build dry-run */ break;
         case ContextId::Deploy: /* deploy dry-run */ break;
@@ -1668,7 +1631,7 @@ Benefits:
 Verbose interpretation per command:
 ```cpp
 if (parser.IsGlobalOptionSet("verbose")) {
-    size_t ctxIdx = parser.GetGlobalOptionContext("verbose");
+    size_t ctxIdx = parser.GetGlobalOptionBlockIndex("verbose");
     const auto& ctxBlock = parser.GetCommandBlock(ctxIdx);
     if (ctxBlock.GetDecl().GetName() == "build") {
         // build-specific verbose level
@@ -1688,9 +1651,9 @@ auto& build = root.AddSubCommand("build").SetUniqueId(CommandContext::Build);
 auto& test  = root.AddSubCommand("test").SetUniqueId(CommandContext::Test);
 auto& deploy= root.AddSubCommand("deploy").SetUniqueId(CommandContext::Deploy);
 parser.AddGlobalOption(OptionType::Switch, "dry-run");
-size_t n = parser.ParseArgs(argc, argv);
+auto numBlocks = parser.ParseArgs(argc, argv);
 if (parser.IsGlobalOptionSet("dry-run")) {
-    size_t origin = parser.GetGlobalOptionContext("dry-run");
+    size_t origin = parser.GetGlobalOptionBlockIndex("dry-run");
     switch (parser.GetCommandBlock(origin).GetDecl().GetUniqueId<CommandContext>()) {
         case CommandContext::Build: /* configure build dry-run */ break;
         case CommandContext::Deploy: /* configure deploy dry-run */ break;
@@ -1704,7 +1667,7 @@ Configuration path semantics vary by context:
 ```cpp
 if (parser.IsGlobalOptionSet("config")) {
     std::string path = parser.GetGlobalOptionValue("config");
-    size_t idx = parser.GetGlobalOptionContext("config");
+    size_t idx = parser.GetGlobalOptionBlockIndex("config");
     const auto& block = parser.GetCommandBlock(idx);
     if (block.GetDecl().GetName() == "build") { /* load build config */ }
     else if (block.GetDecl().GetName() == "test") { /* load test config */ }
@@ -1727,7 +1690,7 @@ std::ostringstream buf; parser.EnableAutoHelp("help", 'h', buf);
 Example outputs:
 ```
 myapp --help
-Usage: myapp [--help] [build] [test]
+Usage: myapp [--help]
   --help, -h   Display comprehensive usage information and examples
   build        Build the project
   test         Run tests
@@ -1758,7 +1721,7 @@ Use cases:
 ### Context-Sensitive Examples
 ```
 myapp --help
-Usage: myapp [--help] [build] [test]
+Usage: myapp [--help]
 ```
 ```
 myapp build --help
@@ -1884,8 +1847,8 @@ auto& root = parser.GetAppCommandDecl(); root.SetUniqueId(MyCommandId::Root);
 auto& build = root.AddSubCommand("build"); build.SetUniqueId(MyCommandId::Build);
 auto& test  = root.AddSubCommand("test");  test.SetUniqueId(MyCommandId::Test);
 auto& deploy= root.AddSubCommand("deploy");deploy.SetUniqueId(MyCommandId::Deploy);
-size_t n = parser.ParseArgs(argc, argv);
-const auto& active = parser.GetCommandBlock(n-1);
+auto numBlocks = parser.ParseArgs(argc, argv);
+const auto& active = parser.GetCommandBlock(numBlocks - 1);
 switch (active.GetDecl().GetUniqueId<MyCommandId>()) {
     case MyCommandId::Build: /* build */ break;
     case MyCommandId::Test:  /* test  */ break;
@@ -1909,8 +1872,8 @@ size_t GetNumCommandBlocks() const;
 const CommandBlock& GetCommandBlock(size_t index) const;
 bool IsGlobalOptionSet(const std::string& name) const;
 const std::string& GetGlobalOptionValue(const std::string& name) const;           // throws if unset or no value
-size_t GetGlobalOptionContext(const std::string& name) const;                     // index of block where set
-void EnableAutoHelp(const std::string& optionName = "help", char alias = 'h', std::ostream& out = std::cout);
+size_t GetGlobalOptionBlockIndex(const std::string& name) const;                     // index of block where set
+void EnableAutoHelp(const std::string& optionName, char alias, std::ostream& out = std::cout);
 void SetAutoHelpDescription(const std::string& description);
 void DisableAutoHelp();
 bool WasAutoHelpRequested() const;
@@ -1943,29 +1906,42 @@ const CommandDecl& GetDecl() const;
 ```cpp
 OptionDecl& SetDescription(const std::string& description);
 OptionDecl& SetDomain(const std::vector<std::string>& domain);
-template<typename T> void SetUniqueId(T id);
-template<typename T> T GetUniqueId() const;
-bool HasUniqueId() const;
 OptionType GetType() const;
 const std::string& GetName() const;
 const std::string& GetDescription() const;
 char GetAlias() const;                // 0 if none
 const std::vector<std::string>& GetDomain() const;
 template<typename T, typename Converter = DefaultConverter<T>>
-OptionDecl& BindTo(T& variable, Converter converter = Converter{});               // Variable & Parameter only
+OptionDecl& BindTo(T& variable, Converter converter = Converter{});
 ```
 
 ### Enums
+
 ```cpp
 enum class OptionType { Switch, Variable, Parameter };
 enum class VariableDelimiter { Whitespace, Equals, Colon };
 enum class ApiError {
-    None, OutOfMemory, DuplicateCommandBlock, DuplicateOption, UniqueIdNotAssigned,
-    OptionNotFound, ParameterNotFound, InvalidOptionType
+    None,
+    OutOfMemory,
+    DuplicateCommandBlock,
+    DuplicateOption,
+    UniqueIdNotAssigned,
+    OptionNotFound,
+    ParameterNotFound,
+    InvalidOptionType,
+    InvalidUniqueIdType,
+    OutOfRange,
 };
+
 enum class SyntaxError {
-    None, UnknownOption, MissingVariableValue, UnexpectedArgument,
-    TooManyParameters, InvalidValue, OptionNotSet
+    None,
+    UnknownOption,
+    MissingVariableValue,
+    UnexpectedArgument,
+    TooManyParameters,
+    InvalidValue,
+    OptionNotSet,
+    InvalidAlias
 };
 ```
 
@@ -1974,13 +1950,13 @@ enum class SyntaxError {
 class ApiException {
 public:
     const std::string& GetMessage() const;
-    ApiError GetErrorCode() const;
+    ApiError GetError() const;
 };
 class SyntaxException {
 public:
     const std::string& GetMessage() const;
     const std::string& GetToken() const;
-    SyntaxError GetErrorCode() const;
+    SyntaxError GetError() const;
 };
 ```
 

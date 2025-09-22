@@ -193,8 +193,8 @@ OptionDecl& CommandDecl::AddOption(OptionType type, const std::string& name, cha
         // Register the local option to check for conflicts with global options
         m_parser->RegisterLocalOption(name, alias);
         
-        // All option types go into m_optionDescs for unified storage
-        auto [it, inserted] = m_optionDescs.emplace(name, std::make_shared<OptionDecl>(type, name));
+        // All option types go into m_optionDecls for unified storage
+        auto [it, inserted] = m_optionDecls.emplace(name, std::make_shared<OptionDecl>(type, name));
         if (!inserted)
         {
             throw ApiException(ApiError::DuplicateOption, "Option '" + name + "' already exists");
@@ -203,7 +203,7 @@ OptionDecl& CommandDecl::AddOption(OptionType type, const std::string& name, cha
         if (type == OptionType::Parameter)
         {
             // Parameters also get added to the ordered parameter list
-            m_parameterDescs.emplace_back(std::cref(*(it->second)));
+            m_parameterDecls.emplace_back(std::cref(*(it->second)));
         }
         else if (alias != 0)
         {
@@ -291,7 +291,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Show specific options for this command block
-    for (const auto& optionPair : firstDecl->m_optionDescs)
+    for (const auto& optionPair : firstDecl->m_optionDecls)
     {
         const OptionDecl& decl = *optionPair.second;
         s << "[--" << decl.GetName();
@@ -301,7 +301,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Parameters (positional arguments) in declaration order
-    for (const auto& paramDesc : firstDecl->m_parameterDescs)
+    for (const auto& paramDesc : firstDecl->m_parameterDecls)
     {
         s << "<" << paramDesc.get().GetName() << "> ";
     }
@@ -334,7 +334,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Add local option details
-    for (const auto& optionPair : firstDecl->m_optionDescs)
+    for (const auto& optionPair : firstDecl->m_optionDecls)
     {
         const OptionDecl& decl = *optionPair.second;
         if (!decl.GetDescription().empty())
@@ -355,7 +355,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Add parameter details
-    for (const auto& paramDesc : firstDecl->m_parameterDescs)
+    for (const auto& paramDesc : firstDecl->m_parameterDecls)
     {
         if (!paramDesc.get().GetDescription().empty())
         {
@@ -729,9 +729,9 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
         }
 
         // Otherwise treat as positional parameter
-        if (currentParameterIndex < commandDecl.m_parameterDescs.size())
+        if (currentParameterIndex < commandDecl.m_parameterDecls.size())
         {
-            const OptionDecl &decl = commandDecl.m_parameterDescs[currentParameterIndex].get();
+            const OptionDecl &decl = commandDecl.m_parameterDecls[currentParameterIndex].get();
             currentBlock.SetOption(decl, token);
             currentParameterIndex++;
             continue;
@@ -749,7 +749,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
     if (helpWasRequested)
     {
         // Get the context where help was requested
-        helpContextIndex = GetGlobalOptionContext(m_autoHelpOptionName);
+        helpContextIndex = GetGlobalOptionBlockIndex(m_autoHelpOptionName);
         
         // Generate help text for the appropriate command block using new simplified method
         std::ostringstream helpStream;
@@ -794,7 +794,7 @@ const std::string& CommandParser::GetGlobalOptionValue(const std::string& name) 
 }
 
 //------------------------------------------------------------------------------------------------
-size_t CommandParser::GetGlobalOptionContext(const std::string& name) const
+size_t CommandParser::GetGlobalOptionBlockIndex(const std::string& name) const
 {
     auto it = m_parsedGlobalOptions.find(name);
     if (it == m_parsedGlobalOptions.end())

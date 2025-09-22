@@ -21,6 +21,7 @@
 #include <functional>
 #include <charconv>
 #include <type_traits>
+#include <iostream>
 
 namespace InCommand
 {
@@ -36,6 +37,7 @@ namespace InCommand
         OptionNotFound,
         ParameterNotFound,
         InvalidOptionType,
+        InvalidUniqueIdType,
         OutOfRange,
     };
 
@@ -97,7 +99,6 @@ namespace InCommand
     //------------------------------------------------------------------------------------------------
     enum class OptionType
     {
-        Undefined,
         Switch,
         Variable,
         Parameter,
@@ -191,26 +192,6 @@ namespace InCommand
         {
         }
 
-        // --- Unique ID ---
-        template<typename T>
-        void SetUniqueId(T id)
-        {
-            m_id = id;
-        }
-
-        template<typename T>
-        T GetUniqueId() const
-        {
-            if (!HasUniqueId())
-                throw(ApiException(ApiError::UniqueIdNotAssigned, "OptionDecl unique ID not assigned"));
-            return std::any_cast<T>(m_id);
-        }
-
-        bool HasUniqueId() const
-        {
-            return m_id.has_value();
-        }
-
         // --- Set Accessors ---
         OptionDecl &SetDescription(const std::string &description)
         {
@@ -297,8 +278,8 @@ namespace InCommand
     {
         std::string m_name;
         std::string m_description;
-        std::unordered_map<std::string, std::shared_ptr<OptionDecl>> m_optionDescs;
-        std::vector<std::reference_wrapper<const OptionDecl>> m_parameterDescs;
+        std::unordered_map<std::string, std::shared_ptr<OptionDecl>> m_optionDecls;
+        std::vector<std::reference_wrapper<const OptionDecl>> m_parameterDecls;
         std::unordered_map<char, std::shared_ptr<OptionDecl>> m_aliasMap;
         std::unordered_map<std::string, std::shared_ptr<CommandDecl>> m_innerCommandDecls;
         std::any m_id;
@@ -306,8 +287,8 @@ namespace InCommand
 
         const OptionDecl *FindOption(const std::string &name) const
         {
-            auto it = m_optionDescs.find(name);
-            return it == m_optionDescs.end() ? nullptr : it->second.get();
+            auto it = m_optionDecls.find(name);
+            return it == m_optionDecls.end() ? nullptr : it->second.get();
         }
         const OptionDecl *FindOptionByAlias(const char alias) const
         {
@@ -336,8 +317,18 @@ namespace InCommand
         T GetUniqueId() const
         {
             if (!HasUniqueId())
+            {
                 throw(ApiException(ApiError::UniqueIdNotAssigned, "CommandDecl unique ID not assigned"));
-            return std::any_cast<T>(m_id);
+            }
+
+            try
+            {
+                return std::any_cast<T>(m_id); // throw(std::bad_any_cast)
+            }
+            catch(const std::bad_any_cast& )
+            {
+                throw(ApiException(ApiError::InvalidUniqueIdType, "Invalid unique ID type"));
+            }
         }
 
         bool HasUniqueId() const
@@ -439,14 +430,12 @@ namespace InCommand
         OptionDecl& AddGlobalOption(OptionType type, const std::string& name, char alias = 0);
 
         CommandDecl& GetAppCommandDecl() { return m_rootCommandBlockDesc; }
+        const CommandDecl& GetAppCommandDecl() const { return m_rootCommandBlockDesc; }
 
         // Auto-help configuration methods
         void EnableAutoHelp(const std::string& optionName, char alias, std::ostream& outputStream = std::cout);
         void SetAutoHelpDescription(const std::string& description);
         void DisableAutoHelp();
-        bool IsAutoHelpEnabled() const { return m_autoHelpEnabled; }
-        const std::string& GetAutoHelpOptionName() const { return m_autoHelpOptionName; }
-        char GetAutoHelpAlias() const { return m_autoHelpAlias; }
         
         // Auto-help status methods
         bool WasAutoHelpRequested() const { return m_autoHelpRequested; }
@@ -464,7 +453,7 @@ namespace InCommand
         // Global option accessors
         bool IsGlobalOptionSet(const std::string& name) const;
         const std::string& GetGlobalOptionValue(const std::string& name) const;
-        size_t GetGlobalOptionContext(const std::string& name) const;
+        size_t GetGlobalOptionBlockIndex(const std::string& name) const;
         
         // Help string generation - targets rightmost parsed command block
         std::string GetHelpString() const;
