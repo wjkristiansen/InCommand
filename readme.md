@@ -10,6 +10,7 @@
 
 **Hierarchical Command Structure**: Support for nested command blocks (e.g., `git remote add origin url`)  
 **Multiple Option Types**: Switches, variables, and positional parameters  
+**Multi-Occurrence Options**: Opt-in support for options that can appear multiple times, with first-value default semantics and indexed access  
 **Type-Safe Value Binding**: Template method for automatic type conversion and variable binding  
 **Global Options**: Options available across all command contexts  
 **Auto-Help System**: Configurable automatic help generation with context-sensitive output  
@@ -207,6 +208,69 @@ rootCmd.AddOption(OptionType::Parameter, "input-file");  // No alias allowed
 - **Variables Individual**: Variable aliases must be used individually (`-o file.txt`)
 
 ---
+
+## Multiple Occurrences (AllowMultiple)
+
+Some options may appear multiple times on the command line (like `git commit -m "Title" -m "Details"`). InCommand supports this via an opt-in API on `OptionDecl`.
+
+Key points:
+- Enable per-option with `AllowMultiple()`. By default, additional occurrences are ignored for options that don’t allow multiples.
+- Default getters return the first value when multiple values are present.
+- Use indexed getters and count methods to access additional occurrences.
+- Primarily used with variable options; may also be applied to parameters if your command grammar allows repeated positional values. Switches are presence-only; repeating a switch is idempotent.
+
+Declare and parse:
+```cpp
+auto& commit = rootCmd.AddSubCommand("commit");
+commit.AddOption(OptionType::Variable, "message", 'm')
+      .AllowMultiple()
+      .SetDescription("Commit message lines");
+
+auto count = parser.ParseArgs(argc, argv);
+const auto& block = parser.GetCommandBlock(count - 1); // commit block
+```
+
+Access values within the command block:
+```cpp
+// Default getter returns the first occurrence
+std::string title = block.GetOptionValue("message");
+
+// Iterate all occurrences
+size_t n = block.GetOptionValueCount("message");
+for (size_t i = 0; i < n; ++i) {
+    const std::string& part = block.GetOptionValue("message", i);
+    // use part
+}
+// Errors:
+// - block.GetOptionValue("message", n) throws ApiException(ApiError::OutOfRange)
+// - block.GetOptionValue("missing", 0) throws ApiException(ApiError::OptionNotFound)
+```
+
+Global options support multiple occurrences as well and track the command-block index for each occurrence:
+```cpp
+parser.AddGlobalOption(OptionType::Variable, "config", 'c').AllowMultiple();
+
+parser.ParseArgs(argc, argv);
+
+// First occurrence value
+const std::string& firstConfig = parser.GetGlobalOptionValue("config");
+
+// Iterate all occurrences with their origin blocks
+size_t gcount = parser.GetGlobalOptionValueCount("config");
+for (size_t i = 0; i < gcount; ++i) {
+    const std::string& value = parser.GetGlobalOptionValue("config", i);
+    size_t originBlockIndex = parser.GetGlobalOptionBlockIndex("config", i);
+    const auto& originBlock = parser.GetCommandBlock(originBlockIndex);
+    // use value with its originating context
+}
+
+// Convenience: last occurrence origin
+size_t lastCtx = parser.GetGlobalOptionBlockIndex("config");
+// Errors:
+// - parser.GetGlobalOptionValue("config", gcount) throws ApiException(ApiError::OutOfRange)
+// - parser.GetGlobalOptionValue("missing", 0) throws ApiException(ApiError::OptionNotFound)
+// - parser.GetGlobalOptionBlockIndex("config", gcount) throws ApiException(ApiError::OutOfRange)
+```
 
 ## Type-Safe Value Binding
 
@@ -433,10 +497,18 @@ if (parser.IsGlobalOptionSet("verbose")) {
     std::cout << "Verbose mode enabled\n";
 }
 
-// Get global option values
+// Get global option value (first occurrence if multiple)
 if (parser.IsGlobalOptionSet("config")) {
     std::string configFile = parser.GetGlobalOptionValue("config");
     loadConfiguration(configFile);
+}
+
+// Multiple occurrences: count and indexed access
+size_t cfgCount = parser.GetGlobalOptionValueCount("config");
+for (size_t i = 0; i < cfgCount; ++i) {
+    const std::string& path = parser.GetGlobalOptionValue("config", i);
+    size_t ctx = parser.GetGlobalOptionBlockIndex("config", i); // per-occurrence origin
+    // ... use path with its originating context block
 }
 
 // Find where the global option was specified
@@ -923,13 +995,31 @@ Returns `true` if the named global option was set anywhere in the command chain 
 const std::string& GetGlobalOptionValue(const std::string& name) const
 ```
 
-Returns the value of a global variable or parameter option. Throws `ApiException` if the option doesn't exist or has no value.
+Returns the value of a global variable or parameter. If the option supports multiple occurances, then returns the first value of a global variable option when set multiple times. Throws `ApiException` if the option doesn't exist or has no value.
+
+```cpp
+const std::string& GetGlobalOptionValue(const std::string& name, size_t index) const
+```
+
+Returns the value of the `index`-th occurrence (0-based) for the named global variable option.
+
+```cpp
+size_t GetGlobalOptionValueCount(const std::string& name) const
+```
+
+Returns how many times the named global option occurred.
 
 ```cpp
 size_t GetGlobalOptionBlockIndex(const std::string& name) const
 ```
 
-Returns the command block indexwhere the global option was set. Throws `ApiException` if the global option was not set.
+Returns the command block index where the global option was set most recently (last occurrence). Throws `ApiException` if the global option was not set.
+
+```cpp
+size_t GetGlobalOptionBlockIndex(const std::string& name, size_t index) const
+```
+
+Returns the command block index associated with occurrence at `index` of the named global option.
 
 #### Auto-Help Configuration
 
@@ -1082,7 +1172,7 @@ Returns `true` if the named switch was present on the command line, or if the na
 const std::string& GetOptionValue(const std::string& name) const
 ```
 
-Returns the value of a variable or parameter. Throws `ApiException` if the option doesn't exist or has no value.
+Returns the value of a variable or parameter. Returns the value of the first occurance when multiple values are present. Throws `ApiException` if the option doesn't exist or has no value.
 
 #### `CommandBlock::GetOptionValue()` - With Default
 
@@ -1093,6 +1183,22 @@ const std::string& GetOptionValue(const std::string& name, const std::string& de
 Returns the value of a variable or parameter, or the provided default value if the option wasn't set.
 
 Returns the value of a parameter, or the provided default value if the parameter wasn't set.
+
+#### `CommandBlock::GetOptionValue()` - Indexed
+
+```cpp
+const std::string& GetOptionValue(const std::string& name, size_t index) const
+```
+
+Returns the value at the specified `index` when the option allows multiple occurrences.
+
+#### `CommandBlock::GetOptionValueCount()`
+
+```cpp
+size_t GetOptionValueCount(const std::string& name) const
+```
+
+Returns the number of occurrences for the named option.
 
 #### `CommandBlock::GetDecl()`
 
@@ -1871,8 +1977,11 @@ size_t ParseArgs(int argc, const char* argv[]);
 size_t GetNumCommandBlocks() const;
 const CommandBlock& GetCommandBlock(size_t index) const;
 bool IsGlobalOptionSet(const std::string& name) const;
-const std::string& GetGlobalOptionValue(const std::string& name) const;           // throws if unset or no value
-size_t GetGlobalOptionBlockIndex(const std::string& name) const;                     // index of block where set
+const std::string& GetGlobalOptionValue(const std::string& name) const;                 // first occurrence; throws if unset/no value
+const std::string& GetGlobalOptionValue(const std::string& name, size_t index) const;  // indexed occurrence
+size_t GetGlobalOptionValueCount(const std::string& name) const;                       // number of occurrences
+size_t GetGlobalOptionBlockIndex(const std::string& name) const;                       // block index of last occurrence
+size_t GetGlobalOptionBlockIndex(const std::string& name, size_t index) const;         // block index of indexed occurrence
 void EnableAutoHelp(const std::string& optionName, char alias, std::ostream& out = std::cout);
 void SetAutoHelpDescription(const std::string& description);
 void DisableAutoHelp();
@@ -1897,8 +2006,10 @@ const std::string& GetDescription() const;
 ### CommandBlock
 ```cpp
 bool IsOptionSet(const std::string& name) const;
-const std::string& GetOptionValue(const std::string& name) const;                 // throws if missing
+const std::string& GetOptionValue(const std::string& name) const;                   // first occurrence; throws if missing
 const std::string& GetOptionValue(const std::string& name, const std::string& defaultValue) const;
+const std::string& GetOptionValue(const std::string& name, size_t index) const;     // indexed occurrence
+size_t GetOptionValueCount(const std::string& name) const;                           // number of occurrences
 const CommandDecl& GetDecl() const;
 ```
 
@@ -1906,6 +2017,7 @@ const CommandDecl& GetDecl() const;
 ```cpp
 OptionDecl& SetDescription(const std::string& description);
 OptionDecl& SetDomain(const std::vector<std::string>& domain);
+OptionDecl& AllowMultiple(bool allow = true);            // permit multiple occurrences for this option
 OptionType GetType() const;
 const std::string& GetName() const;
 const std::string& GetDescription() const;
@@ -1913,6 +2025,7 @@ char GetAlias() const;                // 0 if none
 const std::vector<std::string>& GetDomain() const;
 template<typename T, typename Converter = DefaultConverter<T>>
 OptionDecl& BindTo(T& variable, Converter converter = Converter{});
+bool AllowsMultiple() const;                                  // query capability
 ```
 
 ### Enums

@@ -160,6 +160,7 @@ namespace InCommand
         char m_alias = 0;
         std::any m_id;
         std::function<void(const std::string&)> m_valueBinding; // Callback for type-safe value binding
+        bool m_allowMultiple = false;
 
         friend class CommandDecl;
         friend class CommandParser;
@@ -202,6 +203,13 @@ namespace InCommand
         OptionDecl &SetDomain(const std::vector<std::string> &domain)
         {
             m_domain = domain;
+            return *this;
+        }
+
+        // Allow this option to appear multiple times
+        OptionDecl &AllowMultiple(bool allow = true)
+        {
+            m_allowMultiple = allow;
             return *this;
         }
 
@@ -259,6 +267,7 @@ namespace InCommand
         const std::string &GetDescription() const { return m_description; }
         const std::vector<std::string> &GetDomain() const { return m_domain; }
         char GetAlias() const { return m_alias; }
+        bool AllowsMultiple() const { return m_allowMultiple; }
 
         // Hash method
         size_t Hash() const
@@ -353,7 +362,7 @@ namespace InCommand
     class CommandBlock
     {
         const CommandDecl &m_decl;
-        std::unordered_map<std::string, std::string> m_optionMap;
+        std::unordered_map<std::string, std::vector<std::string>> m_optionMap;
 
         CommandBlock &SetOption(const OptionDecl &option, const std::string &value = "");
 
@@ -365,6 +374,8 @@ namespace InCommand
         bool IsOptionSet(const std::string &name) const;
         const std::string &GetOptionValue(const std::string &name) const;
         const std::string &GetOptionValue(const std::string &name, const std::string &defaultValue) const;
+        const std::string& GetOptionValue(const std::string& name, size_t index) const;
+        size_t GetOptionValueCount(const std::string& name) const;
         const CommandDecl &GetDecl() const { return m_decl; }
     };
 
@@ -377,9 +388,9 @@ namespace InCommand
         std::unordered_map<std::string, std::shared_ptr<OptionDecl>> m_globalOptionDecls;
         std::unordered_map<char, std::shared_ptr<OptionDecl>> m_globalAliasMap;
 
-        // Parsed global options: option -> CommandBlock where set
-        std::unordered_map<std::string, std::pair<std::string, size_t>> m_parsedGlobalOptions;
-           
+        // Parsed global options: vector of {value, blockIndex} for each occurrence (in parse order)
+        std::unordered_map<std::string, std::vector<std::pair<std::string, size_t>>> m_parsedGlobalOptionValues;
+
         // Global/Local option registry
         enum class OptionScope { Global, Local };
         std::unordered_map<std::string, OptionScope> m_optionRegistry;
@@ -453,7 +464,10 @@ namespace InCommand
         // Global option accessors
         bool IsGlobalOptionSet(const std::string& name) const;
         const std::string& GetGlobalOptionValue(const std::string& name) const;
-        size_t GetGlobalOptionBlockIndex(const std::string& name) const;
+    size_t GetGlobalOptionBlockIndex(const std::string& name) const;
+    size_t GetGlobalOptionBlockIndex(const std::string& name, size_t index) const;
+        const std::string& GetGlobalOptionValue(const std::string& name, size_t index) const;
+        size_t GetGlobalOptionValueCount(const std::string& name) const;
         
         // Help string generation - targets rightmost parsed command block
         std::string GetHelpString() const;

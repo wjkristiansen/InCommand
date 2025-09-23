@@ -400,7 +400,12 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
 //------------------------------------------------------------------------------------------------
 CommandBlock &CommandBlock::SetOption(const OptionDecl &option, const std::string &value)
 {
-    m_optionMap.emplace(option.GetName(), value);
+    auto &vec = m_optionMap[option.GetName()];
+    if (option.AllowsMultiple() || vec.empty())
+    {
+        vec.push_back(value);
+    }
+    // Always apply binding (preserves previous behavior where latest occurrence updates bound variable)
     option.ApplyValueBinding(value);
 
     return *this;
@@ -410,16 +415,16 @@ CommandBlock &CommandBlock::SetOption(const OptionDecl &option, const std::strin
 bool CommandBlock::IsOptionSet(const std::string &name) const
 {
     auto it = m_optionMap.find(name);
-    return it != m_optionMap.end();
+    return it != m_optionMap.end() && !it->second.empty();
 }
 
 //------------------------------------------------------------------------------------------------
 const std::string &CommandBlock::GetOptionValue(const std::string &name) const
 {
     auto it = m_optionMap.find(name);
-    if (it != m_optionMap.end())
+    if (it != m_optionMap.end() && !it->second.empty())
     {
-        return it->second;
+        return it->second.front();
     }
     throw ApiException(ApiError::OptionNotFound, "Option '" + name + "' not set");
 }
@@ -428,13 +433,46 @@ const std::string &CommandBlock::GetOptionValue(const std::string &name) const
 const std::string &CommandBlock::GetOptionValue(const std::string &name, const std::string &defaultValue) const
 {
     auto it = m_optionMap.find(name);
-    if (it != m_optionMap.end())
+    if (it != m_optionMap.end() && !it->second.empty())
     {
-        return it->second;
+        return it->second.front();
     }
     return defaultValue;
 }
 
+// Return all values for an option (throws if not set)
+const std::string& CommandBlock::GetOptionValue(const std::string& name, size_t index) const
+{
+    auto it = m_optionMap.find(name);
+    if (it != m_optionMap.end())
+    {
+        const auto& vec = it->second;
+        if (index < vec.size())
+            return vec[index];
+        throw ApiException(ApiError::OutOfRange, "Option '" + name + "' index out of range");
+    }
+    throw ApiException(ApiError::OptionNotFound, "Option '" + name + "' not set");
+}
+
+size_t CommandBlock::GetOptionValueCount(const std::string& name) const
+{
+    auto it = m_optionMap.find(name);
+    if (it != m_optionMap.end())
+    {
+        return it->second.size();
+    }
+    return 0;
+}
+
+size_t CommandParser::GetGlobalOptionValueCount(const std::string& name) const
+{
+    auto it = m_parsedGlobalOptionValues.find(name);
+    if (it != m_parsedGlobalOptionValues.end())
+    {
+        return it->second.size();
+    }
+    return 0;
+}
 //------------------------------------------------------------------------------------------------
 char CommandParser::GetDelimiterChar() const
 {
@@ -453,7 +491,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 {
     // Clear any previous parse results
     m_commandBlocks.clear();
-    m_parsedGlobalOptions.clear();
+    m_parsedGlobalOptionValues.clear();
     m_autoHelpRequested = false;
     
     // Auto-declare help option if enabled and not already declared
@@ -521,11 +559,17 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 
                     if (isGlobalOption)
                     {
-                        m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(std::string(), m_commandBlocks.size() - 1));
+                        auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];
+                        if (optionDecl->AllowsMultiple() || vec.empty())
+                        {
+                            vec.emplace_back(std::make_pair(std::string(), m_commandBlocks.size() - 1));
+                        }
                     }
                     else
                     {
-                        currentBlock.m_optionMap.emplace(optionDecl->GetName(), std::string());
+                        auto &vec = currentBlock.m_optionMap[optionDecl->GetName()];
+                        if (optionDecl->AllowsMultiple() || vec.empty())
+                            vec.emplace_back();
                     }
                     optionDecl->ApplyValueBinding(std::string());
                 }
@@ -535,11 +579,17 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                     {
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(value, m_commandBlocks.size() - 1));
+                            auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];
+                            if (optionDecl->AllowsMultiple() || vec.empty())
+                            {
+                                vec.emplace_back(std::make_pair(value, m_commandBlocks.size() - 1));
+                            }
                         }
                         else
                         {
-                            currentBlock.m_optionMap.emplace(optionDecl->GetName(), value);
+                            auto &vec = currentBlock.m_optionMap[optionDecl->GetName()];
+                            if (optionDecl->AllowsMultiple() || vec.empty())
+                                vec.push_back(value);
                         }
                         optionDecl->ApplyValueBinding(value);
                     }
@@ -560,11 +610,17 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                         
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(nextArg, m_commandBlocks.size() - 1));
+                            auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];
+                            if (optionDecl->AllowsMultiple() || vec.empty())
+                            {
+                                vec.emplace_back(std::make_pair(nextArg, m_commandBlocks.size() - 1));
+                            }
                         }
                         else
                         {
-                            currentBlock.m_optionMap.emplace(optionDecl->GetName(), nextArg);
+                            auto &vec = currentBlock.m_optionMap[optionDecl->GetName()];
+                            if (optionDecl->AllowsMultiple() || vec.empty())
+                                vec.push_back(nextArg);
                         }
                         optionDecl->ApplyValueBinding(nextArg);
                     }
@@ -612,11 +668,17 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                         std::string value = aliases.substr(2);
                         if (isGlobalOption)
                         {
-                            m_parsedGlobalOptions.emplace(firstDecl->GetName(), std::make_pair(value, m_commandBlocks.size() - 1));
+                            auto &vec = m_parsedGlobalOptionValues[firstDecl->GetName()];
+                            if (firstDecl->AllowsMultiple() || vec.empty())
+                            {
+                                vec.emplace_back(std::make_pair(value, m_commandBlocks.size() - 1));
+                            }
                         }
                         else
                         {
-                            currentBlock.m_optionMap.emplace(firstDecl->GetName(), value);
+                            auto &vec = currentBlock.m_optionMap[firstDecl->GetName()];
+                            if (firstDecl->AllowsMultiple() || vec.empty())
+                                vec.push_back(value);
                         }
                         firstDecl->ApplyValueBinding(value);
                         continue;
@@ -648,11 +710,17 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                 {
                     if (isGlobalOptionAlias)
                     {
-                        m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(std::string(), m_commandBlocks.size() - 1));
+                        auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];
+                        if (optionDecl->AllowsMultiple() || vec.empty())
+                        {
+                            vec.emplace_back(std::make_pair(std::string(), m_commandBlocks.size() - 1));
+                        }
                     }
                     else
                     {
-                        currentBlock.m_optionMap.emplace(optionDecl->GetName(), std::string());
+                        auto &vec = currentBlock.m_optionMap[optionDecl->GetName()];
+                        if (optionDecl->AllowsMultiple() || vec.empty())
+                            vec.emplace_back();
                     }
                     optionDecl->ApplyValueBinding(std::string());
                 }
@@ -672,11 +740,17 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 
                     if (isGlobalOptionAlias)
                     {
-                        m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(nextArg, m_commandBlocks.size() - 1));
+                        auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];
+                        if (optionDecl->AllowsMultiple() || vec.empty())
+                        {
+                            vec.emplace_back(std::make_pair(nextArg, m_commandBlocks.size() - 1));
+                        }
                     }
                     else
                     {
-                        currentBlock.m_optionMap.emplace(optionDecl->GetName(), nextArg);
+                        auto &vec = currentBlock.m_optionMap[optionDecl->GetName()];
+                        if (optionDecl->AllowsMultiple() || vec.empty())
+                            vec.push_back(nextArg);
                     }
                     optionDecl->ApplyValueBinding(nextArg);
                 }
@@ -708,11 +782,17 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 
                 if (isGlobalOptionAlias)
                 {
-                    m_parsedGlobalOptions.emplace(optionDecl->GetName(), std::make_pair(std::string(), m_commandBlocks.size() - 1));
+                    auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];
+                    if (optionDecl->AllowsMultiple() || vec.empty())
+                    {
+                        vec.emplace_back(std::make_pair(std::string(), m_commandBlocks.size() - 1));
+                    }
                 }
                 else
                 {
-                    currentBlock.m_optionMap.emplace(optionDecl->GetName(), std::string());
+                    auto &vec = currentBlock.m_optionMap[optionDecl->GetName()];
+                    if (optionDecl->AllowsMultiple() || vec.empty())
+                        vec.emplace_back();
                 }
                 optionDecl->ApplyValueBinding(std::string());
             }
@@ -749,7 +829,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
     if (helpWasRequested)
     {
         // Get the context where help was requested
-        helpContextIndex = GetGlobalOptionBlockIndex(m_autoHelpOptionName);
+    helpContextIndex = GetGlobalOptionBlockIndex(m_autoHelpOptionName);
         
         // Generate help text for the appropriate command block using new simplified method
         std::ostringstream helpStream;
@@ -765,7 +845,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
         
         // Clear command blocks and global options since help was requested
         m_commandBlocks.clear();
-        m_parsedGlobalOptions.clear();
+        m_parsedGlobalOptionValues.clear();
         
         // Add an empty command block so we have something to return
         m_commandBlocks.emplace_back(m_rootCommandBlockDesc);
@@ -778,30 +858,56 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
 //------------------------------------------------------------------------------------------------
 bool CommandParser::IsGlobalOptionSet(const std::string& name) const
 {
-    auto it = m_parsedGlobalOptions.find(name);
-    return it != m_parsedGlobalOptions.end();
+    auto it = m_parsedGlobalOptionValues.find(name);
+    return it != m_parsedGlobalOptionValues.end() && !it->second.empty();
 }
 
 //------------------------------------------------------------------------------------------------
 const std::string& CommandParser::GetGlobalOptionValue(const std::string& name) const
 {
-    auto it = m_parsedGlobalOptions.find(name);
-    if (it == m_parsedGlobalOptions.end())
+    auto it = m_parsedGlobalOptionValues.find(name);
+    if (it == m_parsedGlobalOptionValues.end() || it->second.empty())
     {
         throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
     }
-    return it->second.first;
+    return it->second.front().first;
 }
 
 //------------------------------------------------------------------------------------------------
 size_t CommandParser::GetGlobalOptionBlockIndex(const std::string& name) const
 {
-    auto it = m_parsedGlobalOptions.find(name);
-    if (it == m_parsedGlobalOptions.end())
+    auto it = m_parsedGlobalOptionValues.find(name);
+    if (it == m_parsedGlobalOptionValues.end() || it->second.empty())
     {
         throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
     }
-    return it->second.second;
+    return it->second.back().second;
+}
+
+const std::string& CommandParser::GetGlobalOptionValue(const std::string& name, size_t index) const
+{
+    auto it = m_parsedGlobalOptionValues.find(name);
+    if (it == m_parsedGlobalOptionValues.end() || it->second.empty())
+    {
+        throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
+    }
+    const auto& vec = it->second;
+    if (index < vec.size())
+        return vec[index].first;
+    throw ApiException(ApiError::OutOfRange, "Global option '" + name + "' index out of range");
+}
+
+size_t CommandParser::GetGlobalOptionBlockIndex(const std::string& name, size_t index) const
+{
+    auto it = m_parsedGlobalOptionValues.find(name);
+    if (it == m_parsedGlobalOptionValues.end() || it->second.empty())
+    {
+        throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
+    }
+    const auto& vec = it->second;
+    if (index < vec.size())
+        return vec[index].second;
+    throw ApiException(ApiError::OutOfRange, "Global option '" + name + "' index out of range");
 }
 
 } // namespace InCommand

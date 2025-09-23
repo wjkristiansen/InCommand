@@ -284,6 +284,78 @@ TEST(InCommand, SubCategories)
     }
 }
 
+TEST(InCommand, MultipleOccurrences)
+{
+    // Setup: command with local and global options allowing multiples
+    InCommand::CommandParser parser("app");
+    InCommand::CommandDecl& app = parser.GetAppCommandDecl();
+    // Global option -g allows multiple
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "g", 'g').AllowMultiple();
+    // Subcommand with local option -m/--message allowing multiple
+    auto& post = app.AddSubCommand("post");
+    post.AddOption(InCommand::OptionType::Variable, "message", 'm').AllowMultiple();
+
+    {
+        const char* argv[] = {"app", "post", "-m", "Title", "-m", "Details", "-g", "one", "-g", "two"};
+        int argc = std::size(argv);
+        size_t blocks = parser.ParseArgs(argc, argv);
+        ASSERT_EQ(blocks, 2u);
+        const auto& block = parser.GetCommandBlock(1);
+        EXPECT_TRUE(block.IsOptionSet("message"));
+        EXPECT_EQ(block.GetOptionValueCount("message"), 2u);
+    EXPECT_EQ(block.GetOptionValue("message"), "Title"); // first by default
+        EXPECT_EQ(block.GetOptionValue("message", 0), "Title");
+        EXPECT_EQ(block.GetOptionValue("message", 1), "Details");
+
+        EXPECT_TRUE(parser.IsGlobalOptionSet("g"));
+    EXPECT_EQ(parser.GetGlobalOptionValue("g"), "one"); // first by default
+        EXPECT_EQ(parser.GetGlobalOptionValue("g", 0), "one");
+        EXPECT_EQ(parser.GetGlobalOptionValue("g", 1), "two");
+        EXPECT_EQ(parser.GetGlobalOptionValueCount("g"), 2u);
+    }
+}
+
+TEST(InCommand, MultipleOccurrences_OutOfRange)
+{
+    InCommand::CommandParser parser("app");
+    auto& app = parser.GetAppCommandDecl();
+    // Global option allowing multiple
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "g", 'g').AllowMultiple();
+    // Subcommand with local multi option
+    auto& sub = app.AddSubCommand("sub");
+    sub.AddOption(InCommand::OptionType::Variable, "msg", 'm').AllowMultiple();
+
+    {
+        const char* argv[] = {"app", "sub", "-m", "one", "-m", "two", "-g", "alpha"};
+        int argc = std::size(argv);
+        size_t blocks = parser.ParseArgs(argc, argv);
+        ASSERT_EQ(blocks, 2u);
+        const auto& block = parser.GetCommandBlock(1);
+
+        // Local: valid indices 0..1; index 2 should throw OutOfRange
+        EXPECT_NO_THROW(block.GetOptionValue("msg", 0));
+        EXPECT_NO_THROW(block.GetOptionValue("msg", 1));
+        EXPECT_THROW(block.GetOptionValue("msg", 2), InCommand::ApiException);
+
+        // Global: only one occurrence; index 1 should throw OutOfRange
+        EXPECT_NO_THROW(parser.GetGlobalOptionValue("g", 0));
+        EXPECT_THROW(parser.GetGlobalOptionValue("g", 1), InCommand::ApiException);
+        EXPECT_THROW(parser.GetGlobalOptionBlockIndex("g", 1), InCommand::ApiException);
+    }
+
+    {
+        // When an option is not set at all, accessing any index throws OptionNotFound
+        InCommand::CommandParser p2("app2");
+        auto& root = p2.GetAppCommandDecl();
+        root.AddSubCommand("do").AddOption(InCommand::OptionType::Variable, "name").AllowMultiple();
+        const char* argv[] = {"app2", "do"};
+        int argc = std::size(argv);
+        p2.ParseArgs(argc, argv);
+        const auto& block = p2.GetCommandBlock(1);
+        EXPECT_THROW(block.GetOptionValue("name", 0), InCommand::ApiException);
+    }
+}
+
 TEST(InCommand, Errors)
 {
     // Test 1: Duplicate command block
