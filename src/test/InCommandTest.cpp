@@ -356,6 +356,243 @@ TEST(InCommand, MultipleOccurrences_OutOfRange)
     }
 }
 
+TEST(InCommand, ParseArgs_Hygiene_MultipleCallsSafe)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "config", 'c');
+    auto& sub = root.AddSubCommand("run");
+    sub.AddOption(InCommand::OptionType::Variable, "target");
+
+    // First parse
+    const char* argv1[] = {"app", "run", "--target", "debug", "-c", "cfg1"};
+    int argc1 = std::size(argv1);
+    size_t blocks1 = parser.ParseArgs(argc1, argv1);
+    ASSERT_EQ(blocks1, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("target"), "debug");
+    EXPECT_EQ(parser.GetGlobalOptionValue("config"), "cfg1");
+
+    // Second parse (different args) should reset state cleanly
+    const char* argv2[] = {"app", "run", "--target", "release", "-v", "-c", "cfg2"};
+    int argc2 = std::size(argv2);
+    size_t blocks2 = parser.ParseArgs(argc2, argv2);
+    ASSERT_EQ(blocks2, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("target"), "release");
+    EXPECT_EQ(parser.GetGlobalOptionValue("config"), "cfg2"); // Should be updated, not accumulated
+    EXPECT_TRUE(parser.IsGlobalOptionSet("verbose")); // Global switch should be present
+
+    // Third parse with minimal args should not retain previous state
+    const char* argv3[] = {"app", "run"};
+    int argc3 = std::size(argv3);
+    size_t blocks3 = parser.ParseArgs(argc3, argv3);
+    ASSERT_EQ(blocks3, 2u);
+    EXPECT_FALSE(parser.GetCommandBlock(1).IsOptionSet("target")); // Should be cleared
+    EXPECT_FALSE(parser.IsGlobalOptionSet("config")); // Should be cleared
+    EXPECT_FALSE(parser.IsGlobalOptionSet("verbose")); // Should be cleared
+}
+
+TEST(InCommand, ParseArgs_Hygiene_AutoHelpStable)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    root.AddOption(InCommand::OptionType::Switch, "verbose", 'v');
+    
+    // Enable auto-help - this should NOT declare the help option yet (lazy declaration)
+    std::ostringstream helpOutput;
+    parser.EnableAutoHelp("help", 'h', helpOutput);
+    
+    // Multiple parse calls should declare help option on first call, then reuse it
+    const char* argv1[] = {"app", "-v"};
+    int argc1 = std::size(argv1);
+    parser.ParseArgs(argc1, argv1);
+    // Help option should now be declared but not set
+    
+    const char* argv2[] = {"app", "--help"};
+    int argc2 = std::size(argv2);
+    parser.ParseArgs(argc2, argv2);
+    EXPECT_TRUE(parser.WasAutoHelpRequested());
+    
+    const char* argv3[] = {"app", "-v"};
+    int argc3 = std::size(argv3);
+    parser.ParseArgs(argc3, argv3);
+    EXPECT_FALSE(parser.WasAutoHelpRequested()); // Should be reset
+    
+    // Fourth call should still work without redeclaring help
+    const char* argv4[] = {"app", "--help"};
+    int argc4 = std::size(argv4);
+    parser.ParseArgs(argc4, argv4);
+    EXPECT_TRUE(parser.WasAutoHelpRequested());
+}
+
+TEST(InCommand, CommandDecl_ReferenceStability_AfterParse)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    auto& a = root.AddSubCommand("a");
+    auto& b = root.AddSubCommand("b");
+
+    // Keep references to OptionDecls and CommandDecls
+    auto& optA = a.AddOption(InCommand::OptionType::Switch, "foo", 'f');
+    auto& optB = b.AddOption(InCommand::OptionType::Variable, "bar", 'b');
+    
+    // Store names to verify stability
+    std::string aName = a.GetName();
+    std::string bName = b.GetName();
+    std::string optAName = optA.GetName();
+    std::string optBName = optB.GetName();
+
+    // Parse once to create CommandBlocks
+    const char* argv1[] = {"app", "a", "-f"};
+    int argc1 = std::size(argv1);
+    parser.ParseArgs(argc1, argv1);
+
+    // Add more commands/options after parse; references must remain valid
+    auto& c = root.AddSubCommand("c");
+    auto& optC = c.AddOption(InCommand::OptionType::Switch, "zip", 'z');
+    auto& d = root.AddSubCommand("d");
+    auto& e = root.AddSubCommand("e"); // Force potential rehashing
+    
+    // Ensure previously held references still function
+    EXPECT_EQ(a.GetName(), aName);
+    EXPECT_EQ(b.GetName(), bName);
+    EXPECT_EQ(optA.GetName(), optAName);
+    EXPECT_EQ(optB.GetName(), optBName);
+    
+    // Verify new references work too
+    EXPECT_EQ(c.GetName(), "c");
+    EXPECT_EQ(d.GetName(), "d");
+    EXPECT_EQ(e.GetName(), "e");
+    EXPECT_EQ(optC.GetName(), "zip");
+
+    // Parse again with new structure to ensure it all works
+    const char* argv2[] = {"app", "c", "-z"};
+    int argc2 = std::size(argv2);
+    size_t blocks = parser.ParseArgs(argc2, argv2);
+    ASSERT_EQ(blocks, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetDecl().GetName(), "c");
+    EXPECT_TRUE(parser.GetCommandBlock(1).IsOptionSet("zip"));
+}
+
+TEST(InCommand, ParseArgs_AddGlobalOptionsAfterParse)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    auto& build = root.AddSubCommand("build");
+    build.AddOption(InCommand::OptionType::Variable, "target", 't');
+
+    // First parse with no global options
+    const char* argv1[] = {"app", "build", "--target", "debug"};
+    int argc1 = std::size(argv1);
+    size_t blocks1 = parser.ParseArgs(argc1, argv1);
+    ASSERT_EQ(blocks1, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("target"), "debug");
+
+    // Add global options after first parse
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose", 'v');
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "config", 'c');
+
+    // Second parse should work with new global options
+    const char* argv2[] = {"app", "--verbose", "build", "--target", "release", "-c", "myconfig.json"};
+    int argc2 = std::size(argv2);
+    size_t blocks2 = parser.ParseArgs(argc2, argv2);
+    ASSERT_EQ(blocks2, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("target"), "release");
+    EXPECT_TRUE(parser.IsGlobalOptionSet("verbose"));
+    EXPECT_EQ(parser.GetGlobalOptionValue("config"), "myconfig.json");
+
+    // Third parse without global options should clear previous global state
+    const char* argv3[] = {"app", "build", "--target", "test"};
+    int argc3 = std::size(argv3);
+    size_t blocks3 = parser.ParseArgs(argc3, argv3);
+    ASSERT_EQ(blocks3, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("target"), "test");
+    EXPECT_FALSE(parser.IsGlobalOptionSet("verbose"));
+    EXPECT_FALSE(parser.IsGlobalOptionSet("config"));
+}
+
+TEST(InCommand, ParseArgs_AddOptionsToExistingCommands)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    auto& deploy = root.AddSubCommand("deploy");
+    deploy.AddOption(InCommand::OptionType::Variable, "env", 'e');
+
+    // First parse with existing options
+    const char* argv1[] = {"app", "deploy", "--env", "production"};
+    int argc1 = std::size(argv1);
+    size_t blocks1 = parser.ParseArgs(argc1, argv1);
+    ASSERT_EQ(blocks1, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("env"), "production");
+
+    // Add more options to existing command after parse
+    deploy.AddOption(InCommand::OptionType::Switch, "dry-run", 'd');
+    deploy.AddOption(InCommand::OptionType::Variable, "region", 'r');
+
+    // Second parse should work with new options
+    const char* argv2[] = {"app", "deploy", "--env", "staging", "--dry-run", "--region", "us-west"};
+    int argc2 = std::size(argv2);
+    size_t blocks2 = parser.ParseArgs(argc2, argv2);
+    ASSERT_EQ(blocks2, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("env"), "staging");
+    EXPECT_TRUE(parser.GetCommandBlock(1).IsOptionSet("dry-run"));
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("region"), "us-west");
+
+    // Third parse without new options should work fine
+    const char* argv3[] = {"app", "deploy", "-e", "dev"};
+    int argc3 = std::size(argv3);
+    size_t blocks3 = parser.ParseArgs(argc3, argv3);
+    ASSERT_EQ(blocks3, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("env"), "dev");
+    EXPECT_FALSE(parser.GetCommandBlock(1).IsOptionSet("dry-run"));
+    EXPECT_FALSE(parser.GetCommandBlock(1).IsOptionSet("region"));
+}
+
+TEST(InCommand, ParseArgs_MultipleOccurrencesWithNewDeclarations)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    auto& log = root.AddSubCommand("log");
+    log.AddOption(InCommand::OptionType::Variable, "level", 'l').AllowMultiple();
+
+    // First parse with multiple occurrences
+    const char* argv1[] = {"app", "log", "-l", "info", "-l", "debug"};
+    int argc1 = std::size(argv1);
+    size_t blocks1 = parser.ParseArgs(argc1, argv1);
+    ASSERT_EQ(blocks1, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValueCount("level"), 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("level", 0), "info");
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("level", 1), "debug");
+
+    // Add global multiple option after parse
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "filter", 'f').AllowMultiple();
+
+    // Second parse with both local and global multiple occurrences
+    const char* argv2[] = {"app", "-f", "error", "log", "-l", "warn", "-f", "critical", "-l", "trace"};
+    int argc2 = std::size(argv2);
+    size_t blocks2 = parser.ParseArgs(argc2, argv2);
+    ASSERT_EQ(blocks2, 2u);
+    
+    // Check local multiple values
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValueCount("level"), 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("level", 0), "warn");
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("level", 1), "trace");
+    
+    // Check global multiple values
+    EXPECT_EQ(parser.GetGlobalOptionValueCount("filter"), 2u);
+    EXPECT_EQ(parser.GetGlobalOptionValue("filter", 0), "error");
+    EXPECT_EQ(parser.GetGlobalOptionValue("filter", 1), "critical");
+
+    // Third parse should clear all previous multiple values
+    const char* argv3[] = {"app", "log", "-l", "single"};
+    int argc3 = std::size(argv3);
+    size_t blocks3 = parser.ParseArgs(argc3, argv3);
+    ASSERT_EQ(blocks3, 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValueCount("level"), 1u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("level"), "single");
+    EXPECT_FALSE(parser.IsGlobalOptionSet("filter"));
+}
+
 TEST(InCommand, Errors)
 {
     // Test 1: Duplicate command block
@@ -1418,9 +1655,9 @@ TEST(InCommand, AutoHelpDisabledNoException)
     EXPECT_EQ(result.GetDecl().GetName(), "testapp");
 }
 
-TEST(InCommand, NormalParsingStillWorks)
+TEST(InCommand, BasicParsing_GlobalAndLocalOptions)
 {
-    // Test that normal parsing without help requests works correctly
+    // Test that basic parsing with global and local options works correctly
     InCommand::CommandParser parser("testapp");
     
     auto& appBlockDesc = parser.GetAppCommandDecl();
