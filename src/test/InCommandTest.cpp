@@ -1935,3 +1935,101 @@ TEST(InCommand, DomainValidation_WithEqualsDelimiter)
     const char* bad[] = {"app", "--mode=profile"};
     EXPECT_THROW(parser.ParseArgs(2, bad), InCommand::SyntaxException);
 }
+
+// ---------------------------------------------------------------------------
+// Batch 3: DefaultConverter<bool> — all accepted conversion variants
+// ---------------------------------------------------------------------------
+
+TEST(InCommand, BoolConverter_YesNo)
+{
+    // "yes" -> true, "no" -> false
+    bool flag = false;
+
+    {
+        InCommand::CommandParser parser("app");
+        parser.GetAppCommandDecl()
+            .AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+        const char* argv[] = {"app", "--flag", "yes"};
+        flag = false;
+        EXPECT_NO_THROW(parser.ParseArgs(3, argv));
+        EXPECT_TRUE(flag);
+    }
+    {
+        InCommand::CommandParser parser("app");
+        parser.GetAppCommandDecl()
+            .AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+        const char* argv[] = {"app", "--flag", "no"};
+        flag = true;
+        EXPECT_NO_THROW(parser.ParseArgs(3, argv));
+        EXPECT_FALSE(flag);
+    }
+}
+
+TEST(InCommand, BoolConverter_OnOff)
+{
+    // "on" -> true, "off" -> false
+    bool flag = false;
+
+    {
+        InCommand::CommandParser parser("app");
+        parser.GetAppCommandDecl()
+            .AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+        const char* argv[] = {"app", "--flag", "on"};
+        flag = false;
+        EXPECT_NO_THROW(parser.ParseArgs(3, argv));
+        EXPECT_TRUE(flag);
+    }
+    {
+        InCommand::CommandParser parser("app");
+        parser.GetAppCommandDecl()
+            .AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+        const char* argv[] = {"app", "--flag", "off"};
+        flag = true;
+        EXPECT_NO_THROW(parser.ParseArgs(3, argv));
+        EXPECT_FALSE(flag);
+    }
+}
+
+TEST(InCommand, BoolConverter_OneZero)
+{
+    // "1" -> true, "0" -> false
+    bool flag = false;
+
+    {
+        InCommand::CommandParser parser("app");
+        parser.GetAppCommandDecl()
+            .AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+        const char* argv[] = {"app", "--flag", "1"};
+        flag = false;
+        EXPECT_NO_THROW(parser.ParseArgs(3, argv));
+        EXPECT_TRUE(flag);
+    }
+    {
+        InCommand::CommandParser parser("app");
+        parser.GetAppCommandDecl()
+            .AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+        const char* argv[] = {"app", "--flag", "0"};
+        flag = true;
+        EXPECT_NO_THROW(parser.ParseArgs(3, argv));
+        EXPECT_FALSE(flag);
+    }
+}
+
+TEST(InCommand, BoolConverter_InvalidValueThrows)
+{
+    // Any unrecognized string for a bool variable must throw SyntaxException(InvalidValue)
+    bool flag = false;
+    InCommand::CommandParser parser("app");
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Variable, "flag").BindTo(flag);
+
+    const char* argv[] = {"app", "--flag", "maybe"};
+    auto ex = [&]{ parser.ParseArgs(3, argv); };
+    ASSERT_THROW(ex(), InCommand::SyntaxException);
+    try { ex(); }
+    catch (const InCommand::SyntaxException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::SyntaxError::InvalidValue);
+        EXPECT_EQ(e.GetToken(), "maybe");
+    }
+}
