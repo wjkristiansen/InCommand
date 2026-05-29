@@ -2033,3 +2033,63 @@ TEST(InCommand, BoolConverter_InvalidValueThrows)
         EXPECT_EQ(e.GetToken(), "maybe");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Batch 4: VariableDelimiter gaps
+// ---------------------------------------------------------------------------
+
+TEST(InCommand, VariableDelimiter_Colon_ShortAlias)
+{
+    // Colon delimiter with short alias (-n:value) should parse the same as --name:value
+    InCommand::CommandParser parser("app", InCommand::VariableDelimiter::Colon);
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Variable, "name", 'n');
+
+    {
+        const char* argv[] = {"app", "-n:Alice"};
+        size_t numBlocks = parser.ParseArgs(2, argv);
+        const auto& block = parser.GetCommandBlock(numBlocks - 1);
+        EXPECT_TRUE(block.IsOptionSet("name"));
+        EXPECT_EQ(block.GetOptionValue("name"), "Alice");
+    }
+
+    // Confirm long form still works in the same parser
+    {
+        const char* argv[] = {"app", "--name:Bob"};
+        size_t numBlocks = parser.ParseArgs(2, argv);
+        const auto& block = parser.GetCommandBlock(numBlocks - 1);
+        EXPECT_TRUE(block.IsOptionSet("name"));
+        EXPECT_EQ(block.GetOptionValue("name"), "Bob");
+    }
+}
+
+TEST(InCommand, VariableDelimiter_EmptyValueThrows)
+{
+    // --name= (empty value after delimiter) should throw MissingVariableValue,
+    // consistent with the whitespace format throwing when no value follows --name.
+    InCommand::CommandParser parser("app", InCommand::VariableDelimiter::Equals);
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Variable, "name", 'n');
+
+    // Long form empty value
+    {
+        const char* argv[] = {"app", "--name="};
+        ASSERT_THROW(parser.ParseArgs(2, argv), InCommand::SyntaxException);
+        try { parser.ParseArgs(2, argv); }
+        catch (const InCommand::SyntaxException& e)
+        {
+            EXPECT_EQ(e.GetError(), InCommand::SyntaxError::MissingVariableValue);
+        }
+    }
+
+    // Short form empty value
+    {
+        const char* argv[] = {"app", "-n="};
+        ASSERT_THROW(parser.ParseArgs(2, argv), InCommand::SyntaxException);
+        try { parser.ParseArgs(2, argv); }
+        catch (const InCommand::SyntaxException& e)
+        {
+            EXPECT_EQ(e.GetError(), InCommand::SyntaxError::MissingVariableValue);
+        }
+    }
+}

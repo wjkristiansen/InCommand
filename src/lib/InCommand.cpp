@@ -535,6 +535,11 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
             {
                 value = name.substr(delimiterPos + 1);
                 name = name.substr(0, delimiterPos);
+                if (value.empty())
+                {
+                    throw SyntaxException(SyntaxError::MissingVariableValue,
+                        "Missing value for option --" + name, "--" + name + delimiterChar);
+                }
             }
 
             bool isGlobalOption = false;
@@ -669,6 +674,12 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                     else if (firstDecl->GetType() == OptionType::Variable)
                     {
                         std::string value = aliases.substr(2);
+                        if (value.empty())
+                        {
+                            throw SyntaxException(SyntaxError::MissingVariableValue,
+                                "Missing value for option -" + std::string(1, firstAlias),
+                                "-" + std::string(1, firstAlias) + GetDelimiterChar());
+                        }
                         firstDecl->CheckDomain(value);
                         if (isGlobalOption)
                         {
