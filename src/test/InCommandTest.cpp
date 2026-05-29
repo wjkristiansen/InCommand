@@ -1681,3 +1681,210 @@ TEST(InCommand, BasicParsing_GlobalAndLocalOptions)
     EXPECT_TRUE(parser.IsGlobalOptionSet("verbose"));
     EXPECT_EQ(result.GetOptionValue("target"), "release");
 }
+
+TEST(InCommand, UniqueId_WrongTypeThrows)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    root.SetUniqueId(42); // stored as int
+
+    EXPECT_NO_THROW(root.GetUniqueId<int>());
+    EXPECT_THROW(root.GetUniqueId<std::string>(), InCommand::ApiException);
+    try
+    {
+        root.GetUniqueId<std::string>();
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::InvalidUniqueIdType);
+    }
+}
+
+TEST(InCommand, UniqueId_NotAssignedThrows)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+
+    EXPECT_FALSE(root.HasUniqueId());
+    EXPECT_THROW(root.GetUniqueId<int>(), InCommand::ApiException);
+    try
+    {
+        root.GetUniqueId<int>();
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::UniqueIdNotAssigned);
+    }
+}
+
+TEST(InCommand, BindTo_SwitchNonBoolThrows)
+{
+    InCommand::CommandParser parser("app");
+    auto& opt = parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Switch, "verbose");
+
+    int notABool = 0;
+    EXPECT_THROW(opt.BindTo(notABool), InCommand::ApiException);
+    try
+    {
+        opt.BindTo(notABool);
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::InvalidOptionType);
+    }
+}
+
+TEST(InCommand, GlobalOption_ParameterTypeThrows)
+{
+    InCommand::CommandParser parser("app");
+    EXPECT_THROW(
+        parser.AddGlobalOption(InCommand::OptionType::Parameter, "file"),
+        InCommand::ApiException);
+    try
+    {
+        parser.AddGlobalOption(InCommand::OptionType::Parameter, "file2");
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::InvalidOptionType);
+    }
+}
+
+TEST(InCommand, GetHelpString_BeforeParseThrows)
+{
+    InCommand::CommandParser parser("app");
+    parser.GetAppCommandDecl().SetDescription("My app");
+
+    EXPECT_THROW(parser.GetHelpString(), InCommand::ApiException);
+    EXPECT_THROW(parser.GetHelpString(0), InCommand::ApiException);
+    try
+    {
+        parser.GetHelpString();
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::OutOfRange);
+    }
+}
+
+TEST(InCommand, GetCommandBlock_OutOfRangeThrows)
+{
+    InCommand::CommandParser parser("app");
+    const char* argv[] = {"app"};
+    parser.ParseArgs(1, argv);
+    ASSERT_EQ(parser.GetNumCommandBlocks(), 1u);
+
+    EXPECT_NO_THROW(parser.GetCommandBlock(0));
+    EXPECT_THROW(parser.GetCommandBlock(1), InCommand::ApiException);
+    try
+    {
+        parser.GetCommandBlock(99);
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::OutOfRange);
+    }
+}
+
+TEST(InCommand, GetHelpString_OutOfRangeIndexThrows)
+{
+    InCommand::CommandParser parser("app");
+    const char* argv[] = {"app"};
+    parser.ParseArgs(1, argv);
+    ASSERT_EQ(parser.GetNumCommandBlocks(), 1u);
+
+    EXPECT_NO_THROW(parser.GetHelpString(0));
+    EXPECT_THROW(parser.GetHelpString(1), InCommand::ApiException);
+    try
+    {
+        parser.GetHelpString(99);
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::OutOfRange);
+    }
+}
+
+TEST(InCommand, GroupedAliases_NonSwitchThrowsInvalidAlias)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    root.AddOption(InCommand::OptionType::Switch, "verbose", 'v');
+    root.AddOption(InCommand::OptionType::Variable, "output", 'o');
+
+    const char* argv[] = {"app", "-vo"};
+    EXPECT_THROW(parser.ParseArgs(2, argv), InCommand::SyntaxException);
+    try
+    {
+        parser.ParseArgs(2, argv);
+        FAIL() << "Expected SyntaxException";
+    }
+    catch (const InCommand::SyntaxException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::SyntaxError::InvalidAlias);
+    }
+}
+
+TEST(InCommand, OptionConflict_LocalAfterGlobalThrows)
+{
+    InCommand::CommandParser parser("app");
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose");
+
+    EXPECT_THROW(
+        parser.GetAppCommandDecl().AddOption(InCommand::OptionType::Switch, "verbose"),
+        InCommand::ApiException);
+    try
+    {
+        parser.GetAppCommandDecl().AddOption(InCommand::OptionType::Switch, "verbose");
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::DuplicateOption);
+    }
+}
+
+TEST(InCommand, OptionConflict_GlobalAfterLocalThrows)
+{
+    InCommand::CommandParser parser("app");
+    parser.GetAppCommandDecl().AddOption(InCommand::OptionType::Switch, "verbose");
+
+    EXPECT_THROW(
+        parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose"),
+        InCommand::ApiException);
+    try
+    {
+        parser.AddGlobalOption(InCommand::OptionType::Switch, "verbose");
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::DuplicateOption);
+    }
+}
+
+TEST(InCommand, AutoHelp_AliasOnlyConflictThrows)
+{
+    InCommand::CommandParser parser("app");
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "history", 'h');
+
+    std::ostringstream out;
+    EXPECT_THROW(parser.EnableAutoHelp("help", 'h', out), InCommand::ApiException);
+    try
+    {
+        parser.EnableAutoHelp("help", 'h', out);
+        FAIL() << "Expected ApiException";
+    }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::DuplicateOption);
+    }
+}

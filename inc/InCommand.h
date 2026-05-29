@@ -176,6 +176,19 @@ namespace InCommand
         // Check if this option has a value binding
         bool HasValueBinding() const { return static_cast<bool>(m_valueBinding); }
 
+        // Returns true if value is valid for this option (always true when no domain is set)
+        bool IsValueValid(const std::string& value) const
+        {
+            if (m_domain.empty())
+                return true;
+            for (const auto& domainValue : m_domain)
+            {
+                if (value == domainValue)
+                    return true;
+            }
+            return false;
+        }
+
         // Apply the value binding (called internally by the parser)
         void ApplyValueBinding(const std::string& value) const
         {
