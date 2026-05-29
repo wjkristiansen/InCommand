@@ -400,6 +400,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
 //------------------------------------------------------------------------------------------------
 CommandBlock &CommandBlock::SetOption(const OptionDecl &option, const std::string &value)
 {
+    option.CheckDomain(value);
     auto &vec = m_optionMap[option.GetName()];
     if (option.AllowsMultiple() || vec.empty())
     {
@@ -577,6 +578,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                 {
                     if (delimiterPos != std::string::npos)
                     {
+                        optionDecl->CheckDomain(value);
                         if (isGlobalOption)
                         {
                             auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];
@@ -608,6 +610,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                             throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option --" + name, "--" + name);
                         }
                         
+                        optionDecl->CheckDomain(nextArg);
                         if (isGlobalOption)
                         {
                             auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];
@@ -666,6 +669,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                     else if (firstDecl->GetType() == OptionType::Variable)
                     {
                         std::string value = aliases.substr(2);
+                        firstDecl->CheckDomain(value);
                         if (isGlobalOption)
                         {
                             auto &vec = m_parsedGlobalOptionValues[firstDecl->GetName()];
@@ -738,6 +742,7 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
                         throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option -" + std::string(1, alias), "-" + std::string(1, alias));
                     }
 
+                    optionDecl->CheckDomain(nextArg);
                     if (isGlobalOptionAlias)
                     {
                         auto &vec = m_parsedGlobalOptionValues[optionDecl->GetName()];

@@ -1888,3 +1888,50 @@ TEST(InCommand, AutoHelp_AliasOnlyConflictThrows)
         EXPECT_EQ(e.GetError(), InCommand::ApiError::DuplicateOption);
     }
 }
+
+TEST(InCommand, DomainValidation_InDomainValueAccepted)
+{
+    InCommand::CommandParser parser("app");
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Variable, "color")
+        .SetDomain({"red", "green", "blue"});
+
+    const char* argv[] = {"app", "--color", "green"};
+    EXPECT_NO_THROW(parser.ParseArgs(3, argv));
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("color"), "green");
+}
+
+TEST(InCommand, DomainValidation_OutOfDomainValueRejected)
+{
+    InCommand::CommandParser parser("app");
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Variable, "color")
+        .SetDomain({"red", "green", "blue"});
+
+    const char* argv[] = {"app", "--color", "purple"};
+    EXPECT_THROW(parser.ParseArgs(3, argv), InCommand::SyntaxException);
+    try
+    {
+        parser.ParseArgs(3, argv);
+        FAIL() << "Expected SyntaxException";
+    }
+    catch (const InCommand::SyntaxException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::SyntaxError::InvalidValue);
+        EXPECT_EQ(e.GetToken(), "purple");
+    }
+}
+
+TEST(InCommand, DomainValidation_WithEqualsDelimiter)
+{
+    InCommand::CommandParser parser("app", InCommand::VariableDelimiter::Equals);
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Variable, "mode")
+        .SetDomain({"debug", "release"});
+
+    const char* good[] = {"app", "--mode=debug"};
+    EXPECT_NO_THROW(parser.ParseArgs(2, good));
+
+    const char* bad[] = {"app", "--mode=profile"};
+    EXPECT_THROW(parser.ParseArgs(2, bad), InCommand::SyntaxException);
+}

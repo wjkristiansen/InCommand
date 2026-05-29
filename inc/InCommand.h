@@ -176,17 +176,18 @@ namespace InCommand
         // Check if this option has a value binding
         bool HasValueBinding() const { return static_cast<bool>(m_valueBinding); }
 
-        // Returns true if value is valid for this option (always true when no domain is set)
-        bool IsValueValid(const std::string& value) const
+        // Throws SyntaxException(InvalidValue) if a domain is set and value is not in it
+        void CheckDomain(const std::string& value) const
         {
             if (m_domain.empty())
-                return true;
+                return;
             for (const auto& domainValue : m_domain)
             {
                 if (value == domainValue)
-                    return true;
+                    return;
             }
-            return false;
+            throw SyntaxException(SyntaxError::InvalidValue,
+                "Value '" + value + "' is not in the allowed domain for option '" + m_name + "'", value);
         }
 
         // Apply the value binding (called internally by the parser)
