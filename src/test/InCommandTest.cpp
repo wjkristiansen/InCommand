@@ -2093,3 +2093,75 @@ TEST(InCommand, VariableDelimiter_EmptyValueThrows)
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Batch 5: Behavioral contracts
+// ---------------------------------------------------------------------------
+
+TEST(InCommand, NonMultiple_RepeatedOption_FirstStoredLastBound)
+{
+    // A non-multiple Variable option given more than once on the command line:
+    // - GetOptionValue() returns the FIRST occurrence (stored value is immutable after first push)
+    // - The bound variable holds the LAST occurrence (ApplyValueBinding is always called)
+    std::string bound = "initial";
+
+    InCommand::CommandParser parser("app");
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Variable, "name").BindTo(bound);
+
+    const char* argv[] = {"app", "--name", "first", "--name", "second"};
+    size_t numBlocks = parser.ParseArgs(5, argv);
+    const auto& block = parser.GetCommandBlock(numBlocks - 1);
+
+    EXPECT_EQ(block.GetOptionValue("name"), "first");  // stored value = first occurrence
+    EXPECT_EQ(bound, "second");                         // bound variable = last occurrence
+}
+
+TEST(InCommand, GlobalOption_StateBeforeParse)
+{
+    // Before ParseArgs is called:
+    // - IsGlobalOptionSet should return false (not throw)
+    // - GetGlobalOptionValue should throw ApiException(OptionNotFound)
+    InCommand::CommandParser parser("app");
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "config");
+
+    EXPECT_FALSE(parser.IsGlobalOptionSet("config"));
+
+    EXPECT_THROW(parser.GetGlobalOptionValue("config"), InCommand::ApiException);
+    try { parser.GetGlobalOptionValue("config"); }
+    catch (const InCommand::ApiException& e)
+    {
+        EXPECT_EQ(e.GetError(), InCommand::ApiError::OptionNotFound);
+    }
+}
+
+TEST(InCommand, AutoHelp_SubcommandContext)
+{
+    // When --help is requested after a subcommand, the auto-help output should
+    // be scoped to that subcommand (show its name and its options), not root options.
+    std::ostringstream output;
+    InCommand::CommandParser parser("app");
+    parser.EnableAutoHelp("help", 'h', output);
+
+    auto& root = parser.GetAppCommandDecl();
+    root.AddOption(InCommand::OptionType::Variable, "root-only").SetDescription("Root only option");
+
+    auto& deploy = root.AddSubCommand("deploy");
+    deploy.SetDescription("Deploy the application");
+    deploy.AddOption(InCommand::OptionType::Variable, "env").SetDescription("Target environment");
+
+    const char* argv[] = {"app", "deploy", "--help"};
+    parser.ParseArgs(3, argv);
+
+    EXPECT_TRUE(parser.WasAutoHelpRequested());
+    std::string helpText = output.str();
+
+    // Must mention the subcommand name and its option
+    EXPECT_TRUE(helpText.find("deploy") != std::string::npos);
+    EXPECT_TRUE(helpText.find("--env") != std::string::npos);
+    EXPECT_TRUE(helpText.find("Target environment") != std::string::npos);
+
+    // Must NOT describe root-only option in the subcommand help
+    // (local options of parent commands must not bleed into child command help)
+    EXPECT_TRUE(helpText.find("--root-only") == std::string::npos);
+}
