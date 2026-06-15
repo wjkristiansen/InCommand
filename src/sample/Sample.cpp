@@ -66,8 +66,8 @@ int main(int argc, const char *argv[])
     // Add inner command blocks for each operation
     InCommand::CommandDecl& mulCmdDesc = appCmdDesc.AddSubCommand("mul");
     mulCmdDesc
-        .SetDescription("Adds two integers")
-        .SetUniqueId(CommandId::Add);
+        .SetDescription("Multiplies two integers")
+        .SetUniqueId(CommandId::Mul);
     mulCmdDesc
         .AddOption(InCommand::OptionType::Parameter, "value1")
         .BindTo(value1)
@@ -89,9 +89,14 @@ int main(int argc, const char *argv[])
         .SetDescription("Play Roshambo")
         .SetUniqueId(CommandId::Roshambo);
     roshamboCmdDesc
-        .AddOption(InCommand::OptionType::Variable, "choice")
+        .AddOption(InCommand::OptionType::Variable, "choice", 'c')
             .SetDomain({ "rock", "paper", "scissors" })
             .SetDescription("1-2-3 Shoot!");
+    roshamboCmdDesc
+        .AddOption(InCommand::OptionType::Parameter, "mode")
+            .SetDomain({ "classic", "best-of-3" })
+            .SetDescription("Game mode")
+            .SetDefault("classic");
     
     try 
     {
@@ -226,13 +231,14 @@ int main(int argc, const char *argv[])
             
         case CommandId::Roshambo:
             {
+                const std::string mode = cmdBlock.GetOptionValue("mode", "classic");
                 auto playerMove = cmdBlock.GetOptionValue("choice", "");
                 
                 if (playerMove.empty())
                 {
                     std::cout << std::endl;
-                    std::cout << "Error: move is required for roshambo command" << std::endl;
-                    std::cout << "Usage: sample roshambo --move <rock|paper|scissors>" << std::endl;
+                    std::cout << "Error: choice is required for roshambo command" << std::endl;
+                    std::cout << "Usage: sample roshambo [<classic|best-of-3>] --choice <rock|paper|scissors>" << std::endl;
                     return -1;
                 }
 
@@ -257,6 +263,7 @@ int main(int argc, const char *argv[])
                 }
 
                 std::cout << "Your move: " << playerMove << std::endl;
+                std::cout << "Mode: " << mode << std::endl;
                 std::cout << "My Move: " << computerMove << std::endl;
 
                 if (playerMove == computerMove)

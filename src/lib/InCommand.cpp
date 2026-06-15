@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <sstream>
 #include <iomanip>
 #include <stack>
@@ -11,6 +12,67 @@
 
 namespace InCommand
 {
+
+namespace
+{
+constexpr size_t kDefaultHelpColumnWidth = 30;
+
+struct HelpRow
+{
+    std::string label;
+    std::vector<std::string> descriptionLines;
+};
+
+std::string BuildHelpLabel(const OptionDecl& decl)
+{
+    std::string label;
+    if (decl.GetType() == OptionType::Parameter)
+    {
+        if (decl.HasDefault())
+            label = "  [<" + decl.GetName() + ">]";
+        else
+            label = "  <" + decl.GetName() + ">";
+    }
+    else
+    {
+        label = "  --" + decl.GetName();
+        if (decl.GetAlias() != 0)
+        {
+            label += ", -" + std::string(1, decl.GetAlias());
+        }
+        if (decl.GetType() == OptionType::Variable)
+        {
+            label += " <value>";
+        }
+    }
+    return label;
+}
+
+std::vector<std::string> BuildHelpDescriptionLines(const OptionDecl& decl)
+{
+    std::vector<std::string> lines;
+    if (!decl.GetDescription().empty())
+    {
+        lines.push_back(decl.GetDescription());
+    }
+
+    if (!decl.GetDomain().empty())
+    {
+        lines.push_back("Possible values:");
+        for (const auto& value : decl.GetDomain())
+        {
+            const bool isDefault = decl.HasDefault() && value == decl.GetDefault();
+            lines.push_back("- " + value + (isDefault ? " (default)" : ""));
+        }
+    }
+    else if (decl.HasDefault())
+    {
+        lines.push_back("[default: " + decl.GetDefault() + "]");
+    }
+
+    return lines;
+}
+} // namespace
 
 //------------------------------------------------------------------------------------------------
 CommandDecl &CommandDecl::AddSubCommand(const std::string &name)
@@ -264,6 +326,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
     
     std::ostringstream s;
+    std::vector<HelpRow> optionDetailsRows;
     
     // Add description if available
     if (!firstDecl->GetDescription().empty())
@@ -290,10 +353,12 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
         s << "] ";
     }
 
-    // Show specific options for this command block
+    // Show specific options for this command block (switches and variables only; parameters handled below)
     for (const auto& optionPair : firstDecl->m_optionDecls)
     {
         const OptionDecl& decl = *optionPair.second;
+        if (decl.GetType() == OptionType::Parameter)
+            continue;
         s << "[--" << decl.GetName();
         if (decl.GetType() == OptionType::Variable)
             s << " <value>";
@@ -303,70 +368,44 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     // Parameters (positional arguments) in declaration order
     for (const auto& paramDesc : firstDecl->m_parameterDecls)
     {
-        s << "<" << paramDesc.get().GetName() << "> ";
+        const OptionDecl& decl = paramDesc.get();
+        if (decl.HasDefault())
+            s << "[<" << decl.GetName() << ">] ";
+        else
+            s << "<" << decl.GetName() << "> ";
     }
 
     s << std::endl;
 
     // Add option details (both global and local options together)
-    std::ostringstream optionDetails;
-    static const int colwidth = 30;
-
     // Add global options first
     for (const auto& optionPair : m_globalOptionDecls)
     {
         const OptionDecl& decl = *optionPair.second;
-        if (!decl.GetDescription().empty())
+        if (!decl.GetDescription().empty() || !decl.GetDomain().empty())
         {
-            std::string optionName = "  --" + decl.GetName();
-            if (decl.GetAlias() != 0)
-            {
-                optionName += ", -" + std::string(1, decl.GetAlias());
-            }
-            optionDetails << std::setw(colwidth) << std::left << optionName;
-            if (optionName.length() > colwidth)
-            {
-                optionDetails << std::endl;
-                optionDetails << std::setw(colwidth) << ' ';
-            }
-            optionDetails << decl.GetDescription() << std::endl;
+            optionDetailsRows.push_back({BuildHelpLabel(decl), BuildHelpDescriptionLines(decl)});
         }
     }
 
-    // Add local option details
+    // Add local option details (switches and variables only; parameters handled below in declaration order)
     for (const auto& optionPair : firstDecl->m_optionDecls)
     {
         const OptionDecl& decl = *optionPair.second;
-        if (!decl.GetDescription().empty())
+        if (decl.GetType() == OptionType::Parameter)
+            continue;
+        if (!decl.GetDescription().empty() || !decl.GetDomain().empty())
         {
-            std::string optionName = "  --" + decl.GetName();
-            if (decl.GetAlias() != 0)
-            {
-                optionName += ", -" + std::string(1, decl.GetAlias());
-            }
-            optionDetails << std::setw(colwidth) << std::left << optionName;
-            if (optionName.length() > colwidth)
-            {
-                optionDetails << std::endl;
-                optionDetails << std::setw(colwidth) << ' ';
-            }
-            optionDetails << decl.GetDescription() << std::endl;
+            optionDetailsRows.push_back({BuildHelpLabel(decl), BuildHelpDescriptionLines(decl)});
         }
     }
 
     // Add parameter details
     for (const auto& paramDesc : firstDecl->m_parameterDecls)
     {
-        if (!paramDesc.get().GetDescription().empty())
+        if (!paramDesc.get().GetDescription().empty() || !paramDesc.get().GetDomain().empty())
         {
-            std::string paramName = "  <" + paramDesc.get().GetName() + ">";
-            optionDetails << std::setw(colwidth) << std::left << paramName;
-            if (paramName.length() > colwidth)
-            {
-                optionDetails << std::endl;
-                optionDetails << std::setw(colwidth) << ' ';
-            }
-            optionDetails << paramDesc.get().GetDescription() << std::endl;
+            optionDetailsRows.push_back({BuildHelpLabel(paramDesc.get()), BuildHelpDescriptionLines(paramDesc.get())});
         }
     }
 
@@ -376,22 +415,32 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
         const CommandDecl& innerDesc = *innerPair.second;
         if (!innerDesc.GetDescription().empty())
         {
-            std::string commandName = "  " + innerDesc.GetName();
-            optionDetails << std::setw(colwidth) << std::left << commandName;
-            if (commandName.length() > colwidth)
-            {
-                optionDetails << std::endl;
-                optionDetails << std::setw(colwidth) << ' ';
-            }
-            optionDetails << innerDesc.GetDescription() << std::endl;
+            optionDetailsRows.push_back({"  " + innerDesc.GetName(), {innerDesc.GetDescription()}});
         }
     }
 
-    // Add the combined option details to the output
-    std::string combinedDetails = optionDetails.str();
-    if (!combinedDetails.empty())
+    if (!optionDetailsRows.empty())
     {
-        s << combinedDetails;
+        size_t colwidth = kDefaultHelpColumnWidth;
+        for (const auto& row : optionDetailsRows)
+        {
+            colwidth = std::max(colwidth, row.label.length() + 2);
+        }
+
+        for (const auto& row : optionDetailsRows)
+        {
+            if (row.descriptionLines.empty())
+            {
+                s << row.label << std::endl;
+                continue;
+            }
+
+            s << std::setw(static_cast<int>(colwidth)) << std::left << row.label << row.descriptionLines[0] << std::endl;
+            for (size_t i = 1; i < row.descriptionLines.size(); ++i)
+            {
+                s << std::setw(static_cast<int>(colwidth)) << ' ' << row.descriptionLines[i] << std::endl;
+            }
+        }
     }
 
     return s.str();
@@ -420,29 +469,30 @@ bool CommandBlock::IsOptionSet(const std::string &name) const
 }
 
 //------------------------------------------------------------------------------------------------
-const std::string &CommandBlock::GetOptionValue(const std::string &name) const
+std::string CommandBlock::GetOptionValue(const std::string &name) const
 {
     auto it = m_optionMap.find(name);
     if (it != m_optionMap.end() && !it->second.empty())
-    {
         return it->second.front();
-    }
-    throw ApiException(ApiError::OptionNotFound, "Option '" + name + "' not set");
+
+    const OptionDecl* decl = m_decl.FindOption(name);
+    if (decl && decl->HasDefault())
+        return decl->GetDefault();
+
+    throw ApiException(ApiError::OptionNotFound, "Option '" + name + "' not set and no default registered");
 }
 
 //------------------------------------------------------------------------------------------------
-const std::string &CommandBlock::GetOptionValue(const std::string &name, const std::string &defaultValue) const
+std::string CommandBlock::GetOptionValue(const std::string &name, const std::string &defaultValueOverride) const
 {
     auto it = m_optionMap.find(name);
     if (it != m_optionMap.end() && !it->second.empty())
-    {
         return it->second.front();
-    }
-    return defaultValue;
+    return defaultValueOverride;
 }
 
 // Return all values for an option (throws if not set)
-const std::string& CommandBlock::GetOptionValue(const std::string& name, size_t index) const
+std::string CommandBlock::GetOptionValue(const std::string& name, size_t index) const
 {
     auto it = m_optionMap.find(name);
     if (it != m_optionMap.end())
@@ -837,6 +887,27 @@ size_t CommandParser::ParseArgs(int argc, const char *argv[])
         throw SyntaxException(SyntaxError::UnexpectedArgument, "Unexpected argument: " + token, token);
     }
 
+    // Apply registered defaults to bound variables for options not set on the command line
+    for (auto& block : m_commandBlocks)
+    {
+        for (const auto& optPair : block.GetDecl().m_optionDecls)
+        {
+            const OptionDecl& optDecl = *optPair.second;
+            if (optDecl.GetType() == OptionType::Switch)
+                continue;
+            if (optDecl.HasDefault() && !block.IsOptionSet(optDecl.GetName()))
+                optDecl.ApplyValueBinding(optDecl.GetDefault());
+        }
+    }
+    for (const auto& optPair : m_globalOptionDecls)
+    {
+        const OptionDecl& optDecl = *optPair.second;
+        if (optDecl.GetType() == OptionType::Switch)
+            continue;
+        if (optDecl.HasDefault() && !IsGlobalOptionSet(optDecl.GetName()))
+            optDecl.ApplyValueBinding(optDecl.GetDefault());
+    }
+
     // Check for help after parsing is complete - do this before clearing anything
     // Check if the help option (auto or manually declared) was used
     bool helpWasRequested = IsGlobalOptionSet(m_autoHelpOptionName);
@@ -882,11 +953,14 @@ bool CommandParser::IsGlobalOptionSet(const std::string& name) const
 const std::string& CommandParser::GetGlobalOptionValue(const std::string& name) const
 {
     auto it = m_parsedGlobalOptionValues.find(name);
-    if (it == m_parsedGlobalOptionValues.end() || it->second.empty())
-    {
-        throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set");
-    }
-    return it->second.front().first;
+    if (it != m_parsedGlobalOptionValues.end() && !it->second.empty())
+        return it->second.front().first;
+
+    const OptionDecl* decl = FindGlobalOption(name);
+    if (decl && decl->HasDefault())
+        return decl->GetDefault();
+
+    throw ApiException(ApiError::OptionNotFound, "Global option '" + name + "' not set and no default registered");
 }
 
 //------------------------------------------------------------------------------------------------
