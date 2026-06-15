@@ -52,6 +52,165 @@ TEST(InCommand, HelpStringGeneration)
     EXPECT_TRUE(buildHelp.find("Build target") != std::string::npos);
 }
 
+TEST(InCommand, HelpStringIncludesDomainValues)
+{
+    InCommand::CommandParser parser("domainapp");
+    auto& rootCmdDesc = parser.GetAppCommandDecl();
+    rootCmdDesc.SetDescription("Domain-aware help");
+
+    rootCmdDesc.AddOption(InCommand::OptionType::Variable, "mode")
+        .SetDescription("Build mode")
+        .SetDomain({"debug", "release", "profile"});
+
+    rootCmdDesc.AddOption(InCommand::OptionType::Parameter, "choice")
+        .SetDescription("Selected choice")
+        .SetDomain({"red", "green", "blue"});
+
+    const char* argv[] = {"domainapp"};
+    EXPECT_NO_THROW(parser.ParseArgs(1, argv));
+
+    const std::string helpString = parser.GetHelpString(0);
+    // Domain variables use <value> metavar, not inline domain
+    EXPECT_NE(helpString.find("--mode <value>"), std::string::npos);
+    EXPECT_EQ(helpString.find("--mode <debug|release|profile>"), std::string::npos);
+    EXPECT_NE(helpString.find("Build mode"), std::string::npos);
+    EXPECT_NE(helpString.find("Possible values:"), std::string::npos);
+    EXPECT_NE(helpString.find("- debug"), std::string::npos);
+    EXPECT_NE(helpString.find("- release"), std::string::npos);
+    EXPECT_NE(helpString.find("- profile"), std::string::npos);
+    // Parameter with domain also shows Possible values bullets
+    EXPECT_NE(helpString.find("Selected choice"), std::string::npos);
+    EXPECT_NE(helpString.find("- red"), std::string::npos);
+    EXPECT_NE(helpString.find("- green"), std::string::npos);
+    EXPECT_NE(helpString.find("- blue"), std::string::npos);
+}
+
+TEST(InCommand, HelpStringBulletsDomainForLargeValueSet)
+{
+    InCommand::CommandParser parser("domainapp");
+    auto& rootCmdDesc = parser.GetAppCommandDecl();
+
+    rootCmdDesc.AddOption(InCommand::OptionType::Variable, "mode")
+        .SetDescription("Build mode")
+        .SetDomain({"debug", "release", "profile", "benchmark", "sanitizer", "static-analysis"});
+
+    const char* argv[] = {"domainapp"};
+    EXPECT_NO_THROW(parser.ParseArgs(1, argv));
+
+    const std::string helpString = parser.GetHelpString(0);
+    // Large domain: still uses <value> metavar and Possible values bullets
+    EXPECT_NE(helpString.find("[--mode <value>]"), std::string::npos);
+    EXPECT_NE(helpString.find("Possible values:"), std::string::npos);
+    EXPECT_NE(helpString.find("- debug"), std::string::npos);
+    EXPECT_NE(helpString.find("- sanitizer"), std::string::npos);
+    EXPECT_NE(helpString.find("- static-analysis"), std::string::npos);
+    EXPECT_EQ(helpString.find("Allowed values:"), std::string::npos);
+}
+
+TEST(InCommand, HelpStringOptionalParameterWithDefault)
+{
+    InCommand::CommandParser parser("myapp");
+    auto& root = parser.GetAppCommandDecl();
+
+    root.AddOption(InCommand::OptionType::Parameter, "required-arg")
+        .SetDescription("A required positional argument");
+
+    root.AddOption(InCommand::OptionType::Parameter, "optional-arg")
+        .SetDescription("An optional positional argument")
+        .SetDefault("fallback");
+
+    const char* argv[] = {"myapp"};
+    EXPECT_NO_THROW(parser.ParseArgs(1, argv));
+
+    const std::string helpString = parser.GetHelpString(0);
+    // Required parameter: no brackets
+    EXPECT_NE(helpString.find("<required-arg>"), std::string::npos);
+    EXPECT_EQ(helpString.find("[<required-arg>]"), std::string::npos);
+    // Optional parameter: bracketed in usage and detail label
+    EXPECT_NE(helpString.find("[<optional-arg>]"), std::string::npos);
+    // Default shown inline in detail section (no domain = fallback line)
+    EXPECT_NE(helpString.find("[default: fallback]"), std::string::npos);
+    // GetOptionValue(name) returns registered default when not set on CLI
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("optional-arg"), "fallback");
+}
+
+TEST(InCommand, HelpStringDefaultAnnotatesInDomainList)
+{
+    InCommand::CommandParser parser("myapp");
+    auto& root = parser.GetAppCommandDecl();
+
+    root.AddOption(InCommand::OptionType::Parameter, "mode")
+        .SetDescription("Game mode")
+        .SetDomain({"classic", "best-of-3"})
+        .SetDefault("classic");
+
+    const char* argv[] = {"myapp"};
+    EXPECT_NO_THROW(parser.ParseArgs(1, argv));
+
+    const std::string helpString = parser.GetHelpString(0);
+    EXPECT_NE(helpString.find("- classic (default)"), std::string::npos);
+    EXPECT_NE(helpString.find("- best-of-3"), std::string::npos);
+    EXPECT_EQ(helpString.find("[default:"), std::string::npos);
+    // GetOptionValue(name) returns registered default when not set on CLI
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("mode"), "classic");
+}
+
+TEST(InCommand, DefaultAppliedToBoundVariable_WhenNotSetOnCLI)
+{
+    std::string mode = "sentinel";
+    InCommand::CommandParser parser("myapp");
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Parameter, "mode")
+        .SetDefault("classic")
+        .BindTo(mode);
+
+    const char* argv[] = {"myapp"};
+    parser.ParseArgs(1, argv);
+
+    // Bound variable should receive the registered default
+    EXPECT_EQ(mode, "classic");
+}
+
+TEST(InCommand, DefaultNotAppliedToBoundVariable_WhenSetOnCLI)
+{
+    std::string mode = "sentinel";
+    InCommand::CommandParser parser("myapp");
+    parser.GetAppCommandDecl()
+        .AddOption(InCommand::OptionType::Parameter, "mode")
+        .SetDefault("classic")
+        .BindTo(mode);
+
+    const char* argv[] = {"myapp", "best-of-3"};
+    parser.ParseArgs(2, argv);
+
+    // Bound variable should receive the CLI value, not the default
+    EXPECT_EQ(mode, "best-of-3");
+}
+
+TEST(InCommand, DefaultAppliedToGlobalBoundVariable_WhenNotSetOnCLI)
+{
+    std::string config = "sentinel";
+    InCommand::CommandParser parser("myapp");
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "config")
+        .SetDefault("default.cfg")
+        .BindTo(config);
+
+    const char* argv[] = {"myapp"};
+    parser.ParseArgs(1, argv);
+
+    EXPECT_EQ(config, "default.cfg");
+    EXPECT_EQ(parser.GetGlobalOptionValue("config"), "default.cfg");
+}
+
+TEST(InCommand, SetDefault_ThrowsForSwitch)
+{
+    InCommand::CommandParser parser("myapp");
+    auto& root = parser.GetAppCommandDecl();
+    EXPECT_THROW(
+        root.AddOption(InCommand::OptionType::Switch, "verbose").SetDefault("true"),
+        InCommand::ApiException);
+}
+
 TEST(InCommand, BasicOptions)
 {
     // Create a command block description hierarchy for testing basic option parsing

@@ -157,6 +157,7 @@ namespace InCommand
         std::string m_name;
         std::string m_description;
         std::vector<std::string> m_domain;
+        std::optional<std::string> m_default;
         char m_alias = 0;
         std::any m_id;
         std::function<void(const std::string&)> m_valueBinding; // Callback for type-safe value binding
@@ -220,6 +221,14 @@ namespace InCommand
             return *this;
         }
 
+        OptionDecl &SetDefault(const std::string &defaultValue)
+        {
+            if (m_type == OptionType::Switch)
+                throw ApiException(ApiError::InvalidOptionType, "Switch options cannot have a default value");
+            m_default = defaultValue;
+            return *this;
+        }
+
         // Allow this option to appear multiple times
         OptionDecl &AllowMultiple(bool allow = true)
         {
@@ -280,6 +289,8 @@ namespace InCommand
         const std::string &GetName() const { return m_name; }
         const std::string &GetDescription() const { return m_description; }
         const std::vector<std::string> &GetDomain() const { return m_domain; }
+        bool HasDefault() const { return m_default.has_value(); }
+        const std::string &GetDefault() const { return m_default.value(); }
         char GetAlias() const { return m_alias; }
         bool AllowsMultiple() const { return m_allowMultiple; }
 
@@ -308,11 +319,6 @@ namespace InCommand
         std::any m_id;
         CommandParser* m_parser; // Back-reference to owning parser
 
-        const OptionDecl *FindOption(const std::string &name) const
-        {
-            auto it = m_optionDecls.find(name);
-            return it == m_optionDecls.end() ? nullptr : it->second.get();
-        }
         const OptionDecl *FindOptionByAlias(const char alias) const
         {
             auto it = m_aliasMap.find(alias);
@@ -324,6 +330,12 @@ namespace InCommand
     public:
         CommandDecl(const std::string &name, CommandParser *parser) :
             m_name(name), m_parser(parser) {}
+        
+        const OptionDecl *FindOption(const std::string &name) const
+        {
+            auto it = m_optionDecls.find(name);
+            return it == m_optionDecls.end() ? nullptr : it->second.get();
+        }
         
         OptionDecl &AddOption(OptionType type, const std::string &name, char alias = 0);
 
@@ -386,9 +398,9 @@ namespace InCommand
         CommandBlock(const class CommandDecl &decl) : m_decl(decl) {}
 
         bool IsOptionSet(const std::string &name) const;
-        const std::string &GetOptionValue(const std::string &name) const;
-        const std::string &GetOptionValue(const std::string &name, const std::string &defaultValue) const;
-        const std::string& GetOptionValue(const std::string& name, size_t index) const;
+        std::string GetOptionValue(const std::string &name) const;
+        std::string GetOptionValue(const std::string &name, const std::string &defaultValueOverride) const;
+        std::string GetOptionValue(const std::string& name, size_t index) const;
         size_t GetOptionValueCount(const std::string& name) const;
         const CommandDecl &GetDecl() const { return m_decl; }
     };

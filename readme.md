@@ -764,6 +764,25 @@ Usage: sample mul [--help] <x> <y>
   <y>                         Second number
 ```
 
+Domain-constrained variables and parameters list their allowed values in a `Possible values:` block in the option detail section. The matching entry is annotated with `(default)` when `SetDefault()` has been called. Parameters with a registered default are rendered as `[<name>]` in the usage line to signal they are optional.
+
+```shell
+Play Roshambo
+
+Usage:
+sample [options] roshambo [--help] [--choice <value>] [<mode>]
+  --help, -h              Display comprehensive usage information and examples
+  --choice, -c <value>    Your move
+                          Possible values:
+                          - rock
+                          - paper
+                          - scissors
+  [<mode>]                Game mode
+                          Possible values:
+                          - classic (default)
+                          - best-of-3
+```
+
 #### Context-Sensitive Help Generation
 
 ```shell
@@ -1229,6 +1248,22 @@ OptionDecl& SetDomain(const std::vector<std::string>& domain)
 ```
 
 Restricts the option to a specific set of valid values. Useful for variables with limited choices.
+
+#### `OptionDecl::SetDefault()`
+
+```cpp
+OptionDecl& SetDefault(const std::string& defaultValue)
+```
+
+Registers a default value for this option. InCommand enforces the following contract when a default is registered:
+
+- `GetOptionValue(name)` returns the registered default when the option was not provided on the command line, instead of throwing.
+- Bound variables (via `BindTo`) are set to the registered default during `ParseArgs` if the option was not provided.
+- The default is **not** validated against a domain - it is the application's responsibility to ensure the default is a valid value.
+- A parameter with a registered default is rendered as `[<name>]` in the usage line to signal that it is optional.
+- When a domain is set, the matching entry in the `Possible values:` list is annotated with `(default)`. When no domain is set, a `[default: x]` line is shown in the detail section.
+
+Note: `GetOptionValue(name, defaultValueOverride)` always returns `defaultValueOverride` when the option was not set, superseding any registered default.
 
 #### `OptionDecl::GetType()`
 
@@ -1914,7 +1949,7 @@ Additional notes:
 root.AddOption(OptionType::Variable, "mode")
     .SetDomain({"debug", "release", "profile"});
 ```
-Invalid value triggers `SyntaxException(SyntaxError::InvalidValue)`.
+Invalid value triggers `SyntaxException(SyntaxError::InvalidValue)`. Generated help output also includes the allowed values for domain-constrained options.
 
 ### Unique IDs
 Attach enums to descriptors for switch-based dispatch:
@@ -2017,6 +2052,7 @@ const CommandDecl& GetDecl() const;
 ```cpp
 OptionDecl& SetDescription(const std::string& description);
 OptionDecl& SetDomain(const std::vector<std::string>& domain);
+OptionDecl& SetDefault(const std::string& defaultValue); // sets default for GetOptionValue and BindTo targets
 OptionDecl& AllowMultiple(bool allow = true);            // permit multiple occurrences for this option
 OptionType GetType() const;
 const std::string& GetName() const;
@@ -2076,6 +2112,3 @@ public:
 ---
 
 <!-- Duplicate Requirements & License sections removed to avoid redundancy -->
-
-
-
