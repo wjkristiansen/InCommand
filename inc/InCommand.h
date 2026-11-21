@@ -467,6 +467,9 @@ namespace InCommand
      
         char GetDelimiterChar() const;
 
+        // Whether arg is a value rather than an option, in the context of decl
+        bool IsValueArgument(const std::string& arg, const CommandDecl& decl) const;
+
         // Private help generation methods
         std::string GenerateHelpWithGlobalOptions(const CommandDecl& cmdDesc, const std::string& commandPath) const;
 

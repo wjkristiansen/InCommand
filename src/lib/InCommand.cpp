@@ -535,6 +535,25 @@ char CommandParser::GetDelimiterChar() const
 }
 
 //------------------------------------------------------------------------------------------------
+// An argument is a value unless it begins with '-': "--" begins an option (or, alone, ends them),
+// and a single '-' begins one unless what follows is a number ("-4", "-0.5", "-.5") and no option
+// of decl or the parser has the number's first digit as its alias. "-" alone is a value.
+bool CommandParser::IsValueArgument(const std::string& arg, const CommandDecl& decl) const
+{
+    if (arg.size() < 2 || arg[0] != '-')
+        return true;
+    if (arg[1] == '-')
+        return false;
+
+    auto isDigit = [](char c) { return c >= '0' && c <= '9'; };
+    const bool number = isDigit(arg[1]) || (arg[1] == '.' && arg.size() > 2 && isDigit(arg[2]));
+    if (!number)
+        return false;
+    const char alias = arg[1];
+    return FindGlobalOptionByAlias(alias) == nullptr && decl.FindOptionByAlias(alias) == nullptr;
+}
+
+//------------------------------------------------------------------------------------------------
 // Parses command arguments and returns the number of parsed command blocks
 size_t CommandParser::ParseArgs(int argc, const char *const argv[])
 {
@@ -575,6 +594,7 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
     
     m_commandBlocks.emplace_back(m_rootCommandBlockDesc);
     size_t currentParameterIndex = 0; // Track which parameter we're expecting next
+    bool parametersOnly = false;      // after "--", every argument is a parameter
 
     for (int i = 1; i < argc; ++i)
     {
@@ -582,8 +602,14 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
         const CommandDecl &commandDecl = currentBlock.GetDecl();
         std::string token = argv[i];
 
+        if (!parametersOnly && token == "--")
+        {
+            parametersOnly = true;
+            continue;
+        }
+
         // Check for long option (--name)
-        if (token.rfind("--", 0) == 0)
+        if (!parametersOnly && token.rfind("--", 0) == 0)
         {
             std::string name = token.substr(2);
             std::string value;
@@ -674,9 +700,9 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
                             throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option --" + name, "--" + name, name);
                         }
                         
-                        // Check if the next argument looks like an option (starts with -)
+                        // The next argument is the value unless it is an option
                         std::string nextArg = argv[++i];
-                        if (nextArg.rfind("-", 0) == 0)
+                        if (!IsValueArgument(nextArg, commandDecl))
                         {
                             throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option --" + name, "--" + name, name);
                         }
@@ -706,8 +732,8 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
             throw SyntaxException(SyntaxError::UnknownOption, "Unknown option --" + name, "--" + name, name);
         }
 
-        // Check for short option(s) (-x or -xyz for grouped switches)
-        if (token.rfind("-", 0) == 0 && token.length() > 1 && token[1] != '-')
+        // Check for short option(s) (-x or -xyz for grouped switches); a negative number is a value
+        if (!parametersOnly && !IsValueArgument(token, commandDecl))
         {
             std::string aliases = token.substr(1);
             
@@ -812,9 +838,9 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
                         throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option -" + std::string(1, alias), "-" + std::string(1, alias), optionDecl->GetName());
                     }
                     
-                    // Check if the next argument looks like an option (starts with -)
+                    // The next argument is the value unless it is an option
                     std::string nextArg = argv[++i];
-                    if (nextArg.rfind("-", 0) == 0)
+                    if (!IsValueArgument(nextArg, commandDecl))
                     {
                         throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option -" + std::string(1, alias), "-" + std::string(1, alias), optionDecl->GetName());
                     }
@@ -882,7 +908,7 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
         }
 
         // Check for inner command block
-        auto innerIt = commandDecl.m_innerCommandDecls.find(token);
+        auto innerIt = parametersOnly ? commandDecl.m_innerCommandDecls.end() : commandDecl.m_innerCommandDecls.find(token);
         if (innerIt != commandDecl.m_innerCommandDecls.end())
         {
             m_commandBlocks.emplace_back(*innerIt->second.get());
