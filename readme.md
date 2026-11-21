@@ -149,6 +149,29 @@ myapp input.txt output.txt
 git remote add origin https://github.com/user/repo.git
 ```
 
+#### Values Beginning with `-`
+
+An argument is a value, for a variable or as a parameter, unless it begins with `-`:
+
+- An argument beginning with `--` is always an option, so `--output --force` reports a missing value for `--output` instead of taking `--force` as its value.
+- An argument beginning with a single `-` is an option unless a number follows, as in `-4`, `-0.5`, or `-.5`, which are values. When an option has the number's first digit as its alias, as `-1` might, the argument is that option.
+- `-` alone is a value, such as a file name meaning standard input.
+
+A value beginning with `-` and a letter is written in the delimiter form, `--pattern=-foo`, when the parser has a [variable delimiter](#unique-variable-delimiter-support), or after `--`.
+
+```shell
+myapp --offset -4 -0.5      # --offset is -4; the first parameter is -0.5
+myapp --offset --force      # error: missing value for option --offset
+```
+
+#### Ending Options with `--`
+
+After an argument of `--` alone, every argument is a parameter of the current command block, even one beginning with `-` or naming a subcommand.
+
+```shell
+myapp --force -- --not-an-option run    # two parameters: "--not-an-option" and "run"
+```
+
 ### Option Aliases
 
 InCommand supports single-character aliases for switches and variables, enabling concise command-line usage. Aliases provide familiar, efficient shortcuts while maintaining full option name compatibility.

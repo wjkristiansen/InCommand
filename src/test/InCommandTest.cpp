@@ -2461,3 +2461,87 @@ TEST(InCommand, SyntaxException_CarriesOptionAndCommandPath)
     EXPECT_EQ(unexpected.GetOptionName(), "");
     EXPECT_EQ(unexpected.GetCommandPath(), (std::vector<std::string>{"git"}));
 }
+
+TEST(InCommand, Values_NegativeNumbersAndDash)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    root.AddOption(InCommand::OptionType::Variable, "offset", 'o');
+    root.AddOption(InCommand::OptionType::Switch, "force", 'f');
+    root.AddOption(InCommand::OptionType::Parameter, "first");
+    root.AddOption(InCommand::OptionType::Parameter, "second");
+
+    // A negative number is a value, for a variable and as a parameter; "-" alone is a value.
+    const char* numbers[] = {"app", "--offset", "-4", "-0.5", "-"};
+    parser.ParseArgs(5, numbers);
+    const auto& block = parser.GetCommandBlock(0);
+    EXPECT_EQ(block.GetOptionValue("offset"), "-4");
+    EXPECT_EQ(block.GetOptionValue("first"), "-0.5");
+    EXPECT_EQ(block.GetOptionValue("second"), "-");
+
+    const char* fraction[] = {"app", "-o", "-.5"};
+    parser.ParseArgs(3, fraction);
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("offset"), "-.5");
+
+    // Anything else beginning with '-' is an option, so a variable followed by one has no value.
+    const auto beforeSwitch = ParseError(parser, {"app", "--offset", "--force"});
+    EXPECT_EQ(beforeSwitch.GetError(), InCommand::SyntaxError::MissingVariableValue);
+    EXPECT_EQ(beforeSwitch.GetOptionName(), "offset");
+
+    const auto beforeAlias = ParseError(parser, {"app", "-o", "-f"});
+    EXPECT_EQ(beforeAlias.GetError(), InCommand::SyntaxError::MissingVariableValue);
+
+    const auto beforeDashes = ParseError(parser, {"app", "-o", "--"});
+    EXPECT_EQ(beforeDashes.GetError(), InCommand::SyntaxError::MissingVariableValue);
+}
+
+TEST(InCommand, Values_DigitAliasIsAnOption)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    root.AddOption(InCommand::OptionType::Switch, "one", '1');
+    root.AddOption(InCommand::OptionType::Variable, "offset", 'o');
+    root.AddOption(InCommand::OptionType::Parameter, "value");
+
+    const char* alias[] = {"app", "-1", "-2"};
+    parser.ParseArgs(3, alias);
+    EXPECT_TRUE(parser.GetCommandBlock(0).IsOptionSet("one"));
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("value"), "-2");
+
+    const auto value = ParseError(parser, {"app", "-o", "-1"});
+    EXPECT_EQ(value.GetError(), InCommand::SyntaxError::MissingVariableValue);
+}
+
+TEST(InCommand, Values_DelimiterFormTakesAnyValue)
+{
+    InCommand::CommandParser parser("app", InCommand::VariableDelimiter::Equals);
+    parser.GetAppCommandDecl().AddOption(InCommand::OptionType::Variable, "pattern", 'p');
+
+    const char* argv[] = {"app", "--pattern=-foo"};
+    parser.ParseArgs(2, argv);
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("pattern"), "-foo");
+}
+
+TEST(InCommand, DoubleDash_EndsOptions)
+{
+    InCommand::CommandParser parser("app");
+    auto& root = parser.GetAppCommandDecl();
+    root.AddOption(InCommand::OptionType::Switch, "force", 'f');
+    root.AddOption(InCommand::OptionType::Parameter, "first");
+    root.AddOption(InCommand::OptionType::Parameter, "second");
+    root.AddOption(InCommand::OptionType::Parameter, "third");
+    root.AddSubCommand("run");
+
+    // After "--", options, subcommand names, and a second "--" are all parameters.
+    const char* argv[] = {"app", "-f", "--", "--force", "run", "--"};
+    EXPECT_EQ(parser.ParseArgs(6, argv), 1u);
+    const auto& block = parser.GetCommandBlock(0);
+    EXPECT_TRUE(block.IsOptionSet("force"));
+    EXPECT_EQ(block.GetOptionValue("first"), "--force");
+    EXPECT_EQ(block.GetOptionValue("second"), "run");
+    EXPECT_EQ(block.GetOptionValue("third"), "--");
+
+    const auto extra = ParseError(parser, {"app", "--", "a", "b", "c", "-d"});
+    EXPECT_EQ(extra.GetError(), InCommand::SyntaxError::UnexpectedArgument);
+    EXPECT_EQ(extra.GetToken(), "-d");
+}
