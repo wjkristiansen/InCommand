@@ -172,6 +172,24 @@ After an argument of `--` alone, every argument is a parameter of the current co
 myapp --force -- --not-an-option run    # two parameters: "--not-an-option" and "run"
 ```
 
+### Required Options and Subcommands
+
+A variable or parameter declared with `SetRequired()` must appear on the command line unless it has a default, and a command declared with `SetSubCommandRequired()` must be followed by one of its subcommands. Parsing throws `SyntaxException` with `SyntaxError::MissingRequired` for the first one missing: options in declaration order, then parameters, then the subcommand. A request for help needs none of them.
+
+```cpp
+auto& root = parser.GetAppCommandDecl();
+root.SetSubCommandRequired();                       // "tool" alone: Missing command
+auto& build = root.AddSubCommand("build");
+build.AddOption(OptionType::Parameter, "project")
+    .SetRequired();                                 // "tool build": Missing argument <project>
+build.AddOption(OptionType::Variable, "target")
+    .SetRequired();                                 // Missing option --target
+```
+
+A required variable appears without brackets in the usage line: `--target <value>`.
+
+An argument that names no subcommand, given to a command that has subcommands and no parameter left to take it, throws `SyntaxError::UnknownCommand`: `Unknown command 'biuld'`.
+
 ### Option Aliases
 
 InCommand supports single-character aliases for switches and variables, enabling concise command-line usage. Aliases provide familiar, efficient shortcuts while maintaining full option name compatibility.
@@ -1152,6 +1170,14 @@ CommandDecl& SetDescription(const std::string& description)
 
 Sets the description for this command. Used in help generation. Returns `*this` for method chaining.
 
+#### `CommandDecl::SetSubCommandRequired()`
+
+```cpp
+CommandDecl& SetSubCommandRequired(bool required = true)
+```
+
+Requires one of this command's subcommands to follow it; see [Required Options and Subcommands](#required-options-and-subcommands). Returns `*this` for method chaining.
+
 #### `CommandDecl::SetUniqueId()`
 
 ```cpp
@@ -1271,6 +1297,14 @@ OptionDecl& SetDomain(const std::vector<std::string>& domain)
 ```
 
 Restricts the option to a specific set of valid values. Useful for variables with limited choices.
+
+#### `OptionDecl::SetRequired()`
+
+```cpp
+OptionDecl& SetRequired(bool required = true)
+```
+
+Requires this variable or parameter on the command line unless it has a default; see [Required Options and Subcommands](#required-options-and-subcommands). Throws `ApiException` for a switch. Returns `*this` for method chaining.
 
 #### `OptionDecl::SetDefault()`
 
@@ -1457,7 +1491,10 @@ enum class SyntaxError
     UnexpectedArgument,   // Extra or invalid argument
     TooManyParameters,    // More parameters than expected
     InvalidValue,         // Value outside defined domain
-    OptionNotSet          // Accessing unset option value
+    OptionNotSet,         // Accessing unset option value
+    InvalidAlias,         // Grouped alias of an option that is not a switch
+    MissingRequired,      // Required option, parameter, or subcommand missing
+    UnknownCommand        // Argument naming no subcommand where one is expected
 }
 ```
 
@@ -2083,6 +2120,7 @@ OptionDecl& AddOption(OptionType type, const std::string& name);
 OptionDecl& AddOption(OptionType type, const std::string& name, char alias);  // no alias for parameters
 CommandDecl& AddSubCommand(const std::string& name);
 CommandDecl& SetDescription(const std::string& description);
+CommandDecl& SetSubCommandRequired(bool required = true);  // a subcommand must follow
 template<typename T> void SetUniqueId(T id);
 template<typename T> T GetUniqueId() const;            // throws if unset/type mismatch
 bool HasUniqueId() const;
@@ -2106,6 +2144,7 @@ OptionDecl& SetDescription(const std::string& description);
 OptionDecl& SetDomain(const std::vector<std::string>& domain);
 OptionDecl& SetDefault(const std::string& defaultValue); // sets default for GetOptionValue and BindTo targets
 OptionDecl& AllowMultiple(bool allow = true);            // permit multiple occurrences for this option
+OptionDecl& SetRequired(bool required = true);           // variables and parameters: must appear unless defaulted
 OptionType GetType() const;
 const std::string& GetName() const;
 const std::string& GetDescription() const;
@@ -2142,7 +2181,9 @@ enum class SyntaxError {
     TooManyParameters,
     InvalidValue,
     OptionNotSet,
-    InvalidAlias
+    InvalidAlias,
+    MissingRequired,
+    UnknownCommand
 };
 ```
 

@@ -354,10 +354,11 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
 
     auto usageOption = [&s](const OptionDecl& decl)
     {
-        s << " [--" << decl.GetName();
+        s << (decl.IsRequired() ? " --" : " [--") << decl.GetName();
         if (decl.GetType() == OptionType::Variable)
             s << " <value>";
-        s << "]";
+        if (!decl.IsRequired())
+            s << "]";
     };
     for (const auto& decl : m_globalOptionOrder)
         usageOption(*decl);
@@ -925,7 +926,9 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
             continue;
         }
         
-        // If we get here, it's an unexpected argument
+        // If we get here, it's an unknown subcommand or an unexpected argument
+        if (!parametersOnly && !commandDecl.m_innerCommandDecls.empty())
+            throw SyntaxException(SyntaxError::UnknownCommand, "Unknown command '" + token + "'", token);
         throw SyntaxException(SyntaxError::UnexpectedArgument, "Unexpected argument: " + token, token);
     }
 
@@ -954,6 +957,10 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
     // Check if the help option (auto or manually declared) was used
     bool helpWasRequested = IsGlobalOptionSet(m_autoHelpOptionName);
     size_t helpContextIndex = 0;
+
+    // A request for help needs nothing else on the command line
+    if (!helpWasRequested)
+        CheckRequired();
     
     if (helpWasRequested)
     {
@@ -982,6 +989,51 @@ size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
 
     // Return the number of command blocks that were parsed
     return m_commandBlocks.size();
+}
+
+//------------------------------------------------------------------------------------------------
+void CommandParser::CheckRequired() const
+{
+    for (size_t blockIndex = 0; blockIndex < m_commandBlocks.size(); ++blockIndex)
+    {
+        const CommandBlock& block = m_commandBlocks[blockIndex];
+        const CommandDecl& decl = block.GetDecl();
+
+        auto fail = [&](const std::string& message, const std::string& optionName)
+        {
+            SyntaxException e(SyntaxError::MissingRequired, message, "", optionName);
+            for (size_t i = 0; i <= blockIndex; ++i)
+                e.m_commandPath.push_back(m_commandBlocks[i].GetDecl().GetName());
+            throw e;
+        };
+
+        // Options in declaration order, then parameters in theirs
+        for (const auto& option : decl.m_optionOrder)
+        {
+            if (option->GetType() == OptionType::Variable && option->IsRequired() && !option->HasDefault() && !block.IsOptionSet(option->GetName()))
+                fail("Missing option --" + option->GetName(), option->GetName());
+        }
+        for (const auto& parameter : decl.m_parameterDecls)
+        {
+            const OptionDecl& option = parameter.get();
+            if (option.IsRequired() && !option.HasDefault() && !block.IsOptionSet(option.GetName()))
+                fail("Missing argument <" + option.GetName() + ">", option.GetName());
+        }
+
+        if (blockIndex + 1 == m_commandBlocks.size() && decl.IsSubCommandRequired() && !decl.m_innerCommandDecls.empty())
+            fail("Missing command", "");
+    }
+
+    for (const auto& option : m_globalOptionOrder)
+    {
+        if (option->GetType() == OptionType::Variable && option->IsRequired() && !option->HasDefault() && !IsGlobalOptionSet(option->GetName()))
+        {
+            SyntaxException e(SyntaxError::MissingRequired, "Missing option --" + option->GetName(), "", option->GetName());
+            for (const CommandBlock& block : m_commandBlocks)
+                e.m_commandPath.push_back(block.GetDecl().GetName());
+            throw e;
+        }
+    }
 }
 
 //------------------------------------------------------------------------------------------------
