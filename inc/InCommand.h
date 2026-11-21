@@ -55,7 +55,8 @@ namespace InCommand
         OptionNotSet,
         InvalidAlias,
         MissingRequired,    // a required option, parameter, or subcommand is missing
-        UnknownCommand      // an argument names no subcommand where one is expected
+        UnknownCommand,     // an argument names no subcommand where one is expected
+        OptionConflict      // options of a group that allows one of them are used together
     };
 
     //------------------------------------------------------------------------------------------------
@@ -124,6 +125,14 @@ namespace InCommand
         Switch,
         Variable,
         Parameter,
+    };
+
+    //------------------------------------------------------------------------------------------------
+    // How many options of an option group a command line may use
+    enum class GroupRule
+    {
+        AtMostOne,      // none or one
+        ExactlyOne,     // one
     };
 
     //------------------------------------------------------------------------------------------------
@@ -365,6 +374,13 @@ namespace InCommand
         CommandParser* m_parser; // Back-reference to owning parser
         bool m_subCommandRequired = false;
 
+        struct OptionGroup
+        {
+            std::vector<std::string> names;
+            GroupRule rule;
+        };
+        std::vector<OptionGroup> m_optionGroups;    // in declaration order
+
         const OptionDecl *FindOptionByAlias(const char alias) const
         {
             auto it = m_aliasMap.find(alias);
@@ -431,6 +447,11 @@ namespace InCommand
             m_subCommandRequired = required;
             return *this;
         }
+
+        // Groups switches and variables of this command, already declared, that the command line
+        // may use only one of: parsing reports SyntaxError::OptionConflict for two of them, and,
+        // for GroupRule::ExactlyOne, SyntaxError::MissingRequired for none
+        CommandDecl &AddOptionGroup(const std::vector<std::string> &names, GroupRule rule);
 
         // --- Get Accessors ---
         const std::string &GetName() const { return m_name; }

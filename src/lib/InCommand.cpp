@@ -95,6 +95,31 @@ CommandDecl &CommandDecl::AddSubCommand(const std::string &name)
 }
 
 //------------------------------------------------------------------------------------------------
+CommandDecl &CommandDecl::AddOptionGroup(const std::vector<std::string> &names, GroupRule rule)
+{
+    if (names.size() < 2)
+        throw ApiException(ApiError::InvalidOptionType, "An option group needs at least two options");
+    for (const std::string &name : names)
+    {
+        const OptionDecl *option = FindOption(name);
+        if (option == nullptr)
+            throw ApiException(ApiError::OptionNotFound, "Option group names undeclared option '" + name + "'");
+        if (option->GetType() == OptionType::Parameter)
+            throw ApiException(ApiError::InvalidOptionType, "Option group names parameter '" + name + "'");
+    }
+
+    try
+    {
+        m_optionGroups.push_back({names, rule});
+    }
+    catch (const std::bad_alloc &)
+    {
+        throw ApiException(ApiError::OutOfMemory, "Out of memory creating option group");
+    }
+    return *this;
+}
+
+//------------------------------------------------------------------------------------------------
 void CommandParser::RegisterLocalOption(const std::string& name, char alias)
 {
     // Check for existing global declarations
@@ -1018,6 +1043,31 @@ void CommandParser::CheckRequired() const
             const OptionDecl& option = parameter.get();
             if (option.IsRequired() && !option.HasDefault() && !block.IsOptionSet(option.GetName()))
                 fail("Missing argument <" + option.GetName() + ">", option.GetName());
+        }
+
+        for (const auto& group : decl.m_optionGroups)
+        {
+            const std::string* first = nullptr;
+            for (const std::string& name : group.names)
+            {
+                if (!block.IsOptionSet(name))
+                    continue;
+                if (first != nullptr)
+                {
+                    SyntaxException e(SyntaxError::OptionConflict, "--" + *first + " and --" + name + " cannot be used together", "--" + name, name);
+                    for (size_t i = 0; i <= blockIndex; ++i)
+                        e.m_commandPath.push_back(m_commandBlocks[i].GetDecl().GetName());
+                    throw e;
+                }
+                first = &name;
+            }
+            if (first == nullptr && group.rule == GroupRule::ExactlyOne)
+            {
+                std::string names;
+                for (const std::string& name : group.names)
+                    names += (names.empty() ? "--" : ", --") + name;
+                fail("Expected one of " + names, "");
+            }
         }
 
         if (blockIndex + 1 == m_commandBlocks.size() && decl.IsSubCommandRequired() && !decl.m_innerCommandDecls.empty())

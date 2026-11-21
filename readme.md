@@ -190,6 +190,15 @@ A required variable appears without brackets in the usage line: `--target <value
 
 An argument that names no subcommand, given to a command that has subcommands and no parameter left to take it, throws `SyntaxError::UnknownCommand`: `Unknown command 'biuld'`.
 
+### Option Groups
+
+`AddOptionGroup()` groups switches and variables of a command, declared before the group, that a command line may use only one of. Using two throws `SyntaxError::OptionConflict`; with `GroupRule::ExactlyOne`, using none throws `SyntaxError::MissingRequired`. Groups are checked after the command's required options and parameters.
+
+```cpp
+add.AddOptionGroup({"file", "url"}, GroupRule::ExactlyOne);    // Expected one of --file, --url
+add.AddOptionGroup({"quiet", "loud"}, GroupRule::AtMostOne);   // --quiet and --loud cannot be used together
+```
+
 ### Option Aliases
 
 InCommand supports single-character aliases for switches and variables, enabling concise command-line usage. Aliases provide familiar, efficient shortcuts while maintaining full option name compatibility.
@@ -1178,6 +1187,14 @@ CommandDecl& SetSubCommandRequired(bool required = true)
 
 Requires one of this command's subcommands to follow it; see [Required Options and Subcommands](#required-options-and-subcommands). Returns `*this` for method chaining.
 
+#### `CommandDecl::AddOptionGroup()`
+
+```cpp
+CommandDecl& AddOptionGroup(const std::vector<std::string>& names, GroupRule rule)
+```
+
+Groups two or more of this command's switches and variables, already declared, that a command line may use only one of; see [Option Groups](#option-groups). `rule` is `GroupRule::AtMostOne` or `GroupRule::ExactlyOne`. Throws `ApiException` for fewer than two names, an undeclared name, or a parameter. Returns `*this` for method chaining.
+
 #### `CommandDecl::SetUniqueId()`
 
 ```cpp
@@ -1494,7 +1511,8 @@ enum class SyntaxError
     OptionNotSet,         // Accessing unset option value
     InvalidAlias,         // Grouped alias of an option that is not a switch
     MissingRequired,      // Required option, parameter, or subcommand missing
-    UnknownCommand        // Argument naming no subcommand where one is expected
+    UnknownCommand,       // Argument naming no subcommand where one is expected
+    OptionConflict        // Two options of a group that allows one
 }
 ```
 
@@ -2121,6 +2139,7 @@ OptionDecl& AddOption(OptionType type, const std::string& name, char alias);  //
 CommandDecl& AddSubCommand(const std::string& name);
 CommandDecl& SetDescription(const std::string& description);
 CommandDecl& SetSubCommandRequired(bool required = true);  // a subcommand must follow
+CommandDecl& AddOptionGroup(const std::vector<std::string>& names, GroupRule rule);  // one of them
 template<typename T> void SetUniqueId(T id);
 template<typename T> T GetUniqueId() const;            // throws if unset/type mismatch
 bool HasUniqueId() const;
@@ -2183,7 +2202,13 @@ enum class SyntaxError {
     OptionNotSet,
     InvalidAlias,
     MissingRequired,
-    UnknownCommand
+    UnknownCommand,
+    OptionConflict
+};
+
+enum class GroupRule {
+    AtMostOne,
+    ExactlyOne
 };
 ```
 

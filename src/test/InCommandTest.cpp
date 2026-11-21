@@ -2637,3 +2637,37 @@ TEST(InCommand, UnknownCommand)
     EXPECT_EQ(parser.ParseArgs(2, argv), 1u);
     EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("file"), "biuld");
 }
+
+TEST(InCommand, OptionGroups)
+{
+    InCommand::CommandParser parser("tool");
+    auto& add = parser.GetAppCommandDecl().AddSubCommand("add");
+    add.AddOption(InCommand::OptionType::Variable, "file", 'f');
+    add.AddOption(InCommand::OptionType::Variable, "url");
+    add.AddOption(InCommand::OptionType::Switch, "quiet");
+    add.AddOption(InCommand::OptionType::Switch, "loud");
+    add.AddOptionGroup({"file", "url"}, InCommand::GroupRule::ExactlyOne);
+    add.AddOptionGroup({"quiet", "loud"}, InCommand::GroupRule::AtMostOne);
+
+    const auto both = ParseError(parser, {"tool", "add", "--url", "u", "-f", "f"});
+    EXPECT_EQ(both.GetError(), InCommand::SyntaxError::OptionConflict);
+    EXPECT_EQ(both.GetMessage(), "--file and --url cannot be used together");
+    EXPECT_EQ(both.GetOptionName(), "url");
+    EXPECT_EQ(both.GetCommandPath(), (std::vector<std::string>{"tool", "add"}));
+
+    const auto none = ParseError(parser, {"tool", "add"});
+    EXPECT_EQ(none.GetError(), InCommand::SyntaxError::MissingRequired);
+    EXPECT_EQ(none.GetMessage(), "Expected one of --file, --url");
+
+    const auto switches = ParseError(parser, {"tool", "add", "--url", "u", "--loud", "--quiet"});
+    EXPECT_EQ(switches.GetError(), InCommand::SyntaxError::OptionConflict);
+    EXPECT_EQ(switches.GetMessage(), "--quiet and --loud cannot be used together");
+
+    const char* argv[] = {"tool", "add", "--url", "u", "--quiet"};
+    EXPECT_EQ(parser.ParseArgs(5, argv), 2u);
+
+    EXPECT_THROW(add.AddOptionGroup({"file"}, InCommand::GroupRule::AtMostOne), InCommand::ApiException);
+    EXPECT_THROW(add.AddOptionGroup({"file", "missing"}, InCommand::GroupRule::AtMostOne), InCommand::ApiException);
+    add.AddOption(InCommand::OptionType::Parameter, "name");
+    EXPECT_THROW(add.AddOptionGroup({"file", "name"}, InCommand::GroupRule::AtMostOne), InCommand::ApiException);
+}
