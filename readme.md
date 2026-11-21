@@ -981,10 +981,10 @@ parser.AddGlobalOption(OptionType::Switch, "verbose", 'v')
 #### `CommandParser::ParseArgs()`
 
 ```cpp
-size_t ParseArgs(int argc, const char* argv[])
+size_t ParseArgs(int argc, const char* const argv[])
 ```
 
-Parses command-line arguments and returns the number of command blocks that were parsed. Throws `SyntaxException` if parsing fails. Use `GetCommandBlock(index)` to access specific command blocks, where index ranges from 0 to the returned count minus 1.
+Parses command-line arguments and returns the number of command blocks that were parsed. `main`'s `char* argv[]` and `const char* argv[]` both convert to the parameter type without a cast. Throws `SyntaxException` if parsing fails. Use `GetCommandBlock(index)` to access specific command blocks, where index ranges from 0 to the returned count minus 1.
 
 #### `CommandParser::GetNumCommandBlocks()`
 
@@ -1442,7 +1442,7 @@ enum class SyntaxError
 
 ### Exception Types
 
-InCommand provides two distinct exception types for different error scenarios:
+InCommand provides two distinct exception types for different error scenarios. Both derive from `std::exception`, and `what()` returns the same text as `GetMessage()`.
 
 #### ApiException
 
@@ -2008,7 +2008,7 @@ CommandParser(const std::string& appName, VariableDelimiter delim = VariableDeli
 CommandDecl& GetAppCommandDecl();
 const CommandDecl& GetAppCommandDecl() const;
 OptionDecl& AddGlobalOption(OptionType type, const std::string& name, char alias = 0);
-size_t ParseArgs(int argc, const char* argv[]);
+size_t ParseArgs(int argc, const char* const argv[]);
 size_t GetNumCommandBlocks() const;
 const CommandBlock& GetCommandBlock(size_t index) const;
 bool IsGlobalOptionSet(const std::string& name) const;
@@ -2096,14 +2096,16 @@ enum class SyntaxError {
 
 ### Exceptions
 ```cpp
-class ApiException {
+class ApiException : public std::exception {
 public:
     const std::string& GetMessage() const;
+    const char* what() const noexcept override;   // GetMessage()
     ApiError GetError() const;
 };
-class SyntaxException {
+class SyntaxException : public std::exception {
 public:
     const std::string& GetMessage() const;
+    const char* what() const noexcept override;   // GetMessage()
     const std::string& GetToken() const;
     SyntaxError GetError() const;
 };
