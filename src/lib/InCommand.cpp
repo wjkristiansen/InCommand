@@ -538,6 +538,24 @@ char CommandParser::GetDelimiterChar() const
 // Parses command arguments and returns the number of parsed command blocks
 size_t CommandParser::ParseArgs(int argc, const char *const argv[])
 {
+    try
+    {
+        return ParseArgsInternal(argc, argv);
+    }
+    catch (SyntaxException& e)
+    {
+        if (e.m_commandPath.empty())
+        {
+            for (const CommandBlock& block : m_commandBlocks)
+                e.m_commandPath.push_back(block.GetDecl().GetName());
+        }
+        throw;
+    }
+}
+
+//------------------------------------------------------------------------------------------------
+size_t CommandParser::ParseArgsInternal(int argc, const char *const argv[])
+{
     // Clear any previous parse results
     m_commandBlocks.clear();
     m_parsedGlobalOptionValues.clear();
@@ -586,7 +604,7 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
                 if (value.empty())
                 {
                     throw SyntaxException(SyntaxError::MissingVariableValue,
-                        "Missing value for option --" + name, "--" + name + delimiterChar);
+                        "Missing value for option --" + name, "--" + name + delimiterChar, name);
                 }
             }
 
@@ -608,7 +626,7 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
                 {
                     if (delimiterPos != std::string::npos)
                     {
-                        throw SyntaxException(SyntaxError::InvalidValue, "Switch options cannot have values. Option --" + name + " is a switch", "--" + name + delimiterChar + value);
+                        throw SyntaxException(SyntaxError::InvalidValue, "Switch options cannot have values. Option --" + name + " is a switch", "--" + name + delimiterChar + value, name);
                     }
 
                     if (isGlobalOption)
@@ -653,14 +671,14 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
                         // Value should be in next argument (traditional format)
                         if (i + 1 >= argc)
                         {
-                            throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option --" + name, "--" + name);
+                            throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option --" + name, "--" + name, name);
                         }
                         
                         // Check if the next argument looks like an option (starts with -)
                         std::string nextArg = argv[++i];
                         if (nextArg.rfind("-", 0) == 0)
                         {
-                            throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option --" + name, "--" + name);
+                            throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option --" + name, "--" + name, name);
                         }
                         
                         optionDecl->CheckDomain(nextArg);
@@ -685,7 +703,7 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
             }
             
             // Unknown option
-            throw SyntaxException(SyntaxError::UnknownOption, "Unknown option --" + name, "--" + name);
+            throw SyntaxException(SyntaxError::UnknownOption, "Unknown option --" + name, "--" + name, name);
         }
 
         // Check for short option(s) (-x or -xyz for grouped switches)
@@ -717,7 +735,7 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
                 {
                     if (firstDecl->GetType() == OptionType::Switch)
                     {
-                        throw SyntaxException(SyntaxError::InvalidValue, "Switch options cannot have values. Option -" + std::string(1, firstAlias) + " is a switch", "-" + std::string(1, firstAlias) + possibleDelimiter + aliases.substr(2));
+                        throw SyntaxException(SyntaxError::InvalidValue, "Switch options cannot have values. Option -" + std::string(1, firstAlias) + " is a switch", "-" + std::string(1, firstAlias) + possibleDelimiter + aliases.substr(2), firstDecl->GetName());
                     }
                     else if (firstDecl->GetType() == OptionType::Variable)
                     {
@@ -726,7 +744,7 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
                         {
                             throw SyntaxException(SyntaxError::MissingVariableValue,
                                 "Missing value for option -" + std::string(1, firstAlias),
-                                "-" + std::string(1, firstAlias) + GetDelimiterChar());
+                                "-" + std::string(1, firstAlias) + GetDelimiterChar(), firstDecl->GetName());
                         }
                         firstDecl->CheckDomain(value);
                         if (isGlobalOption)
@@ -766,7 +784,7 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
                 
                 if (optionDecl == nullptr)
                 {
-                    throw SyntaxException(SyntaxError::UnknownOption, "Unknown option -" + std::string(1, alias), "-" + std::string(1, alias));
+                    throw SyntaxException(SyntaxError::UnknownOption, "Unknown option -" + std::string(1, alias), "-" + std::string(1, alias), std::string(1, alias));
                 }
                 
                 if (optionDecl->GetType() == OptionType::Switch)
@@ -791,14 +809,14 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
                 {
                     if (i + 1 >= argc)
                     {
-                        throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option -" + std::string(1, alias), "-" + std::string(1, alias));
+                        throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option -" + std::string(1, alias), "-" + std::string(1, alias), optionDecl->GetName());
                     }
                     
                     // Check if the next argument looks like an option (starts with -)
                     std::string nextArg = argv[++i];
                     if (nextArg.rfind("-", 0) == 0)
                     {
-                        throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option -" + std::string(1, alias), "-" + std::string(1, alias));
+                        throw SyntaxException(SyntaxError::MissingVariableValue, "Missing value for option -" + std::string(1, alias), "-" + std::string(1, alias), optionDecl->GetName());
                     }
 
                     optionDecl->CheckDomain(nextArg);
@@ -836,12 +854,12 @@ size_t CommandParser::ParseArgs(int argc, const char *const argv[])
                 }
                 if (optionDecl == nullptr)
                 {
-                    throw SyntaxException(SyntaxError::UnknownOption, "Unknown option -" + std::string(1, alias), "-" + std::string(1, alias));
+                    throw SyntaxException(SyntaxError::UnknownOption, "Unknown option -" + std::string(1, alias), "-" + std::string(1, alias), std::string(1, alias));
                 }
                 
                 if (optionDecl->GetType() != OptionType::Switch)
                 {
-                    throw SyntaxException(SyntaxError::InvalidAlias, "Only switch options can be grouped. Option -" + std::string(1, alias) + " is not a switch", "-" + std::string(1, alias));
+                    throw SyntaxException(SyntaxError::InvalidAlias, "Only switch options can be grouped. Option -" + std::string(1, alias) + " is not a switch", "-" + std::string(1, alias), optionDecl->GetName());
                 }
 
                 if (isGlobalOptionAlias)

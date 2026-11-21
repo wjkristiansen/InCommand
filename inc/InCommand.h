@@ -82,20 +82,37 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
-    // Exception for command line syntax errors by end users
+    // Exception for command line syntax errors by end users. Besides InCommand's own message, it
+    // carries what an application needs to word its own: the error, the token at fault, the
+    // option it concerns, and the command blocks parsed when it was found.
     class SyntaxException : public std::exception
     {
         SyntaxError m_error;
         std::string m_message;
         std::string m_token; // The problematic token from command line
+        std::string m_optionName;
+        std::vector<std::string> m_commandPath;
+
+        friend class OptionDecl;
+        friend class CommandParser;
 
     public:
-        SyntaxException(SyntaxError error, const std::string& message = "", const std::string& token = "") : 
-            m_error(error), m_message(message), m_token(token) {}
+        SyntaxException(SyntaxError error, const std::string& message = "", const std::string& token = "",
+            const std::string& optionName = "") :
+            m_error(error), m_message(message), m_token(token), m_optionName(optionName) {}
 
         SyntaxError GetError() const { return m_error; }
         const std::string& GetMessage() const { return m_message; }
         const std::string& GetToken() const { return m_token; }
+
+        // The name of the option or parameter the error concerns, as declared (for an unknown
+        // option, as written); empty when the error concerns none.
+        const std::string& GetOptionName() const { return m_optionName; }
+
+        // The names of the command blocks parsed when the error was found, the application's
+        // first: { "git", "remote", "add" }.
+        const std::vector<std::string>& GetCommandPath() const { return m_commandPath; }
+
         const char* what() const noexcept override { return m_message.c_str(); }
     };
 
@@ -191,7 +208,7 @@ namespace InCommand
                     return;
             }
             throw SyntaxException(SyntaxError::InvalidValue,
-                "Value '" + value + "' is not in the allowed domain for option '" + m_name + "'", value);
+                "Value '" + value + "' is not in the allowed domain for option '" + m_name + "'", value, m_name);
         }
 
         // Apply the value binding (called internally by the parser)
@@ -199,7 +216,16 @@ namespace InCommand
         {
             if (m_valueBinding)
             {
-                m_valueBinding(value);
+                try
+                {
+                    m_valueBinding(value);
+                }
+                catch (SyntaxException& e)
+                {
+                    if (e.m_optionName.empty())
+                        e.m_optionName = m_name;
+                    throw;
+                }
             }
         }
 
@@ -485,6 +511,9 @@ namespace InCommand
         bool WasAutoHelpRequested() const { return m_autoHelpRequested; }
 
         size_t ParseArgs(int argc, const char *const argv[]);
+    private:
+        size_t ParseArgsInternal(int argc, const char *const argv[]);
+    public:
 
         size_t GetNumCommandBlocks() const { return m_commandBlocks.size(); }
         const CommandBlock& GetCommandBlock(size_t index) const
