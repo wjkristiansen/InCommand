@@ -128,6 +128,59 @@ namespace InCommand
     };
 
     //------------------------------------------------------------------------------------------------
+    // Validators for OptionDecl::SetValidator
+
+    // Whether value is digits: "0", "42"
+    inline bool IsUnsignedInteger(const std::string& value)
+    {
+        if (value.empty())
+            return false;
+        for (char c : value)
+        {
+            if (c < '0' || c > '9')
+                return false;
+        }
+        return true;
+    }
+
+    // Whether value is digits, after an optional '-': "42", "-7"
+    inline bool IsInteger(const std::string& value)
+    {
+        return IsUnsignedInteger(value.size() > 1 && value[0] == '-' ? value.substr(1) : value);
+    }
+
+    // Whether value is a decimal number, after an optional '-', with an optional fraction and
+    // exponent: "42", "-0.5", ".5", "1e-3"
+    inline bool IsNumber(const std::string& value)
+    {
+        size_t i = value.size() > 0 && value[0] == '-' ? 1 : 0;
+        auto digits = [&value, &i]()
+        {
+            const size_t start = i;
+            while (i < value.size() && value[i] >= '0' && value[i] <= '9')
+                ++i;
+            return i - start;
+        };
+        size_t count = digits();
+        if (i < value.size() && value[i] == '.')
+        {
+            ++i;
+            count += digits();
+        }
+        if (count == 0)
+            return false;
+        if (i < value.size() && (value[i] == 'e' || value[i] == 'E'))
+        {
+            ++i;
+            if (i < value.size() && (value[i] == '+' || value[i] == '-'))
+                ++i;
+            if (digits() == 0)
+                return false;
+        }
+        return i == value.size();
+    }
+
+    //------------------------------------------------------------------------------------------------
     // How many options of an option group a command line may use
     enum class GroupRule
     {
@@ -188,6 +241,8 @@ namespace InCommand
         std::string m_name;
         std::string m_description;
         std::vector<std::string> m_domain;
+        std::function<bool(const std::string&)> m_validator;
+        std::string m_expected;     // what m_validator accepts, such as "an integer"
         std::optional<std::string> m_default;
         char m_alias = 0;
         std::any m_id;
@@ -209,9 +264,15 @@ namespace InCommand
         // Check if this option has a value binding
         bool HasValueBinding() const { return static_cast<bool>(m_valueBinding); }
 
-        // Throws SyntaxException(InvalidValue) if a domain is set and value is not in it
+        // Throws SyntaxException(InvalidValue) if a domain is set and value is not in it, or a
+        // validator is set and rejects value
         void CheckDomain(const std::string& value) const
         {
+            if (m_validator && !m_validator(value))
+            {
+                throw SyntaxException(SyntaxError::InvalidValue,
+                    "Value '" + value + "' for option '" + m_name + "' is not " + m_expected, value, m_name);
+            }
             if (m_domain.empty())
                 return;
             for (const auto& domainValue : m_domain)
@@ -259,6 +320,17 @@ namespace InCommand
         OptionDecl &SetDomain(const std::vector<std::string> &domain)
         {
             m_domain = domain;
+            return *this;
+        }
+
+        // Accepts only values isValid returns true for; expected says what those are, such as
+        // "an integer", for help and errors
+        OptionDecl &SetValidator(std::function<bool(const std::string&)> isValid, const std::string &expected)
+        {
+            if (m_type == OptionType::Switch)
+                throw ApiException(ApiError::InvalidOptionType, "Switch options take no value to validate");
+            m_validator = std::move(isValid);
+            m_expected = expected;
             return *this;
         }
 
@@ -340,6 +412,8 @@ namespace InCommand
         const std::string &GetName() const { return m_name; }
         const std::string &GetDescription() const { return m_description; }
         const std::vector<std::string> &GetDomain() const { return m_domain; }
+        bool HasValidator() const { return static_cast<bool>(m_validator); }
+        const std::string &GetExpected() const { return m_expected; }
         bool HasDefault() const { return m_default.has_value(); }
         const std::string &GetDefault() const { return m_default.value(); }
         char GetAlias() const { return m_alias; }

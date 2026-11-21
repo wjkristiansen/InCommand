@@ -1315,6 +1315,14 @@ OptionDecl& SetDomain(const std::vector<std::string>& domain)
 
 Restricts the option to a specific set of valid values. Useful for variables with limited choices.
 
+#### `OptionDecl::SetValidator()`
+
+```cpp
+OptionDecl& SetValidator(std::function<bool(const std::string&)> isValid, const std::string& expected)
+```
+
+Accepts only values `isValid` returns true for, such as `IsUnsignedInteger`, `IsInteger`, or `IsNumber`; `expected` says what those are, such as `"an integer"`, in help and errors. See [Validators (Value Classes)](#validators-value-classes). Throws `ApiException` for a switch. Returns `*this` for method chaining.
+
 #### `OptionDecl::SetRequired()`
 
 ```cpp
@@ -2058,6 +2066,15 @@ root.AddOption(OptionType::Variable, "mode")
 ```
 Invalid value triggers `SyntaxException(SyntaxError::InvalidValue)`. Generated help output also includes the allowed values for domain-constrained options.
 
+### Validators (Value Classes)
+```cpp
+root.AddOption(OptionType::Variable, "depth")
+    .SetValidator(IsUnsignedInteger, "a non-negative integer");
+root.AddOption(OptionType::Variable, "tag")
+    .SetValidator([](const std::string& v) { return std::regex_match(v, std::regex("v[0-9.]+")); }, "a version tag");
+```
+A validator accepts a class of values rather than a list of them. InCommand provides `IsUnsignedInteger` (`42`), `IsInteger` (`-7`), and `IsNumber` (`-0.5`, `.5`, `1e-3`); any `bool(const std::string&)` works, including a regular expression, as above. A value the validator rejects triggers `SyntaxException(SyntaxError::InvalidValue)`, `Value 'deep' for option 'depth' is not a non-negative integer`, and help shows `[value: a non-negative integer]` for the option.
+
 ### Unique IDs
 Attach enums to descriptors for switch-based dispatch:
 ```cpp
@@ -2161,6 +2178,7 @@ const CommandDecl& GetDecl() const;
 ```cpp
 OptionDecl& SetDescription(const std::string& description);
 OptionDecl& SetDomain(const std::vector<std::string>& domain);
+OptionDecl& SetValidator(std::function<bool(const std::string&)> isValid, const std::string& expected);
 OptionDecl& SetDefault(const std::string& defaultValue); // sets default for GetOptionValue and BindTo targets
 OptionDecl& AllowMultiple(bool allow = true);            // permit multiple occurrences for this option
 OptionDecl& SetRequired(bool required = true);           // variables and parameters: must appear unless defaulted
