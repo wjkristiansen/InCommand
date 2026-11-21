@@ -738,7 +738,7 @@ The recommended way to generate help output is to use the `GetHelpString()` meth
 std::cout << parser.GetHelpString();
 ```
 
-This prints the command description (if set), usage string, and option details in a single, formatted output. For subcommands, use the corresponding descriptor:
+This prints the command description (if set), usage string, and option details in a single, formatted output. Global options come first, then the command's options, parameters, and subcommands, each in the order they were declared; the auto-help option appears where `EnableAutoHelp()` was called. For subcommands, use the corresponding descriptor:
 
 ```cpp
 std::cout << parser.GetHelpString(commandBlockIndex);

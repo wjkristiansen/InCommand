@@ -316,9 +316,11 @@ namespace InCommand
         std::string m_name;
         std::string m_description;
         std::unordered_map<std::string, std::shared_ptr<OptionDecl>> m_optionDecls;
+        std::vector<std::shared_ptr<OptionDecl>> m_optionOrder;            // all options, in declaration order
         std::vector<std::reference_wrapper<const OptionDecl>> m_parameterDecls;
         std::unordered_map<char, std::shared_ptr<OptionDecl>> m_aliasMap;
         std::unordered_map<std::string, std::shared_ptr<CommandDecl>> m_innerCommandDecls;
+        std::vector<std::shared_ptr<CommandDecl>> m_innerCommandOrder;     // in declaration order
         std::any m_id;
         CommandParser* m_parser; // Back-reference to owning parser
 
@@ -415,6 +417,7 @@ namespace InCommand
         VariableDelimiter m_variableDelimiter;
         std::vector<CommandBlock> m_commandBlocks;
         std::unordered_map<std::string, std::shared_ptr<OptionDecl>> m_globalOptionDecls;
+        std::vector<std::shared_ptr<OptionDecl>> m_globalOptionOrder;      // in declaration order
         std::unordered_map<char, std::shared_ptr<OptionDecl>> m_globalAliasMap;
 
         // Parsed global options: vector of {value, blockIndex} for each occurrence (in parse order)
@@ -431,6 +434,7 @@ namespace InCommand
         char m_autoHelpAlias = 0;
         std::string m_autoHelpDescription;
         std::ostream* m_autoHelpOutputStream;
+        size_t m_autoHelpOrder = 0;     // the auto-help option's place in m_globalOptionOrder
         
         // Auto-help state
         bool m_autoHelpRequested = false;

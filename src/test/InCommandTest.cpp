@@ -2369,3 +2369,38 @@ TEST(InCommand, ParseArgs_AcceptsMutableAndConstArgv)
     EXPECT_EQ(parser.ParseArgs(2, constArgv), 1u);
     EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("file"), "b.txt");
 }
+
+TEST(InCommand, HelpString_DeclarationOrder)
+{
+    // Help lists global options, then the command's options, parameters, and subcommands, each in
+    // declaration order; the auto-help option takes the place EnableAutoHelp was called in.
+    InCommand::CommandParser parser("app");
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "zeta").SetDescription("Zeta");
+    parser.EnableAutoHelp("help", 'h');
+    parser.AddGlobalOption(InCommand::OptionType::Switch, "alpha").SetDescription("Alpha");
+
+    auto& root = parser.GetAppCommandDecl();
+    root.AddOption(InCommand::OptionType::Variable, "yankee").SetDescription("Yankee");
+    root.AddOption(InCommand::OptionType::Switch, "bravo").SetDescription("Bravo");
+    root.AddOption(InCommand::OptionType::Parameter, "xray").SetDescription("Xray");
+    root.AddOption(InCommand::OptionType::Parameter, "charlie").SetDescription("Charlie");
+    root.AddSubCommand("whiskey").SetDescription("Whiskey");
+    root.AddSubCommand("delta").SetDescription("Delta");
+
+    const char* argv[] = {"app"};
+    parser.ParseArgs(1, argv);
+
+    const std::string expected =
+        "Usage:\n"
+        "app [options] [--zeta] [--help] [--alpha] [--yankee <value>] [--bravo] <xray> <charlie>\n"
+        "  --zeta                      Zeta\n"
+        "  --help, -h                  Show context-sensitive help information\n"
+        "  --alpha                     Alpha\n"
+        "  --yankee <value>            Yankee\n"
+        "  --bravo                     Bravo\n"
+        "  <xray>                      Xray\n"
+        "  <charlie>                   Charlie\n"
+        "  whiskey                     Whiskey\n"
+        "  delta                       Delta\n";
+    EXPECT_EQ(parser.GetHelpString(), expected);
+}
