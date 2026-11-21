@@ -56,6 +56,11 @@ std::vector<std::string> BuildHelpDescriptionLines(const OptionDecl& decl)
         lines.push_back(decl.GetDescription());
     }
 
+    if (decl.HasValidator())
+    {
+        lines.push_back("[value: " + decl.GetExpected() + "]");
+    }
+
     if (!decl.GetDomain().empty())
     {
         lines.push_back("Possible values:");
@@ -407,7 +412,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     // Add global options first
     for (const auto& decl : m_globalOptionOrder)
     {
-        if (!decl->GetDescription().empty() || !decl->GetDomain().empty())
+        if (!decl->GetDescription().empty() || !decl->GetDomain().empty() || decl->HasValidator())
         {
             optionDetailsRows.push_back({BuildHelpLabel(*decl), BuildHelpDescriptionLines(*decl)});
         }
@@ -418,7 +423,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     {
         if (decl->GetType() == OptionType::Parameter)
             continue;
-        if (!decl->GetDescription().empty() || !decl->GetDomain().empty())
+        if (!decl->GetDescription().empty() || !decl->GetDomain().empty() || decl->HasValidator())
         {
             optionDetailsRows.push_back({BuildHelpLabel(*decl), BuildHelpDescriptionLines(*decl)});
         }
@@ -427,7 +432,7 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     // Add parameter details
     for (const auto& paramDesc : firstDecl->m_parameterDecls)
     {
-        if (!paramDesc.get().GetDescription().empty() || !paramDesc.get().GetDomain().empty())
+        if (!paramDesc.get().GetDescription().empty() || !paramDesc.get().GetDomain().empty() || paramDesc.get().HasValidator())
         {
             optionDetailsRows.push_back({BuildHelpLabel(paramDesc.get()), BuildHelpDescriptionLines(paramDesc.get())});
         }

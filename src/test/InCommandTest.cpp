@@ -2671,3 +2671,60 @@ TEST(InCommand, OptionGroups)
     add.AddOption(InCommand::OptionType::Parameter, "name");
     EXPECT_THROW(add.AddOptionGroup({"file", "name"}, InCommand::GroupRule::AtMostOne), InCommand::ApiException);
 }
+
+TEST(InCommand, Validators_Predicates)
+{
+    for (const char* value : {"0", "42", "007"})
+        EXPECT_TRUE(InCommand::IsUnsignedInteger(value)) << value;
+    for (const char* value : {"", "-1", "+1", "1.0", "1a"})
+        EXPECT_FALSE(InCommand::IsUnsignedInteger(value)) << value;
+
+    for (const char* value : {"0", "42", "-7"})
+        EXPECT_TRUE(InCommand::IsInteger(value)) << value;
+    for (const char* value : {"", "-", "--1", "1.5", "+3"})
+        EXPECT_FALSE(InCommand::IsInteger(value)) << value;
+
+    for (const char* value : {"42", "-0.5", ".5", "-.5", "5.", "1e-3", "2E+10", "-1.5e3"})
+        EXPECT_TRUE(InCommand::IsNumber(value)) << value;
+    for (const char* value : {"", "-", ".", "e5", "1e", "1e+", "1.2.3", "inf", "nan", "0x10", "+1"})
+        EXPECT_FALSE(InCommand::IsNumber(value)) << value;
+}
+
+TEST(InCommand, Validators_RejectAndDescribe)
+{
+    InCommand::CommandParser parser("app", InCommand::VariableDelimiter::Equals);
+    auto& root = parser.GetAppCommandDecl();
+    root.AddOption(InCommand::OptionType::Variable, "depth", 'd')
+        .SetDescription("Clone depth")
+        .SetValidator(InCommand::IsUnsignedInteger, "a non-negative integer");
+    root.AddOption(InCommand::OptionType::Parameter, "scale")
+        .SetValidator(InCommand::IsNumber, "a number");
+
+    const char* valid[] = {"app", "--depth", "3", "-1.5"};
+    parser.ParseArgs(4, valid);
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("depth"), "3");
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("scale"), "-1.5");
+
+    const auto variable = ParseError(parser, {"app", "-d=deep"});
+    EXPECT_EQ(variable.GetError(), InCommand::SyntaxError::InvalidValue);
+    EXPECT_EQ(variable.GetMessage(), "Value 'deep' for option 'depth' is not a non-negative integer");
+    EXPECT_EQ(variable.GetOptionName(), "depth");
+    EXPECT_EQ(variable.GetToken(), "deep");
+
+    const auto parameter = ParseError(parser, {"app", "big"});
+    EXPECT_EQ(parameter.GetMessage(), "Value 'big' for option 'scale' is not a number");
+
+    // A regular expression works as a validator, without InCommand depending on <regex>.
+    root.AddOption(InCommand::OptionType::Variable, "tag")
+        .SetValidator([](const std::string& value) { return !value.empty() && value[0] == 'v'; }, "a tag beginning with 'v'");
+    const auto tag = ParseError(parser, {"app", "--tag=1.0"});
+    EXPECT_EQ(tag.GetMessage(), "Value '1.0' for option 'tag' is not a tag beginning with 'v'");
+
+    const std::string help = parser.GetHelpString(0);
+    EXPECT_NE(help.find("Clone depth\n"), std::string::npos) << help;
+    EXPECT_NE(help.find("[value: a non-negative integer]\n"), std::string::npos) << help;
+    EXPECT_NE(help.find("  <scale>                     [value: a number]\n"), std::string::npos) << help;
+
+    auto& quiet = root.AddOption(InCommand::OptionType::Switch, "quiet");
+    EXPECT_THROW(quiet.SetValidator(InCommand::IsNumber, "a number"), InCommand::ApiException);
+}
