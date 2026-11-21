@@ -53,7 +53,9 @@ namespace InCommand
         TooManyParameters,
         InvalidValue,
         OptionNotSet,
-        InvalidAlias
+        InvalidAlias,
+        MissingRequired,    // a required option, parameter, or subcommand is missing
+        UnknownCommand      // an argument names no subcommand where one is expected
     };
 
     //------------------------------------------------------------------------------------------------
@@ -182,6 +184,7 @@ namespace InCommand
         std::any m_id;
         std::function<void(const std::string&)> m_valueBinding; // Callback for type-safe value binding
         bool m_allowMultiple = false;
+        bool m_required = false;
 
         friend class CommandDecl;
         friend class CommandParser;
@@ -265,6 +268,16 @@ namespace InCommand
             return *this;
         }
 
+        // Require this variable or parameter: parsing reports SyntaxError::MissingRequired when the
+        // command line omits it and it has no default
+        OptionDecl &SetRequired(bool required = true)
+        {
+            if (m_type == OptionType::Switch)
+                throw ApiException(ApiError::InvalidOptionType, "Switch options cannot be required");
+            m_required = required;
+            return *this;
+        }
+
         // --- Value Binding ---
         template<typename T, typename Converter = DefaultConverter<T>>
         OptionDecl& BindTo(T& variable, Converter converter = Converter{})
@@ -322,6 +335,7 @@ namespace InCommand
         const std::string &GetDefault() const { return m_default.value(); }
         char GetAlias() const { return m_alias; }
         bool AllowsMultiple() const { return m_allowMultiple; }
+        bool IsRequired() const { return m_required; }
 
         // Hash method
         size_t Hash() const
@@ -349,6 +363,7 @@ namespace InCommand
         std::vector<std::shared_ptr<CommandDecl>> m_innerCommandOrder;     // in declaration order
         std::any m_id;
         CommandParser* m_parser; // Back-reference to owning parser
+        bool m_subCommandRequired = false;
 
         const OptionDecl *FindOptionByAlias(const char alias) const
         {
@@ -409,9 +424,18 @@ namespace InCommand
             return *this;
         }
 
+        // Require a subcommand to follow this command: parsing reports SyntaxError::MissingRequired
+        // when the command line ends without one
+        CommandDecl &SetSubCommandRequired(bool required = true)
+        {
+            m_subCommandRequired = required;
+            return *this;
+        }
+
         // --- Get Accessors ---
         const std::string &GetName() const { return m_name; }
         const std::string &GetDescription() const { return m_description; }
+        bool IsSubCommandRequired() const { return m_subCommandRequired; }
     };
 
     //------------------------------------------------------------------------------------------------
@@ -469,6 +493,10 @@ namespace InCommand
 
         // Whether arg is a value rather than an option, in the context of decl
         bool IsValueArgument(const std::string& arg, const CommandDecl& decl) const;
+
+        // Throws SyntaxError::MissingRequired for the first required option, parameter, or
+        // subcommand the parsed command blocks lack
+        void CheckRequired() const;
 
         // Private help generation methods
         std::string GenerateHelpWithGlobalOptions(const CommandDecl& cmdDesc, const std::string& commandPath) const;

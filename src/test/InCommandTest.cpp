@@ -2456,10 +2456,10 @@ TEST(InCommand, SyntaxException_CarriesOptionAndCommandPath)
     EXPECT_EQ(grouped.GetError(), InCommand::SyntaxError::InvalidAlias);
     EXPECT_EQ(grouped.GetOptionName(), "fetch");
 
-    const auto unexpected = ParseError(parser, {"git", "stray"});
+    const auto unexpected = ParseError(parser, {"git", "remote", "add", "stray"});
     EXPECT_EQ(unexpected.GetError(), InCommand::SyntaxError::UnexpectedArgument);
     EXPECT_EQ(unexpected.GetOptionName(), "");
-    EXPECT_EQ(unexpected.GetCommandPath(), (std::vector<std::string>{"git"}));
+    EXPECT_EQ(unexpected.GetCommandPath(), (std::vector<std::string>{"git", "remote", "add"}));
 }
 
 TEST(InCommand, Values_NegativeNumbersAndDash)
@@ -2544,4 +2544,96 @@ TEST(InCommand, DoubleDash_EndsOptions)
     const auto extra = ParseError(parser, {"app", "--", "a", "b", "c", "-d"});
     EXPECT_EQ(extra.GetError(), InCommand::SyntaxError::UnexpectedArgument);
     EXPECT_EQ(extra.GetToken(), "-d");
+}
+
+TEST(InCommand, Required_ParametersAndVariables)
+{
+    InCommand::CommandParser parser("tool");
+    parser.EnableAutoHelp("help", 'h', std::cout);
+    auto& build = parser.GetAppCommandDecl().AddSubCommand("build");
+    build.AddOption(InCommand::OptionType::Variable, "target").SetRequired();
+    build.AddOption(InCommand::OptionType::Parameter, "project").SetRequired();
+    build.AddOption(InCommand::OptionType::Parameter, "config").SetRequired().SetDefault("debug");
+
+    const auto variable = ParseError(parser, {"tool", "build", "game.proj"});
+    EXPECT_EQ(variable.GetError(), InCommand::SyntaxError::MissingRequired);
+    EXPECT_EQ(variable.GetMessage(), "Missing option --target");
+    EXPECT_EQ(variable.GetOptionName(), "target");
+    EXPECT_EQ(variable.GetCommandPath(), (std::vector<std::string>{"tool", "build"}));
+
+    const auto parameter = ParseError(parser, {"tool", "build", "--target", "x64"});
+    EXPECT_EQ(parameter.GetError(), InCommand::SyntaxError::MissingRequired);
+    EXPECT_EQ(parameter.GetMessage(), "Missing argument <project>");
+    EXPECT_EQ(parameter.GetOptionName(), "project");
+
+    // A default satisfies a requirement, and a request for help needs nothing else.
+    const char* complete[] = {"tool", "build", "--target", "x64", "game.proj"};
+    EXPECT_EQ(parser.ParseArgs(5, complete), 2u);
+    EXPECT_EQ(parser.GetCommandBlock(1).GetOptionValue("config"), "debug");
+
+    std::ostringstream help;
+    InCommand::CommandParser helpParser("tool");
+    helpParser.EnableAutoHelp("help", 'h', help);
+    helpParser.GetAppCommandDecl().AddOption(InCommand::OptionType::Parameter, "project").SetRequired();
+    const char* helpArgs[] = {"tool", "--help"};
+    helpParser.ParseArgs(2, helpArgs);
+    EXPECT_TRUE(helpParser.WasAutoHelpRequested());
+
+    // A required variable is shown without brackets in the usage line.
+    EXPECT_NE(parser.GetHelpString(1).find("build [--help] --target <value> <project> [<config>]"), std::string::npos) << parser.GetHelpString(1);
+
+    InCommand::OptionDecl& flag = parser.GetAppCommandDecl().AddOption(InCommand::OptionType::Switch, "flag");
+    EXPECT_THROW(flag.SetRequired(), InCommand::ApiException);
+}
+
+TEST(InCommand, Required_GlobalVariable)
+{
+    InCommand::CommandParser parser("tool");
+    parser.AddGlobalOption(InCommand::OptionType::Variable, "profile").SetRequired();
+    parser.GetAppCommandDecl().AddSubCommand("run");
+
+    const auto missing = ParseError(parser, {"tool", "run"});
+    EXPECT_EQ(missing.GetError(), InCommand::SyntaxError::MissingRequired);
+    EXPECT_EQ(missing.GetOptionName(), "profile");
+    EXPECT_EQ(missing.GetCommandPath(), (std::vector<std::string>{"tool", "run"}));
+
+    const char* argv[] = {"tool", "run", "--profile", "fast"};
+    EXPECT_EQ(parser.ParseArgs(4, argv), 2u);
+}
+
+TEST(InCommand, Required_SubCommand)
+{
+    InCommand::CommandParser parser("tool");
+    auto& root = parser.GetAppCommandDecl();
+    root.SetSubCommandRequired();
+    auto& remote = root.AddSubCommand("remote");
+    remote.AddSubCommand("add");
+
+    const auto missing = ParseError(parser, {"tool"});
+    EXPECT_EQ(missing.GetError(), InCommand::SyntaxError::MissingRequired);
+    EXPECT_EQ(missing.GetMessage(), "Missing command");
+    EXPECT_EQ(missing.GetOptionName(), "");
+    EXPECT_EQ(missing.GetCommandPath(), (std::vector<std::string>{"tool"}));
+
+    // remote does not require a subcommand of its own.
+    const char* argv[] = {"tool", "remote"};
+    EXPECT_EQ(parser.ParseArgs(2, argv), 2u);
+}
+
+TEST(InCommand, UnknownCommand)
+{
+    InCommand::CommandParser parser("tool");
+    auto& root = parser.GetAppCommandDecl();
+    root.AddSubCommand("build");
+
+    const auto unknown = ParseError(parser, {"tool", "biuld"});
+    EXPECT_EQ(unknown.GetError(), InCommand::SyntaxError::UnknownCommand);
+    EXPECT_EQ(unknown.GetMessage(), "Unknown command 'biuld'");
+    EXPECT_EQ(unknown.GetToken(), "biuld");
+
+    // A command with parameters left takes the argument as one.
+    root.AddOption(InCommand::OptionType::Parameter, "file");
+    const char* argv[] = {"tool", "biuld"};
+    EXPECT_EQ(parser.ParseArgs(2, argv), 1u);
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("file"), "biuld");
 }
