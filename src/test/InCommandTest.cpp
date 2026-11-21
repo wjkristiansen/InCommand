@@ -2404,3 +2404,60 @@ TEST(InCommand, HelpString_DeclarationOrder)
         "  delta                       Delta\n";
     EXPECT_EQ(parser.GetHelpString(), expected);
 }
+
+namespace
+{
+    // Parses argv with parser and returns the SyntaxException it throws.
+    InCommand::SyntaxException ParseError(InCommand::CommandParser& parser, std::vector<const char*> argv)
+    {
+        try
+        {
+            parser.ParseArgs(static_cast<int>(argv.size()), argv.data());
+        }
+        catch (const InCommand::SyntaxException& e)
+        {
+            return e;
+        }
+        ADD_FAILURE() << "expected a SyntaxException";
+        return InCommand::SyntaxException(InCommand::SyntaxError::None);
+    }
+}
+
+TEST(InCommand, SyntaxException_CarriesOptionAndCommandPath)
+{
+    InCommand::CommandParser parser("git");
+    auto& remote = parser.GetAppCommandDecl().AddSubCommand("remote");
+    auto& add = remote.AddSubCommand("add");
+    add.AddOption(InCommand::OptionType::Variable, "fetch", 'f');
+    add.AddOption(InCommand::OptionType::Variable, "mode").SetDomain({"push", "pull"});
+    int depth = 0;
+    add.AddOption(InCommand::OptionType::Variable, "depth").BindTo(depth);
+    add.AddOption(InCommand::OptionType::Switch, "tags", 't');
+
+    const auto missing = ParseError(parser, {"git", "remote", "add", "-f"});
+    EXPECT_EQ(missing.GetError(), InCommand::SyntaxError::MissingVariableValue);
+    EXPECT_EQ(missing.GetOptionName(), "fetch");
+    EXPECT_EQ(missing.GetCommandPath(), (std::vector<std::string>{"git", "remote", "add"}));
+
+    const auto unknown = ParseError(parser, {"git", "remote", "--bogus"});
+    EXPECT_EQ(unknown.GetError(), InCommand::SyntaxError::UnknownOption);
+    EXPECT_EQ(unknown.GetOptionName(), "bogus");
+    EXPECT_EQ(unknown.GetCommandPath(), (std::vector<std::string>{"git", "remote"}));
+
+    const auto domain = ParseError(parser, {"git", "remote", "add", "--mode", "merge"});
+    EXPECT_EQ(domain.GetError(), InCommand::SyntaxError::InvalidValue);
+    EXPECT_EQ(domain.GetOptionName(), "mode");
+
+    const auto converted = ParseError(parser, {"git", "remote", "add", "--depth", "deep"});
+    EXPECT_EQ(converted.GetError(), InCommand::SyntaxError::InvalidValue);
+    EXPECT_EQ(converted.GetOptionName(), "depth");
+
+    const auto grouped = ParseError(parser, {"git", "remote", "add", "-tf"});
+    EXPECT_EQ(grouped.GetError(), InCommand::SyntaxError::InvalidAlias);
+    EXPECT_EQ(grouped.GetOptionName(), "fetch");
+
+    const auto unexpected = ParseError(parser, {"git", "stray"});
+    EXPECT_EQ(unexpected.GetError(), InCommand::SyntaxError::UnexpectedArgument);
+    EXPECT_EQ(unexpected.GetOptionName(), "");
+    EXPECT_EQ(unexpected.GetCommandPath(), (std::vector<std::string>{"git"}));
+}

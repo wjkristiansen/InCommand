@@ -1510,6 +1510,35 @@ const std::string& GetToken() const
 
 Returns the specific command-line token that caused the error, if available. May be empty for some error types.
 
+##### `SyntaxException::GetOptionName()`
+
+```cpp
+const std::string& GetOptionName() const
+```
+
+Returns the name of the option or parameter the error concerns, as declared, so `-o` with a missing value reports `output`. For an unknown option it is the name or alias as written. Empty when the error concerns no option, such as an unexpected argument.
+
+##### `SyntaxException::GetCommandPath()`
+
+```cpp
+const std::vector<std::string>& GetCommandPath() const
+```
+
+Returns the names of the command blocks parsed when the error was found, starting with the application's: `{ "git", "remote", "add" }`.
+
+Together with `GetError()` and `GetToken()`, these let an application word its own messages instead of showing `GetMessage()`:
+
+```cpp
+catch (const SyntaxException& e)
+{
+    const std::string& command = e.GetCommandPath().back();
+    if (e.GetError() == SyntaxError::MissingVariableValue)
+        std::cerr << command << ": --" << e.GetOptionName() << " needs a value\n";
+    else
+        std::cerr << command << ": " << e.GetMessage() << "\n";
+}
+```
+
 ##### `SyntaxException::GetError()`
 
 ```cpp
@@ -2107,6 +2136,8 @@ public:
     const std::string& GetMessage() const;
     const char* what() const noexcept override;   // GetMessage()
     const std::string& GetToken() const;
+    const std::string& GetOptionName() const;                // the option the error concerns, or empty
+    const std::vector<std::string>& GetCommandPath() const;  // command blocks parsed: { "git", "remote" }
     SyntaxError GetError() const;
 };
 ```
