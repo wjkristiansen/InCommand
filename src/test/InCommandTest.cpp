@@ -2324,3 +2324,48 @@ TEST(InCommand, AutoHelp_SubcommandContext)
     // (local options of parent commands must not bleed into child command help)
     EXPECT_TRUE(helpText.find("--root-only") == std::string::npos);
 }
+
+TEST(InCommand, Exceptions_DeriveFromStdException)
+{
+    InCommand::CommandParser parser("app");
+    const char* argv[] = {"app", "--bogus"};
+    try
+    {
+        parser.ParseArgs(2, argv);
+        FAIL() << "expected a SyntaxException";
+    }
+    catch (const std::exception& e)
+    {
+        EXPECT_STREQ(e.what(), "Unknown option --bogus");
+        const auto* syntax = dynamic_cast<const InCommand::SyntaxException*>(&e);
+        ASSERT_NE(syntax, nullptr);
+        EXPECT_EQ(syntax->GetMessage(), e.what());
+    }
+
+    try
+    {
+        parser.GetCommandBlock(5);
+        FAIL() << "expected an ApiException";
+    }
+    catch (const std::exception& e)
+    {
+        EXPECT_NE(dynamic_cast<const InCommand::ApiException*>(&e), nullptr);
+        EXPECT_STREQ(e.what(), "Parsed command block index out of range");
+    }
+}
+
+TEST(InCommand, ParseArgs_AcceptsMutableAndConstArgv)
+{
+    InCommand::CommandParser parser("app");
+    parser.GetAppCommandDecl().AddOption(InCommand::OptionType::Parameter, "file");
+
+    char app[] = "app";
+    char file[] = "a.txt";
+    char* mutableArgv[] = {app, file};
+    EXPECT_EQ(parser.ParseArgs(2, mutableArgv), 1u);
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("file"), "a.txt");
+
+    const char* const constArgv[] = {"app", "b.txt"};
+    EXPECT_EQ(parser.ParseArgs(2, constArgv), 1u);
+    EXPECT_EQ(parser.GetCommandBlock(0).GetOptionValue("file"), "b.txt");
+}

@@ -538,7 +538,7 @@ char CommandParser::GetDelimiterChar() const
 
 //------------------------------------------------------------------------------------------------
 // Parses command arguments and returns the number of parsed command blocks
-size_t CommandParser::ParseArgs(int argc, const char *argv[])
+size_t CommandParser::ParseArgs(int argc, const char *const argv[])
 {
     // Clear any previous parse results
     m_commandBlocks.clear();

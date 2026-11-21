@@ -22,6 +22,7 @@
 #include <charconv>
 #include <type_traits>
 #include <iostream>
+#include <exception>
 
 namespace InCommand
 {
@@ -66,22 +67,23 @@ namespace InCommand
 
     //------------------------------------------------------------------------------------------------
     // Exception for API misuse by developers
-    class ApiException
+    class ApiException : public std::exception
     {
         ApiError m_error;
         std::string m_message;
 
     public:
-        ApiException(ApiError error, const std::string& message = "") : 
+        ApiException(ApiError error, const std::string& message = "") :
             m_error(error), m_message(message) {}
 
         ApiError GetError() const { return m_error; }
         const std::string& GetMessage() const { return m_message; }
+        const char* what() const noexcept override { return m_message.c_str(); }
     };
 
     //------------------------------------------------------------------------------------------------
     // Exception for command line syntax errors by end users
-    class SyntaxException
+    class SyntaxException : public std::exception
     {
         SyntaxError m_error;
         std::string m_message;
@@ -94,6 +96,7 @@ namespace InCommand
         SyntaxError GetError() const { return m_error; }
         const std::string& GetMessage() const { return m_message; }
         const std::string& GetToken() const { return m_token; }
+        const char* what() const noexcept override { return m_message.c_str(); }
     };
 
     //------------------------------------------------------------------------------------------------
@@ -477,7 +480,7 @@ namespace InCommand
         // Auto-help status methods
         bool WasAutoHelpRequested() const { return m_autoHelpRequested; }
 
-        size_t ParseArgs(int argc, const char *argv[]);
+        size_t ParseArgs(int argc, const char *const argv[]);
 
         size_t GetNumCommandBlocks() const { return m_commandBlocks.size(); }
         const CommandBlock& GetCommandBlock(size_t index) const
