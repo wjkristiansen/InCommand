@@ -84,6 +84,7 @@ CommandDecl &CommandDecl::AddSubCommand(const std::string &name)
         {
             throw ApiException(ApiError::DuplicateCommandBlock, "Command block '" + name + "' already exists");
         }
+        m_innerCommandOrder.push_back(it->second);
         
         return *(it->second.get());
     }
@@ -173,6 +174,7 @@ void CommandParser::EnableAutoHelp(const std::string& optionName, char alias, st
     m_autoHelpOptionName = optionName;
     m_autoHelpAlias = alias;
     m_autoHelpOutputStream = &outputStream;
+    m_autoHelpOrder = m_globalOptionOrder.size();
     m_autoHelpEnabled = true;
 }
 
@@ -202,6 +204,9 @@ OptionDecl& CommandParser::AddGlobalOption(OptionType type, const std::string& n
     {
         // Register the global option first to check for conflicts
         RegisterGlobalOption(name, alias);
+
+        // The auto-help option, declared when parsing begins, takes the place EnableAutoHelp gave it.
+        const bool isAutoHelp = m_autoHelpEnabled && name == m_autoHelpOptionName;
         
         // If this conflicts with auto-help, disable auto-help
         if (m_autoHelpEnabled && 
@@ -216,6 +221,8 @@ OptionDecl& CommandParser::AddGlobalOption(OptionType type, const std::string& n
         {
             throw ApiException(ApiError::DuplicateOption, "Global option '" + name + "' already exists");
         }
+        const size_t place = isAutoHelp ? std::min(m_autoHelpOrder, m_globalOptionOrder.size()) : m_globalOptionOrder.size();
+        m_globalOptionOrder.insert(m_globalOptionOrder.begin() + static_cast<std::ptrdiff_t>(place), it->second);
 
         if (alias != 0)
         {
@@ -261,6 +268,7 @@ OptionDecl& CommandDecl::AddOption(OptionType type, const std::string& name, cha
         {
             throw ApiException(ApiError::DuplicateOption, "Option '" + name + "' already exists");
         }
+        m_optionOrder.push_back(it->second);
 
         if (type == OptionType::Parameter)
         {
@@ -340,63 +348,53 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     pathStream >> firstCommand;
     std::getline(pathStream, remainingPath);
     
-    // Add usage information with the command path, inserting [options] after the first command
-    s << "Usage:" << std::endl << firstCommand << " [options]" << remainingPath << " ";
+    // Add usage information with the command path, inserting [options] after the first command.
+    // Options and parameters follow in declaration order, global options first.
+    s << "Usage:" << std::endl << firstCommand << " [options]" << remainingPath;
 
-    // Show global options first (they're available for all commands)
-    for (const auto& optionPair : m_globalOptionDecls)
+    auto usageOption = [&s](const OptionDecl& decl)
     {
-        const OptionDecl& decl = *optionPair.second;
-        s << "[--" << decl.GetName();
+        s << " [--" << decl.GetName();
         if (decl.GetType() == OptionType::Variable)
             s << " <value>";
-        s << "] ";
-    }
-
-    // Show specific options for this command block (switches and variables only; parameters handled below)
-    for (const auto& optionPair : firstDecl->m_optionDecls)
+        s << "]";
+    };
+    for (const auto& decl : m_globalOptionOrder)
+        usageOption(*decl);
+    for (const auto& decl : firstDecl->m_optionOrder)
     {
-        const OptionDecl& decl = *optionPair.second;
-        if (decl.GetType() == OptionType::Parameter)
-            continue;
-        s << "[--" << decl.GetName();
-        if (decl.GetType() == OptionType::Variable)
-            s << " <value>";
-        s << "] ";
+        if (decl->GetType() != OptionType::Parameter)
+            usageOption(*decl);
     }
-
-    // Parameters (positional arguments) in declaration order
     for (const auto& paramDesc : firstDecl->m_parameterDecls)
     {
         const OptionDecl& decl = paramDesc.get();
         if (decl.HasDefault())
-            s << "[<" << decl.GetName() << ">] ";
+            s << " [<" << decl.GetName() << ">]";
         else
-            s << "<" << decl.GetName() << "> ";
+            s << " <" << decl.GetName() << ">";
     }
 
     s << std::endl;
 
-    // Add option details (both global and local options together)
+    // Add option details (both global and local options together), each in declaration order
     // Add global options first
-    for (const auto& optionPair : m_globalOptionDecls)
+    for (const auto& decl : m_globalOptionOrder)
     {
-        const OptionDecl& decl = *optionPair.second;
-        if (!decl.GetDescription().empty() || !decl.GetDomain().empty())
+        if (!decl->GetDescription().empty() || !decl->GetDomain().empty())
         {
-            optionDetailsRows.push_back({BuildHelpLabel(decl), BuildHelpDescriptionLines(decl)});
+            optionDetailsRows.push_back({BuildHelpLabel(*decl), BuildHelpDescriptionLines(*decl)});
         }
     }
 
-    // Add local option details (switches and variables only; parameters handled below in declaration order)
-    for (const auto& optionPair : firstDecl->m_optionDecls)
+    // Add local option details (switches and variables only; parameters handled below)
+    for (const auto& decl : firstDecl->m_optionOrder)
     {
-        const OptionDecl& decl = *optionPair.second;
-        if (decl.GetType() == OptionType::Parameter)
+        if (decl->GetType() == OptionType::Parameter)
             continue;
-        if (!decl.GetDescription().empty() || !decl.GetDomain().empty())
+        if (!decl->GetDescription().empty() || !decl->GetDomain().empty())
         {
-            optionDetailsRows.push_back({BuildHelpLabel(decl), BuildHelpDescriptionLines(decl)});
+            optionDetailsRows.push_back({BuildHelpLabel(*decl), BuildHelpDescriptionLines(*decl)});
         }
     }
 
@@ -410,9 +408,9 @@ std::string CommandParser::GetHelpString(size_t commandBlockIndex) const
     }
 
     // Add inner command blocks (subcommands)
-    for (const auto& innerPair : firstDecl->m_innerCommandDecls)
+    for (const auto& inner : firstDecl->m_innerCommandOrder)
     {
-        const CommandDecl& innerDesc = *innerPair.second;
+        const CommandDecl& innerDesc = *inner;
         if (!innerDesc.GetDescription().empty())
         {
             optionDetailsRows.push_back({"  " + innerDesc.GetName(), {innerDesc.GetDescription()}});
